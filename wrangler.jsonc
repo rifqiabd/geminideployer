@@ -1,0 +1,34 @@
+{
+	"name": "gemini-deployer",
+	"main": "src/index.ts",
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
+	"compatibility_date": "2026-09-18",
+	// OPSIONAL - tempat menyimpan gambar hasil unggahan guru.
+	// Kalau blok ini tidak dipakai, gambar otomatis disimpan di KV (binding
+	// STORAGE di bawah) dan semuanya tetap jalan tanpa setup tambahan.
+	// Kalau gambar mulai banyak/besar, pindah ke R2: buka komentar di bawah,
+	// lalu jalankan: npx wrangler r2 bucket create gemini-media
+	// "r2_buckets": [
+	// 	{
+	// 		"binding": "MEDIA",
+	// 		"bucket_name": "gemini-media"
+	// 	}
+	// ],
+	"kv_namespaces": [
+		{
+			"binding": "STORAGE",
+			"id": "eccfd622d7004c58ae8e9c8e1d223ba2",
+			"remote": true
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "gemini-db",
+			"database_id": "3ca2f617-70f7-4048-a610-558a0fad7ebd"
+		}
+	]
+}

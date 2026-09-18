@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "hono": "^4.13.8"
+  },
+  "scripts": {
+    "test": "node tests/quiz.test.mjs"
+  }
+}

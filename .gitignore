@@ -1,0 +1,36 @@
+# Node modules (Dependencies)
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+
+# Environment variables (Sangat penting agar rahasia tidak bocor)
+.env
+.env.local
+.env.*.local
+
+# Cloudflare Wrangler (Jika Anda deploy ke Cloudflare Workers/Pages)
+.wrangler/
+.devvars
+
+# Deno (Jika menggunakan Hono dengan runtime Deno)
+.deno/
+
+# Bun (Jika menggunakan Hono dengan runtime Bun)
+.bun/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor & OS configuration
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
