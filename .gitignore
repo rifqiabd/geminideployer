@@ -10,6 +10,7 @@ build/
 .env
 .env.local
 .env.*.local
+.dev.vars
 
 # Cloudflare Wrangler (Jika Anda deploy ke Cloudflare Workers/Pages)
 .wrangler/
@@ -34,3 +35,7 @@ pnpm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# State alat pengembang (bukan bagian proyek)
+.omo/
+.freebuff/

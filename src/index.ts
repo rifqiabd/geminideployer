@@ -16,6 +16,11 @@ type Bindings = {
   // Opsional: bucket R2 untuk gambar hasil unggahan guru. Kalau binding ini
   // tidak dipasang, gambarnya otomatis disimpan di KV (STORAGE) — tetap jalan.
   MEDIA?: R2Bucket;
+  // Opsional: API generate gambar AI (proxy free-image-generation-api di atas
+  // Cloudflare Workers AI). Kalau keduanya diisi, panel Gambar dapat tombol
+  // "Generate AI" untuk membuat gambar slot langsung dari prompt.
+  IMGGEN_API_URL?: string;
+  IMGGEN_API_KEY?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -155,7 +160,7 @@ app.get('/p/:slug', async (c) => {
 // Endpoint Universal Simpan Data (Kuis, Checklist, Form, dsb.)
 // Dipakai untuk path /api/save/:slug DAN /api/submit/:slug (alias kompatibilitas)
 const saveRecordHandler = async (c: Context<{ Bindings: Bindings }>) => {
-  const slug = c.req.param('slug');
+  const slug = c.req.param('slug') ?? '';
   const body = await c.req.json().catch(() => null);
 
   if (!body) {
@@ -461,7 +466,7 @@ app.get('/', async (c) => {
                 <span class="text-xs font-medium">JSON Soal</span>
               </label>
             </div>
-            <p class="text-[11px] text-slate-500 leading-snug">Pilih <b class="text-slate-300">JSON Soal</b> kalau mau aplikasi kuisnya dibuatkan otomatis dari daftar soal. Jenis soal yang didukung: <b class="text-slate-300">choice</b> (PG), <b class="text-slate-300">multi</b> (pilih semua yang benar), <b class="text-slate-300">category</b> (tabel Benar/Salah), <b class="text-slate-300">true_false</b>, <b class="text-slate-300">short</b>, dan <b class="text-slate-300">essay</b>. Soal bergambar cukup ditulis <code class="text-amber-400 font-mono">"image": "media:nama-slot"</code> — fotonya diunggah di tombol <b class="text-slate-300">Gambar</b> setelah dipublikasikan.</p>
+            <p class="text-[11px] text-slate-500 leading-snug">Pilih <b class="text-slate-300">JSON Soal</b> kalau mau aplikasi kuisnya dibuatkan otomatis dari daftar soal. Jenis soal yang didukung: <b class="text-slate-300">choice</b> (PG), <b class="text-slate-300">multi</b> (pilih semua yang benar), <b class="text-slate-300">category</b> (tabel Benar/Salah), <b class="text-slate-300">matching</b> (menjodohkan), <b class="text-slate-300">ordering</b> (mengurutkan), <b class="text-slate-300">table_fill</b> (melengkapi tabel), <b class="text-slate-300">two_tier</b> (pernyataan + alasan), <b class="text-slate-300">highlight</b> (pilih kata di bacaan), <b class="text-slate-300">true_false</b>, <b class="text-slate-300">short</b>, dan <b class="text-slate-300">essay</b>. Soal bergambar cukup ditulis <code class="text-amber-400 font-mono">"image": "media:nama-slot"</code> — fotonya diunggah di tombol <b class="text-slate-300">Gambar</b> setelah dipublikasikan.</p>
             <div>
               <label class="block text-xs mb-1.5 text-slate-300 font-medium">Isi (kode atau JSON soal)</label>
               <textarea name="code_content" required rows="9" placeholder="Mode HTML/React: tempel kode Gemini. Mode JSON Soal: tempel daftar soal dalam format JSON." class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl font-mono text-xs text-slate-200 outline-none focus:border-orange-500 leading-relaxed"></textarea>
@@ -477,8 +482,11 @@ app.get('/', async (c) => {
       "content": "All technicians entering Zone B must wear high-visibility vests (supplied at entrance Gate 2) and keep a 2 meter clearance from any moving AGV path." }
   ],
   "questions": [
-    { "type": "choice", "question": "Lafal \"Laa ilaaha illallah\" disebut...",
-      "options": ["Tahlil", "Tasbih", "Takbir", "Tahmid"], "answer": "A" },
+    { "type": "choice", "level": "L1", "stimulus": "s1",
+      "question": "Where should technical staff obtain the high-visibility vests?",
+      "options": ["HSE office", "Dispatch desk", "Gate 2", "Docking station", "Exit counter"],
+      "answer": "C",
+      "explanation": "Teks menyebut vests yang disediakan **di pintu masuk Gate 2**." },
     { "type": "category", "level": "L3", "question": "Tentukan status tiap pernyataan berikut.",
       "labels": ["Benar", "Salah"],
       "statements": [
@@ -486,6 +494,22 @@ app.get('/', async (c) => {
         { "text": "Pemeriksaan firmware setiap Senin pertama.", "answer": true } ] },
     { "type": "multi", "level": "L2", "question": "Manakah yang termasuk kalimat thayyibah? (pilih semua yang benar)",
       "options": ["Tahlil", "Takbir", "Dusta", "Tahmid"], "answer": ["A", "B", "D"], "scoring": "partial" },
+    { "type": "matching", "level": "L2", "scoring": "partial", "question": "Jodohkan istilah dengan pengertiannya.",
+      "pairs": [
+        { "left": "AGV", "right": "Kendaraan pemandu otomatis di gudang" },
+        { "left": "HSE", "right": "Departemen keselamatan dan kesehatan kerja" },
+        { "left": "SOP", "right": "Prosedur baku yang wajib diikuti" } ] },
+    { "type": "ordering", "level": "L2", "scoring": "partial", "question": "Urutkan langkah mengisi daya kendaraan listrik.",
+      "items": ["Pastikan port kering", "Sambungkan konektor sampai berbunyi klik", "Tekan Finish Session", "Cabut konektor"] },
+    { "type": "table_fill", "level": "L2", "scoring": "partial", "question": "Lengkapi tabel titik lebur bahan berikut.",
+      "headers": ["Bahan", "Titik lebur"],
+      "rows": [["Timah", { "answer": ["327"] }], ["Tembaga", { "answer": ["1085"] }]] },
+    { "type": "two_tier", "level": "L3", "scoring": "partial", "question": "Setujukah kamu dengan tindakan teknisi itu?",
+      "options": ["Setuju", "Tidak setuju"], "answer": "Tidak setuju",
+      "reasons": ["Karena ia mengabaikan prosedur keselamatan", "Karena mesinnya sudah tua"],
+      "reason_answer": "Karena ia mengabaikan prosedur keselamatan" },
+    { "type": "highlight", "level": "L2", "scoring": "partial", "question": "Klik kata yang menunjukkan sikap jujur.",
+      "text": "Budi {mengembalikan} uang yang ia temukan kepada {guru} di sekolah.", "answer": ["mengembalikan"] },
     { "type": "short", "question": "Sebutkan lafal takbir!", "answer": ["allahu akbar", "takbir"] },
     { "type": "choice", "level": "L2", "question": "Perhatikan gambar di bawah ini!",
       "image": "media:tumbuhan", "options": ["Fotosintesis", "Respirasi"], "answer": "Fotosintesis" },

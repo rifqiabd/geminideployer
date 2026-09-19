@@ -1,0 +1,11 @@
+{
+  "name": "imggen-proxy",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.135.0"
+  }
+}

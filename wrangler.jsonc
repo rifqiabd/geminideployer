@@ -6,6 +6,16 @@
 		"binding": "ASSETS"
 	},
 	"compatibility_date": "2026-09-18",
+	// Fetch ke proxy image generation (imggen-proxy.*.workers.dev) yang satu akun
+	// diblokir Cloudflare (error code 1042) kalau flag ini tidak dipasang.
+	"compatibility_flags": ["global_fetch_strictly_public"],
+	// OPSIONAL - fitur "Generate AI" di panel Gambar: gambar slot dibuat dari
+	// prompt teks lewat proxy free-image-generation-api (Workers AI, gratis
+	// 100rb panggilan/hari). Deploy dulu proxy dari
+	// github.com/saurav-z/free-image-generation-api, lalu set secret-nya:
+	//   npx wrangler secret put IMGGEN_API_URL
+	//   npx wrangler secret put IMGGEN_API_KEY
+	//
 	// OPSIONAL - tempat menyimpan gambar hasil unggahan guru.
 	// Kalau blok ini tidak dipakai, gambar otomatis disimpan di KV (binding
 	// STORAGE di bawah) dan semuanya tetap jalan tanpa setup tambahan.

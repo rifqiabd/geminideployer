@@ -1,0 +1,9 @@
+# Salin file ini jadi .dev.vars (sudah di-gitignore) untuk pengembangan lokal.
+# Master password login dashboard (lihat APP_PASSWORD di src/index.ts).
+APP_PASSWORD=admin123
+
+# OPSIONAL - fitur "Generate AI" di panel Gambar (/p/<slug>/media).
+# Deploy dulu proxy gratis dari github.com/saurav-z/free-image-generation-api
+# ( Workers AI gratis sampai 100rb panggilan/hari ), lalu isi di sini:
+# IMGGEN_API_URL=https://<nama-worker>.<subdomain>.workers.dev
+# IMGGEN_API_KEY=your-secret-api-key

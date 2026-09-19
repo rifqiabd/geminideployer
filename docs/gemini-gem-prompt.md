@@ -1,5 +1,14 @@
 # Foto pada soal: cara kerja & blok tambahan untuk Gem
 
+> **Mau system prompt yang lengkap?** Pakai
+> [`docs/gemini-gem-prompt-full.md`](gemini-gem-prompt-full.md) — satu berkas utuh
+> yang menjelaskan semua 11 tipe soal, stimulus, aturan gambar, dan kontrak API,
+> siap ditempel ke kolom **Instructions** Gem.
+>
+> Berkas ini adalah catatan pendamping: penjelasan **kenapa** desainnya begitu,
+> plus blok-blok tambahan kalau instructions Gem kamu sudah terlanjur panjang.
+> Isi blok di bawah tetap benar dan tidak bentrok dengan berkas lengkap itu.
+
 ## Kenapa harus begini
 
 Gem/Gemini hanya menghasilkan **teks**. Ia tidak bisa menempelkan file gambar ke
@@ -73,6 +82,128 @@ tetap rujuk dengan nama slot seperti aturan di atas.
 
 ---
 
+## Blok jenis soal untuk instructions Gem (tempel ini)
+
+> Tempel juga blok ini ke bagian **SPESIFIKASI TEKNIS** pada instructions Gem,
+> supaya Gem menulis soal dengan nama tipe yang benar. Aplikasi kuis hanya
+> mengenali daftar di bawah — tipe di luar ini akan ditolak saat dipublikasikan.
+
+```text
+JENIS SOAL YANG DIDUKUNG (WAJIB DIPATUHI)
+Tulis soal dalam format JSON Soal. Setiap butir WAJIB punya "type" dari daftar
+berikut. Jangan mengarang nama tipe lain.
+
+1. choice — pilihan ganda satu jawaban
+   { "type": "choice", "question": "...", "options": ["...", "..."], "answer": "C" }
+   Minimal 2 pilihan. "answer" boleh huruf (A/B/C), angka, atau teks pilihan.
+   Untuk TKA/AKM tulis 5 pilihan (A–E).
+
+2. multi — pilihan ganda kompleks (MCMA), jawaban lebih dari satu
+   { "type": "multi", "question": "... (pilih semua yang benar)",
+     "options": ["..."], "answer": ["A", "C"], "scoring": "partial" }
+
+3. category — PG kompleks kategori (tabel Benar/Salah atau Sesuai/Tidak Sesuai)
+   { "type": "category", "question": "Tentukan status tiap pernyataan.",
+     "labels": ["Benar", "Salah"],
+     "statements": [ { "text": "...", "answer": true },
+                     { "text": "...", "answer": false } ],
+     "scoring": "partial" }
+   "answer" tiap pernyataan WAJIB SATU nilainya: true atau false saja. JANGAN
+   menulis dua nilai — mis. "answer": [true, false] atau "answer": "false, true".
+   Kalau kamu ragu pernyataan itu benar atau salah, putuskan SATU, jangan dua-duanya.
+   Minimal 2 pernyataan.
+
+4. matching — menjodohkan
+   { "type": "matching", "question": "Jodohkan istilah dengan pengertiannya.",
+     "pairs": [ { "left": "AGV", "right": "..." },
+                { "left": "HSE", "right": "..." } ],
+     "scoring": "partial" }
+   Minimal 2 pasangan. Kolom kanan diacak otomatis oleh aplikasi — jangan
+   mengacak sendiri dan jangan menomori pasangannya supaya tidak bocor.
+
+5. ordering — mengurutkan langkah/proses
+   { "type": "ordering", "question": "Urutkan langkah berikut.",
+     "items": ["langkah pertama", "langkah kedua", "langkah ketiga"],
+     "scoring": "partial" }
+   Tulis "items" DALAM URUTAN YANG BENAR. Aplikasi yang mengacaknya untuk siswa.
+   Jangan menuliskan angka urut di dalam teks item.
+
+6. table_fill — melengkapi tabel (beberapa sel rumpang)
+   { "type": "table_fill", "question": "Lengkapi tabel berikut.",
+     "headers": ["Bahan", "Titik lebur"],
+     "rows": [ ["Timah", { "answer": ["327"] }],
+               ["Tembaga", { "answer": ["1085", "1.085"] }] ],
+     "scoring": "partial" }
+   Sel berupa teks biasa = kolom statis. Sel berupa objek { "answer": [...] } =
+   rumpang yang diisi siswa. Cantumkan semua ejaan yang bisa diterima.
+
+7. two_tier — dua tingkat: pilih pernyataan, lalu pilih alasan pendukungnya
+   { "type": "two_tier", "question": "Setujukah kamu dengan pernyataan itu?",
+     "options": ["Setuju", "Tidak setuju"], "answer": "Tidak setuju",
+     "reasons": ["Karena ...", "Karena ..."], "reason_answer": "Karena ...",
+     "scoring": "partial" }
+   "answer" = kunci tingkat 1, "reason_answer" = kunci tingkat 2 (keduanya wajib).
+
+8. highlight — siswa mengklik kata/frasa di dalam bacaan
+   { "type": "highlight", "question": "Klik kata yang menunjukkan sikap jujur.",
+     "text": "Budi {mengembalikan} uang yang ditemukannya kepada {guru}.",
+     "answer": ["mengembalikan"] }
+   "text" = bacaan. Kata yang boleh dipilih diapit kurawal { }, lalu "answer"
+   berisi daftar kata yang BENAR. Sediakan minimal 3 kata bisa diklik agar ada
+   pengecoh.
+
+9. true_false — satu pernyataan benar/salah
+   { "type": "true_false", "question": "...", "answer": "benar" }
+   Tulis "answer" SATU nilai saja: "benar", "salah", atau true/false. Jangan
+   mencantumkan dua-duanya (mis. "benar, salah" atau [true, false]).
+
+10. short — isian singkat
+    { "type": "short", "question": "...",
+      "answer": ["jawaban utama", "ejaan lain"] }
+    Cantumkan variasi ejaan yang wajar. Huruf besar/kecil, tanda baca, harakat
+    Arab, dan angka Arab sudah diabaikan otomatis oleh aplikasi.
+
+11. essay — uraian, dikoreksi guru
+    { "type": "essay", "question": "...", "points": 5 }
+
+FIELD BERSAMA SEMUA TIPE
+- "points"      : bobot butir (default 1). Pakai untuk memberi bobot lebih pada
+                  soal yang lebih sulit.
+- "level"       : label ranah kognitif, mis. "L1"/"L2"/"L3" atau "Penalaran".
+- "explanation" : pembahasan analitis yang muncul setelah siswa mengirim
+                  jawaban. WAJIB diisi untuk semua soal objektif.
+- "scoring"     : "partial" untuk skor proporsional. Dipakai pada multi,
+                  category, matching, ordering, table_fill, two_tier, dan
+                  highlight. Tanpa ini, nilainya penuh atau nol.
+- "stimulus"    : id bacaan bersama (lihat di bawah).
+- "image"       : nama slot gambar, mis. "media:tumbuhan".
+
+BACAAN BERSAMA (STIMULUS)
+Kalau beberapa soal memakai satu bacaan (seperti "Stimulus 1 untuk soal 1–3"),
+JANGAN mengulang bacaannya di tiap soal. Tulis sekali di daftar "stimuli", lalu
+rujuk id-nya:
+  "stimuli": [ { "id": "s1", "title": "Company Operational Memo",
+                 "content": "..." } ],
+  "questions": [ { "type": "choice", "stimulus": "s1", "question": "..." } ]
+Soal tanpa bacaan cukup tidak menulis field "stimulus". Soal yang memakai
+stimulus sama otomatis dikelompokkan, dan bacaannya tampil di kolom kiri saat
+layar lebar.
+
+PEMETAAN ISTILAH UJIAN -> NAMA TIPE
+- "Pilihan Ganda Biasa (A–E)"       -> choice
+- "PG Kompleks MCMA"                -> multi
+- "PG Kompleks Kategori / matriks"  -> category
+- "Menjodohkan"                     -> matching
+- "Mengurutkan"                     -> ordering
+- "Melengkapi tabel"                -> table_fill
+- "Menentukan alasan"               -> two_tier
+- "Memilih kata pada bacaan"        -> highlight
+Kalau pengguna meminta proporsi tipe soal (mis. 70% PG, 15% MCMA, 15% kategori),
+patuhi proporsi itu dan tuliskan di Ringkasan Asesmen.
+```
+
+---
+
 ## Contoh JSON lengkap (mode JSON Soal)
 
 ```json
@@ -116,8 +247,21 @@ pada kartu aplikasi (atau `/p/<slug>/edit`):
 
 - ubah teks soal, pilihan, kunci, dan bobot nilai;
 - tambah / hapus / duplikat / geser urutan soal;
-- ganti tipe soal (PG, PG kompleks, Benar/Salah, isian, esai);
+- ganti tipe soal — semuanya bisa, termasuk **kategori** (tabel Benar/Salah),
+  **menjodohkan**, **mengurutkan**, **melengkapi tabel**, **pernyataan + alasan**,
+  dan **pilih kata di bacaan**;
 - isi atau ganti nama slot gambar.
+
+Tiap tipe punya editor sendiri, jadi tidak perlu menghafal struktur JSON-nya:
+
+| Tipe | Yang diedit di editor |
+| --- | --- |
+| `category` | daftar pernyataan + radio Benar/Salah, dan judul kolomnya |
+| `matching` | pasangan kiri → kanan (kolom kanan diacak otomatis untuk siswa) |
+| `ordering` | daftar langkah **dalam urutan yang benar** |
+| `table_fill` | judul kolom + tabel; sel rumpang ditulis `{327}` atau `{1085 / 1.085}` |
+| `two_tier` | daftar pernyataan + daftar alasan, masing-masing satu kunci |
+| `highlight` | bacaan dengan kata diapit `{ }`, lalu daftar kata yang benar |
 
 Saat disimpan, JSON-nya divalidasi ulang dan halaman kuis digambar ulang, jadi
 siswa langsung melihat versi barunya di alamat yang sama. Jawaban yang sudah
@@ -137,6 +281,10 @@ analisis butir soal, dihitung dari jawaban yang sudah masuk:
   0,20–0,29 cukup, 0,30–0,39 baik, ≥0,40 baik sekali. Butuh minimal 8 peserta.
 - **Sebaran pengecoh** — berapa siswa memilih tiap pilihan (PG), kunci ditandai
   hijau; berguna untuk menemukan pengecoh yang tidak ada yang memilih.
+- **Bagian tersering keliru** — untuk soal yang punya baris (kategori,
+  menjodohkan, mengurutkan, melengkapi tabel, pilih kata), ditampilkan bagian
+  mana yang paling banyak salah, mis. "Pernyataan kedua (12/25 salah)". Ini yang
+  paling cepat menunjukkan konsep mana yang belum dikuasai siswa.
 - **Catatan otomatis** — soal ditandai jika terlalu sulit/mudah atau daya
   bedanya rendah. Daya beda **negatif** hampir selalu berarti kunci jawabannya
   salah, dan itu ditandai merah.
@@ -167,6 +315,28 @@ Kenapa tidak langsung digabung? Supaya nilai siswa tidak turun sepihak saat
 esainya masih menunggu koreksi (misal 5 objektif + 1 esai: objektif penuh =
 100, tapi nilai akhirnya 50 sebelum esainya dinilai). Halaman analisis butir soal
 memakai nilai akhir begitu tersedia, dan nilai objektif untuk yang belum.
+
+## Tampilan pengerjaan siswa
+
+Halaman kuis (`/p/<slug>`) sekarang bergaya aplikasi ujian:
+
+- **Panel nomor soal** di sisi kanan (jadi laci di layar kecil). Nomor berwarna
+  hijau kalau sudah dijawab dan kuning kalau ditandai ragu; diklik langsung
+  melompat ke soalnya. Ada penghitung "Terjawab n dari m" di panel dan di bar bawah.
+- **Tombol Ragu** di tiap kartu soal, untuk menandai soal yang mau ditinjau lagi.
+- **Bacaan di kolom kiri** saat layar lebar, jadi siswa bisa membaca sambil
+  menjawab tanpa menggulir bolak-balik.
+- **Jawaban tersimpan otomatis.** Kalau halaman ter-refresh atau listrik mati,
+  saat dibuka lagi muncul tawaran **Lanjutkan / Mulai baru** beserta nama siswa
+  yang terakhir mengerjakan. Jawaban tidak dipulihkan diam-diam — penting untuk
+  komputer sekolah yang dipakai bergantian. Penyimpanan baru aktif setelah nama
+  diisi, dan terpisah per aplikasi (`quiz-attempt:<slug>`).
+- **Saat dicetak** (Ctrl+P), panel navigasi dan tombol panah tidak ikut tercetak,
+  termasuk bar aksi. Soal mengurutkan tercetak sebagai daftar bernomor untuk
+  dikerjakan di kertas.
+
+Nilai akhir tetap dihitung **di server** saat siswa menekan kirim, jadi skor tidak
+bisa diubah dari sisi browser.
 
 ## Checklist guru
 

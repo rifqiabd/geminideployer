@@ -11,7 +11,9 @@
 
 import type { Hono } from 'hono';
 import { isAuthed, safeSlug } from './auth';
-import { collectMediaSlots, escapeHtml, parseQuizSpec, sanitizeMediaName } from './quiz';
+import { collectMediaSlotsFromStored, escapeHtml, mediaContextFromRaw, mediaSlotContext, mediaSlotContextFull, parseQuizSpec, sanitizeMediaName } from './quiz';
+import { buildGeminiPrompt, generateImage, mediaGenConfig, saveGeneratedMedia, IMGGEN_MODELS } from './media-gen';
+import type { MediaGenConfig, MediaGenSettings } from './media-gen';
 import {
   MAX_MEDIA_BYTES,
   deleteMedia,
@@ -29,6 +31,35 @@ import type { MediaBindings } from './media';
 // tidak ketemu saat disajikan.
 function safeMediaName(raw: string): string {
   return sanitizeMediaName(String(raw ?? '').replace(/^media:\s*/i, ''));
+}
+
+/**
+ * Konfigurasi API gambar yang berlaku untuk satu aplikasi, dengan prioritas:
+ *   1. Pengaturan BYOK milik guru (KV `imggencfg:<slug>`), kalau terpasang.
+ *   2. Konfigurasi bawaan admin dari env (IMGGEN_API_URL/IMGGEN_API_KEY).
+ * Mengembalikan null bila keduanya tidak ada (fitur generate tampil/disembunyikan).
+ */
+async function resolveGenConfig(
+  env: MediaBindings,
+  slug: string
+): Promise<{ config: MediaGenConfig; model?: string; source: 'app' | 'admin'; settings?: MediaGenSettings } | null> {
+  try {
+    const raw = await env.STORAGE.get(`imggencfg:${slug}`);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<MediaGenSettings>;
+      const apiUrl = String(parsed.apiUrl ?? '').trim();
+      const apiKey = String(parsed.apiKey ?? '').trim();
+      if (apiUrl && /^https:\/\//i.test(apiUrl) && apiKey) {
+        const settings: MediaGenSettings = { apiUrl, apiKey, model: parsed.model ?? undefined };
+        return { config: settings, model: settings.model, source: 'app', settings };
+      }
+    }
+  } catch {
+    // KV rusak/format salah: jatuh ke konfigurasi bawaan.
+  }
+  const config = mediaGenConfig(env);
+  if (config) return { config, source: 'admin' };
+  return null;
 }
 
 export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: Hono<E>) {
@@ -130,6 +161,138 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   });
 
   /* ------------------------------------------------------------------ */
+  /* 3b. Generate gambar dengan AI (opsional, butuh IMGGEN_API_*)        */
+  /* ------------------------------------------------------------------ */
+  // Simple rate limit di KV: maksimal N generate per menit per aplikasi,
+  // supaya kuota API gratis (100rb panggilan/hari di sisi proxy) tidak dibakar
+  // satu aplikasi saja (atau dipakai spam). Kalau KV gagal, izinkan (fail-open)
+  // karena ini hanya proteksi kenyamanan, bukan keamanan.
+  const GEN_LIMIT_PER_MINUTE = 6;
+  app.post('/api/media/:slug/generate', async (c) => {
+    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
+
+    const slug = safeSlug(c.req.param('slug'));
+    if (!slug) return c.json({ status: 'error', message: 'Aplikasi tidak ditemukan.' }, 404);
+
+    const resolved = await resolveGenConfig(c.env, slug);
+    if (!resolved) {
+      return c.json(
+        { status: 'error', message: 'Fitur generate AI belum dikonfigurasi. Isi IMGGEN_API_URL dan IMGGEN_API_KEY, atau atur API sendiri di pengaturan "Buat gambar dengan AI".' },
+        501
+      );
+    }
+
+    const bucket = Math.floor(Date.now() / 60000);
+    const counterKey = `imggen:${slug}:${bucket}`;
+    let used = 0;
+    try {
+      used = Number((await c.env.STORAGE.get(counterKey)) ?? '0');
+      if (used >= GEN_LIMIT_PER_MINUTE) {
+        return c.json({ status: 'error', message: 'Batas 6 gambar/menit tercapai. Coba lagi sebentar lagi.' }, 429);
+      }
+      await c.env.STORAGE.put(counterKey, String(used + 1), { expirationTtl: 120 });
+    } catch {
+      // KV bermasalah: biarkan lewat, jangan blokir guru.
+    }
+
+    const body = (await c.req.json().catch(() => null)) as { prompt?: unknown; name?: unknown; model?: unknown } | null;
+    const name = safeMediaName(String(body?.name ?? ''));
+    let prompt = String(body?.prompt ?? '').trim();
+    // Model pilihan guru dipakai dulu; kalau kosong baru model bawaan (BYOK/admin).
+    const model = String(body?.model ?? '').trim().slice(0, 80) || resolved.model;
+    if (!name) return c.json({ status: 'error', message: 'Nama slot gambar tidak valid.' }, 400);
+    if (!prompt) {
+      // Guru tidak menulis deskripsi: ambil konteksnya langsung dari soal supaya
+      // tombol generate tetap jalan tanpa perlu mengetik apa-apa.
+      const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
+      if (specRaw) {
+        try {
+          prompt = mediaSlotContext(parseQuizSpec(specRaw), name);
+        } catch {
+          prompt = '';
+        }
+        if (!prompt) prompt = mediaContextFromRaw(specRaw, name);
+      }
+      if (!prompt) {
+        return c.json({ status: 'error', message: 'Tidak menemukan konteks soal untuk slot ini. Tulis dulu deskripsi gambarnya (minimal 3 karakter).' }, 400);
+      }
+    }
+    if (prompt.length < 3) {
+      return c.json({ status: 'error', message: 'Tulis deskripsi gambarnya dulu (minimal 3 karakter).' }, 400);
+    }
+    if (prompt.length > 700) {
+      return c.json({ status: 'error', message: 'Deskripsi terlalu panjang (maksimal 700 karakter).' }, 400);
+    }
+
+    const generated = await generateImage(resolved.config, prompt, model);
+    if (!generated.ok) return c.json({ status: 'error', message: generated.error }, 502);
+    if (generated.bytes.byteLength > MAX_MEDIA_BYTES) {
+      return c.json(
+        { status: 'error', message: `Hasil gambar melebihi batas ${MAX_MEDIA_BYTES / 1024 / 1024} MB.` },
+        502
+      );
+    }
+
+    await saveGeneratedMedia(c.env, slug, name, generated.bytes, generated.contentType);
+    return c.json({
+      status: 'success',
+      message: 'Gambar berhasil dibuat dan tersimpan.',
+      name,
+      url: `/media/${slug}/${encodeURIComponent(name)}`,
+      size: generated.bytes.byteLength,
+      contentType: generated.contentType,
+    });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* 3c. Pengaturan API gambar sendiri (BYOK) per aplikasi               */
+  /* ------------------------------------------------------------------ */
+  // Membaca pengaturan BYOK: dipakai panel untuk mengisi formulir. Kunci API
+  // milik admin (env) sengaja TIDAK dibocorkan ke sana.
+  app.get('/api/media/:slug/gen-config', async (c) => {
+    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
+    const slug = safeSlug(c.req.param('slug'));
+    if (!slug) return c.json({ status: 'error', message: 'Aplikasi tidak ditemukan.' }, 404);
+    const resolved = await resolveGenConfig(c.env, slug);
+    if (!resolved) return c.json({ status: 'success', config: null });
+    return c.json({
+      status: 'success',
+      config: {
+        source: resolved.source,
+        apiUrl: resolved.settings?.apiUrl ?? '',
+        apiKey: resolved.settings?.apiKey ?? '',
+        model: resolved.model ?? '',
+      },
+    });
+  });
+
+  // Menyimpan pengaturan BYOK untuk aplikasi ini. Kirim { apiUrl:'', apiKey:'' }
+  // untuk kembali memakai konfigurasi bawaan admin.
+  app.post('/api/media/:slug/gen-config', async (c) => {
+    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
+    const slug = safeSlug(c.req.param('slug'));
+    if (!slug) return c.json({ status: 'error', message: 'Aplikasi tidak ditemukan.' }, 404);
+
+    const body = (await c.req.json().catch(() => null)) as { apiUrl?: unknown; apiKey?: unknown; model?: unknown } | null;
+    const apiUrl = String(body?.apiUrl ?? '').trim();
+    const apiKey = String(body?.apiKey ?? '').trim();
+    if (!apiUrl && !apiKey) {
+      await c.env.STORAGE.delete(`imggencfg:${slug}`);
+      return c.json({ status: 'success', message: 'Sekarang pakai konfigurasi bawaan (admin).' });
+    }
+    if (!/^https:\/\//i.test(apiUrl)) {
+      return c.json({ status: 'error', message: 'Alamat API harus diawali https:// (kunci tidak dikirim ke koneksi tak terenkripsi).' }, 400);
+    }
+    if (apiKey.length < 6) {
+      return c.json({ status: 'error', message: 'API key terlalu pendek (minimal 6 karakter).' }, 400);
+    }
+    const model = String(body?.model ?? '').trim().slice(0, 80) || undefined;
+    const settings: MediaGenSettings = { apiUrl, apiKey, model };
+    await c.env.STORAGE.put(`imggencfg:${slug}`, JSON.stringify(settings));
+    return c.json({ status: 'success', message: 'Pengaturan API gambar tersimpan untuk aplikasi ini.' });
+  });
+
+  /* ------------------------------------------------------------------ */
   /* 4. Panel guru: atur gambar tiap soal                                */
   /* ------------------------------------------------------------------ */
   app.get('/p/:slug/media', async (c) => {
@@ -141,12 +304,29 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     if (!meta) return c.html(errorCard(`/p/${slug}`, 'Aplikasi tidak ditemukan', 'Pastikan alamatnya benar.'), 404);
 
     const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
-    let slots: string[] = [];
+    // Bisa gagal parse bila spec tersimpan tidak lagi diterima parser versi ini;
+    // fallback memindai token media: mentah supaya daftar slot tidak jadi kosong.
+    const slots = specRaw ? collectMediaSlotsFromStored(specRaw) : [];
+
+    // Konteks tiap slot diambil langsung dari soal: `slotContexts` dipakai mengisi
+    // prompt AI secara otomatis (guru tidak perlu menulis deskripsi), sedangkan
+    // `slotGeminiContexts` memuat stimulus + konteks soal untuk prompt Gemini.
+    // Kalau parser menolak spec tersimpan, konteks dibiarkan kosong.
+    const slotContexts = new Map<string, string>();
+    const slotGeminiContexts = new Map<string, string>();
     if (specRaw) {
+      let parsedQuiz: ReturnType<typeof parseQuizSpec> | null = null;
       try {
-        slots = collectMediaSlots(parseQuizSpec(specRaw));
+        parsedQuiz = parseQuizSpec(specRaw);
       } catch {
-        slots = [];
+        parsedQuiz = null;
+      }
+      for (const name of slots) {
+        const context = parsedQuiz ? mediaSlotContext(parsedQuiz, name) : '';
+        const contextFull = parsedQuiz ? mediaSlotContextFull(parsedQuiz, name) : '';
+        const fallback = mediaContextFromRaw(specRaw, name);
+        slotContexts.set(name, context || fallback);
+        slotGeminiContexts.set(name, contextFull || fallback);
       }
     }
 
@@ -155,6 +335,15 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     const uploaded = new Map(items.map((item) => [item.name, item]));
     const missing = slots.filter((name) => !uploaded.has(name));
     const storageLabel = c.env.MEDIA ? 'Cloudflare R2' : 'Cloudflare KV';
+    // Fitur generate AI tampil bila konfigurasi bawaan admin ATAU pengaturan
+    // API milik aplikasi ini (BYOK) terpasang.
+    const genConfigResolved = await resolveGenConfig(c.env, slug);
+    const genEnabled = !!genConfigResolved;
+    const defaultModel = genConfigResolved?.model ?? '';
+    const genLimit = GEN_LIMIT_PER_MINUTE;
+    const modelOptions = IMGGEN_MODELS.map(
+      (m) => `<option value="${escapeHtml(m.id)}"${m.id === defaultModel ? ' selected' : ''}>${escapeHtml(m.label)}</option>`
+    ).join('');
 
     const slotCards = slots
       .map((name) => {
@@ -163,6 +352,11 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
           ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Sudah ada</span>`
           : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">Belum diunggah</span>`;
         const info = saved ? `${(saved.size / 1024).toFixed(0)} KB` : 'Siswa saat ini melihat kotak "Gambar belum diunggah".';
+        // Prompt AI diisi otomatis dari konteks soal (boleh diedit guru); prompt
+        // Gemini memakai varian lengkap: stimulus + konteks soal.
+        const context = slotContexts.get(name) ?? '';
+        const geminiPrompt = buildGeminiPrompt(slotGeminiContexts.get(name) ?? context);
+        const geminiUrl = 'https://gemini.google.com/app?q=' + encodeURIComponent(geminiPrompt);
         return `
         <div class="bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col gap-3">
           <img data-preview="${escapeHtml(name)}" src="/media/${slug}/${escapeHtml(name)}" alt="" class="w-full h-32 object-cover rounded-lg border border-slate-700 bg-slate-900">
@@ -176,8 +370,25 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
               <i class="fa-solid fa-camera mr-1"></i> Pilih / Potret Foto
               <input type="file" accept="image/*" class="hidden js-file" data-name="${escapeHtml(name)}">
             </label>
+            ${
+              genEnabled
+                ? `<button type="button" class="js-gen-toggle px-3 py-2 bg-violet-600/20 text-violet-300 hover:bg-violet-600 hover:text-white rounded-lg text-xs font-semibold transition" data-name="${escapeHtml(name)}" title="Buat gambar dengan AI"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI</button>`
+                : ''
+            }
             ${saved ? `<button class="js-delete px-3 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white rounded-lg text-xs transition" data-name="${escapeHtml(name)}" title="Hapus"><i class="fa-solid fa-trash"></i></button>` : ''}
           </div>
+          ${
+            genEnabled
+              ? `<div class="js-gen-form hidden flex-col gap-2" data-name="${escapeHtml(name)}">
+            <textarea class="js-gen-prompt w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 outline-none focus:border-violet-500" rows="2" placeholder="Prompt terisi otomatis dari konteks soal; boleh diedit dulu...">${escapeHtml(context)}</textarea>
+            <div class="flex items-center gap-2">
+              <button type="button" class="js-gen-go flex-1 px-3 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-xs font-semibold text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Buat Gambar (10\u201330 detik)</button>
+              <button type="button" class="js-copy-prompt px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-200 transition" title="Salin prompt untuk membuat gambar ini di gemini.google.com (pakai akun Gemini kamu), lalu unggah hasilnya lewat Pilih / Potret." data-prompt="${escapeHtml(geminiPrompt)}"><i class="fa-brands fa-google mr-1"></i> Salin prompt Gemini</button>
+              <button type="button" class="js-gemini-open px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-semibold text-white transition" title="Buka gemini.google.com di tab baru dan kirim prompt ini langsung tanpa salin-tempel." data-gemini-url="${escapeHtml(geminiUrl)}" data-prompt="${escapeHtml(geminiPrompt)}"><i class="fa-brands fa-google mr-1"></i> Buka di Gemini</button>
+            </div>
+          </div>`
+              : ''
+          }
           <p class="text-[11px] text-slate-400 hidden" data-status="${escapeHtml(name)}"></p>
         </div>`;
       })
@@ -258,6 +469,41 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     </div>`
         : ''
     }
+
+    <div class="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4 text-xs text-violet-100 leading-relaxed">
+      <p class="font-semibold mb-1"><i class="fa-solid fa-wand-magic-sparkles text-violet-400 mr-1"></i> Buat gambar dengan AI</p>
+      ${
+        genEnabled
+          ? `Klik <b>AI</b> pada kartu slot: kotak prompnya sudah <b>terisi otomatis dari konteks soal</b> (boleh diedit),
+      lalu tunggu 10\u201330 detik. Hasilnya langsung tersimpan ke slot \u2014 tidak perlu unggah manual. Batas ${genLimit} gambar/menit.
+      Mau hasil yang lebih apik? Klik <b>Salin prompt Gemini</b>, tempel di <b>gemini.google.com</b> dengan akun Gemini
+      kamu sendiri, unduh gambarnya, lalu unggah lewat <b>Pilih / Potret Foto</b>.`
+          : `Belum ada API gambar terpasang, jadi tombol <b>AI</b> belum tampil di kartu slot. Kamu bisa <b>Pakai API gambar sendiri (BYOK)</b> di bawah ini (kunci disimpan khusus untuk aplikasi ini), atau minta admin mengatur <code class="font-mono">IMGGEN_API_URL</code> &amp; <code class="font-mono">IMGGEN_API_KEY</code>.`
+      }
+      <div class="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-violet-500/20">
+        <label class="flex items-center gap-2">
+          <span>Model:</span>
+          <select id="gen-model" class="bg-slate-900 border border-violet-500/40 rounded-lg text-xs px-2 py-1.5 text-slate-100 outline-none">
+            <option value="">Model bawaan</option>
+            ${modelOptions}
+          </select>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="gen-byok-toggle" class="accent-violet-500">
+          <span>Pakai API gambar sendiri (BYOK)</span>
+        </label>
+      </div>
+      <div id="gen-byok" class="hidden flex-col gap-2 mt-2">
+        <input id="gen-url" type="text" placeholder="Alamat API (https://...), misal proxy free-image-generation-api" class="px-2.5 py-2 bg-slate-900 border border-violet-500/40 rounded-lg text-xs text-slate-100 outline-none">
+        <input id="gen-key" type="password" placeholder="API key untuk API tersebut..." class="px-2.5 py-2 bg-slate-900 border border-violet-500/40 rounded-lg text-xs text-slate-100 outline-none">
+        <p class="text-[11px] text-violet-300/80">Format API sama seperti bawaan: kirim <code class="font-mono">prompt</code> (dan opsional <code class="font-mono">model</code>) ke alamat di atas dengan header <code class="font-mono">Authorization: Bearer &lt;key&gt;</code>, dan terima gambar mentahnya. Kunci disimpan di KV aplikasi dan hanya bisa dilihat by admin.</p>
+        <div class="flex items-center gap-2">
+          <button type="button" id="gen-save" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 rounded-lg text-xs font-semibold text-white">Simpan pengaturan</button>
+          <button type="button" id="gen-reset" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-200">Pakai bawaan (hapus BYOK)</button>
+          <span id="gen-byok-status" class="text-[11px]"></span>
+        </div>
+      </div>
+    </div>
 
     <div>
       <h2 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up text-orange-400"></i> Unggah gambar tambahan</h2>
@@ -370,6 +616,159 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     button.addEventListener('click', function () { doDelete(button.getAttribute('data-name')); });
   });
 
+  // ---- Generate gambar dengan AI (tombol AI pada kartu slot) ----
+  function currentModel() {
+    var select = document.getElementById('gen-model');
+    if (select) return select.value || '';
+    return '';
+  }
+
+  function doGenerate(name, prompt, statusEl) {
+    if (!statusEl) return;
+    statusEl.classList.remove('hidden');
+    statusEl.textContent = 'Membuat gambar dengan AI (10\u201330 detik), jangan tutup halaman...';
+    fetch('/api/media/' + encodeURIComponent(SLUG) + '/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, prompt: prompt || '', model: currentModel() })
+    })
+      .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+      .then(function (result) {
+        if (!result.ok || !result.data || result.data.status !== 'success') {
+          throw new Error((result.data && result.data.message) || 'Gagal membuat gambar.');
+        }
+        var preview = document.querySelector('[data-preview="' + name + '"]');
+        if (preview) preview.src = result.data.url + '?t=' + Date.now();
+        statusEl.textContent = 'Gambar AI tersimpan (' + kb(result.data.size) + ' KB).';
+      })
+      .catch(function (error) {
+        statusEl.textContent = 'Gagal: ' + error.message;
+      });
+  }
+
+  document.querySelectorAll('.js-gen-toggle').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var name = button.getAttribute('data-name');
+      var form = document.querySelector('.js-gen-form[data-name="' + name + '"]');
+      if (form) form.classList.toggle('hidden');
+    });
+  });
+
+  document.querySelectorAll('.js-gen-go').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var form = button.closest('.js-gen-form');
+      if (!form) return;
+      var name = form.getAttribute('data-name');
+      var prompt = form.querySelector('.js-gen-prompt');
+      doGenerate(name, prompt ? prompt.value : '', document.querySelector('[data-status="' + name + '"]'));
+    });
+  });
+
+  // ---- Pengaturan API gambar sendiri (BYOK) ----
+  var byokToggle = document.getElementById('gen-byok-toggle');
+  var byokPanel = document.getElementById('gen-byok');
+  var byokStatus = document.getElementById('gen-byok-status');
+  var modelSelect = document.getElementById('gen-model');
+
+  function setByokVisible(show) {
+    if (!byokToggle || !byokPanel) return;
+    byokToggle.checked = show;
+    byokPanel.classList.toggle('hidden', !show);
+    byokPanel.classList.toggle('flex', show);
+  }
+
+  if (byokToggle && byokPanel) {
+    byokToggle.addEventListener('change', function () {
+      setByokVisible(byokToggle.checked);
+    });
+  }
+
+  function byokMsg(text, ok) {
+    if (!byokStatus) return;
+    byokStatus.textContent = text;
+    byokStatus.style.color = ok ? '#34d399' : '#fb7185';
+    setTimeout(function () {
+      if (byokStatus && byokStatus.textContent === text) byokStatus.textContent = '';
+    }, 4000);
+  }
+
+  fetch('/api/media/' + encodeURIComponent(SLUG) + '/gen-config', { method: 'GET' })
+    .then(function (res) { return res.json().catch(function () { return null; }); })
+    .then(function (data) {
+      var cfg = data && data.config;
+      if (!cfg) return;
+      if (cfg.source === 'app') {
+        setByokVisible(true);
+        var url = document.getElementById('gen-url');
+        var key = document.getElementById('gen-key');
+        if (url) url.value = cfg.apiUrl || '';
+        if (key) key.value = cfg.apiKey || '';
+      }
+      if (cfg.model && modelSelect) {
+        // Simpan sebagai model bawaan yang tampil di dropdown.
+        var matched = Array.prototype.some.call(modelSelect.options, function (opt) { return opt.value === cfg.model; });
+        if (!matched) {
+          var opt = document.createElement('option');
+          opt.value = cfg.model;
+          opt.textContent = cfg.model + ' (custom)';
+          opt.selected = true;
+          modelSelect.appendChild(opt);
+        } else {
+          modelSelect.value = cfg.model;
+        }
+      }
+    })
+    .catch(function () {});
+
+  var saveBtn = document.getElementById('gen-save');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function () {
+      var url = document.getElementById('gen-url');
+      var key = document.getElementById('gen-key');
+      var model = modelSelect ? modelSelect.value || '' : '';
+      byokMsg('Menyimpan...', true);
+      fetch('/api/media/' + encodeURIComponent(SLUG) + '/gen-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiUrl: url ? url.value.trim() : '', apiKey: key ? key.value.trim() : '', model: model })
+      })
+        .then(function (res) { return res.json(); })
+.then(function (data) {
+          if (data && data.status === 'success') {
+            byokMsg(data.message, true);
+            setByokVisible(false);
+            setTimeout(function () { window.location.reload(); }, 600);
+          } else {
+            byokMsg((data && data.message) || 'Gagal menyimpan pengaturan.', false);
+          }
+        })
+        .catch(function () { byokMsg('Gagal menyimpan pengaturan.', false); });
+    });
+  }
+
+  var resetBtn = document.getElementById('gen-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      byokMsg('Menghapus...', true);
+      fetch('/api/media/' + encodeURIComponent(SLUG) + '/gen-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiUrl: '', apiKey: '' })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.status === 'success') {
+            byokMsg(data.message, true);
+            setByokVisible(false);
+            setTimeout(function () { window.location.reload(); }, 600);
+          } else {
+            byokMsg((data && data.message) || 'Gagal menghapus pengaturan.', false);
+          }
+        })
+        .catch(function () { byokMsg('Gagal menghapus pengaturan.', false); });
+    });
+  }
+
   document.querySelectorAll('.js-copy').forEach(function (button) {
     button.addEventListener('click', function () {
       var url = window.location.origin + button.getAttribute('data-url');
@@ -378,6 +777,37 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
         button.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Tersalin';
         setTimeout(function () { button.innerHTML = old; }, 1500);
       });
+    });
+  });
+
+  // Salin prompt Gemini (data-prompt dibuat server dari konteks soal) supaya guru
+  // bisa membuat gambarnya di gemini.google.com dengan akun Gemini sendiri.
+  document.querySelectorAll('.js-copy-prompt').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var prompt = button.getAttribute('data-prompt') || '';
+      navigator.clipboard.writeText(prompt).then(function () {
+        var old = button.innerHTML;
+        button.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Tersalin';
+        setTimeout(function () { button.innerHTML = old; }, 1500);
+      }).catch(function () {
+        alert('Tidak bisa menyalin otomatis. Salin manual prompt dari kotak AI di atas kartu ini.');
+      });
+    });
+  });
+
+  // Buka gemini.google.com di tab baru sambil prompt dikirim otomatis (param ?q=
+  // dibaca Gemini: prompt terisi lalu langsung dikirim). Prompt tetap disalin ke
+  // clipboard sebagai cadangan kalau prefill tidak terjadi.
+  document.querySelectorAll('.js-gemini-open').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var prompt = button.getAttribute('data-prompt') || '';
+      var url = button.getAttribute('data-gemini-url');
+      if (url) window.open(url, '_blank', 'noopener');
+      navigator.clipboard.writeText(prompt).then(function () {
+        var old = button.innerHTML;
+        button.innerHTML = '<i class="fa-solid fa-check mr-1"></i>Terkirim ke Gemini';
+        setTimeout(function () { button.innerHTML = old; }, 1800);
+      }).catch(function () {});
     });
   });
 
@@ -423,7 +853,7 @@ export async function withMediaStats<T extends { slug?: string; type?: string }>
   try {
     const specRaw = await env.STORAGE.get(`quiz:${project.slug}`);
     if (!specRaw) return project;
-    const slots = collectMediaSlots(parseQuizSpec(specRaw));
+    const slots = collectMediaSlotsFromStored(specRaw);
     if (!slots.length) return { ...project, media_slots: 0, media_missing: 0 };
     const items = await listMedia(env, project.slug);
     const uploaded = new Set(items.map((item) => item.name));

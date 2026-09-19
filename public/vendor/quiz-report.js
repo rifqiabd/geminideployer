@@ -23,6 +23,15 @@
     return parts.join('; ');
   }
 
+  function weakestOf(item) {
+    if (!item.weakestRows || !item.weakestRows.length) return '';
+    return item.weakestRows
+      .map(function (row) {
+        return row.text + ' (' + row.wrong + '/' + row.total + ' salah)';
+      })
+      .join('; ');
+  }
+
   function build() {
     var header = [
       'No',
@@ -37,6 +46,7 @@
       'DayaBeda',
       'KategoriDayaBeda',
       'SebaranPilihan',
+      'BagianTerseringKeliru',
       'Catatan'
     ];
     var rows = [header.map(cell).join(',')];
@@ -55,6 +65,7 @@
           item.discrimination === null ? '' : Math.round(item.discrimination * 100) / 100,
           item.discriminationLabel === '—' ? '' : item.discriminationLabel,
           choicesOf(item),
+          weakestOf(item),
           item.note
         ]
           .map(cell)

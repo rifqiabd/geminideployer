@@ -38,6 +38,12 @@ export type ItemStat = {
   discrimination: number | null;
   discriminationLabel: string;
   options: ItemOption[] | null;
+  /**
+   * Bagian yang paling sering keliru pada soal berbaris (kategori, menjodohkan,
+   * mengurutkan, tabel, highlight) — mis. pernyataan mana yang paling banyak
+   * salah. `null` untuk soal yang tidak punya baris (PG, esai).
+   */
+  weakestRows: Array<{ text: string; wrong: number; total: number }> | null;
   note: string;
   level: 'ok' | 'warn' | 'bad' | 'muted';
 };
@@ -60,7 +66,13 @@ export type ItemAnalysis = {
 const TYPE_LABEL: Record<QuestionType, string> = {
   choice: 'PG',
   multi: 'PG kompleks',
+  category: 'PG kompleks kategori',
   true_false: 'Benar/Salah',
+  matching: 'Menjodohkan',
+  ordering: 'Mengurutkan',
+  table_fill: 'Melengkapi tabel',
+  two_tier: 'Pernyataan + alasan',
+  highlight: 'Pilih kata di bacaan',
   short: 'Isian',
   essay: 'Esai',
 };
@@ -68,7 +80,12 @@ const TYPE_LABEL: Record<QuestionType, string> = {
 /** Peserta minimal supaya daya beda ada artinya (27% atas vs 27% bawah). */
 const MIN_FOR_DISCRIMINATION = 8;
 
-type DetailEntry = { id?: unknown; benar?: boolean | null; jawaban?: unknown };
+type DetailEntry = {
+  id?: unknown;
+  benar?: boolean | null;
+  jawaban?: unknown;
+  statements?: Array<{ text?: unknown; benar?: unknown }>;
+};
 type GradedSubmission = { detail: DetailEntry[]; score: number; lulus: boolean | null };
 
 function asGradedSubmission(value: unknown): GradedSubmission | null {
@@ -170,6 +187,9 @@ export function computeItemAnalysis(spec: QuizSpec, payloads: unknown[]): ItemAn
   const items: ItemStat[] = spec.questions.map((question) => {
     const isChoiceLike = question.type === 'choice' || question.type === 'multi';
     const optionCounts = question.options.map(() => 0);
+    // Rincian per baris hanya ada pada tipe berbaris; dipakai untuk mencari
+    // bagian mana yang paling sering keliru.
+    const rowTally: Array<{ text: string; wrong: number; total: number }> = [];
     let answered = 0;
     let correct = 0;
     let wrong = 0;
@@ -179,6 +199,15 @@ export function computeItemAnalysis(spec: QuizSpec, payloads: unknown[]): ItemAn
     for (const submission of submissions) {
       const entry = findEntry(submission, question.id);
       if (!entry) continue;
+
+      if (Array.isArray(entry.statements)) {
+        entry.statements.forEach((row, index) => {
+          if (!rowTally[index]) rowTally[index] = { text: String(row?.text ?? ''), wrong: 0, total: 0 };
+          rowTally[index].total += 1;
+          if (row?.benar === false) rowTally[index].wrong += 1;
+        });
+      }
+
       if (entry.benar === null || entry.benar === undefined) {
         pending += 1;
         continue;
@@ -230,6 +259,13 @@ export function computeItemAnalysis(spec: QuizSpec, payloads: unknown[]): ItemAn
                 ? keys[0].split('|').includes(String(index))
                 : keys[0] === String(index),
           }))
+        : null,
+      weakestRows: rowTally.length
+        ? rowTally
+            .map((row) => ({ text: row.text, wrong: row.wrong, total: row.total }))
+            .filter((row) => row.wrong > 0)
+            .sort((a, b) => b.wrong - a.wrong || a.text.localeCompare(b.text))
+            .slice(0, 3)
         : null,
       note: note.text,
       level: note.level,
@@ -317,6 +353,18 @@ function optionBars(item: ItemStat): string {
   </div>`;
 }
 
+/** Bagian yang paling sering keliru, mis. pernyataan ke-2 pada soal kategori. */
+function weakestRowsBlock(item: ItemStat): string {
+  if (!item.weakestRows || !item.weakestRows.length) return '';
+  const parts = item.weakestRows
+    .map((row) => {
+      const text = row.text.length > 70 ? `${row.text.slice(0, 70)}\u2026` : row.text;
+      return `<span class="text-amber-300">${escapeHtml(text || '(tanpa label)')}</span> <span class="text-slate-500">${row.wrong}/${row.total} salah</span>`;
+    })
+    .join(' \u00b7 ');
+  return `<div class="mt-1 text-[11px] text-slate-500">Bagian tersering keliru: ${parts}</div>`;
+}
+
 function tile(label: string, value: string, hint: string, tone = 'text-white'): string {
   return `<div class="bg-slate-800 rounded-xl border border-slate-700 p-3.5">
     <p class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">${escapeHtml(label)}</p>
@@ -370,6 +418,7 @@ export function renderItemAnalysis(analysis: ItemAnalysis): string {
               ? `<details class="mt-1"><summary class="text-[11px] text-blue-400 cursor-pointer">Lihat sebaran pilihan</summary>${optionsBlock}</details>`
               : ''
           }
+          ${weakestRowsBlock(item)}
         </td>
         <td class="p-3 text-right font-mono text-emerald-400">${item.correct}</td>
         <td class="p-3 text-right font-mono text-rose-400">${item.wrong}</td>

@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    // Dipakai Cloudflare Workers (workerd): tanpa DOM, tanpa Node API.
+    // Tipe global (KVNamespace, R2Bucket, D1Database, Fetcher, dst.) datang
+    // dari @cloudflare/workers-types yang dirujuk wrangler.jsonc.
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": ["@cloudflare/workers-types"],
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    // Impor berekstensi .ts dipakai sengaja (tests dijalankan Node langsung),
+    // aman karena noEmit — wrangler/esbuild yang membundle saat deploy.
+    "allowImportingTsExtensions": true,
+    // Jangan emit: wrangler yang membundle src/index.ts saat deploy.
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  // Hanya src: tes di tests/*.mjs dijalankan langsung Node
+  // (--experimental-strip-types) dan tidak ikut dicek tsc.
+  "include": ["src/**/*.ts"]
+}

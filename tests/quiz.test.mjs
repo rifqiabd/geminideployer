@@ -5,14 +5,20 @@ import {
   gradeSubmission,
   renderQuizApp,
   collectMediaSlots,
+  collectMediaSlotsFromStored,
   mediaBaseFor,
+  mediaContextFromRaw,
+  mediaSlotContext,
+  mediaSlotContextFull,
   parseQuizJson,
   quizToAuthoringSource,
   resolveMediaUrl,
   sanitizeMediaName,
 } from '../src/quiz.ts';
 import { MAX_MEDIA_BYTES, mediaPlaceholder, sniffImageType, suggestMediaName } from '../src/media.ts';
+import { buildGeminiPrompt, buildImagePrompt, IMGGEN_MODELS, mediaGenConfig } from '../src/media-gen.ts';
 import { computeItemAnalysis, renderItemAnalysis } from '../src/quiz-report.ts';
+import { readFileSync } from 'node:fs';
 
 let failed = 0;
 const check = (label, actual, expected) => {
@@ -135,6 +141,21 @@ check('titik pada nama slot dipertahankan', sanitizeMediaName('foto-1.jpg'), 'fo
 check('titik di ujung nama slot dibuang', sanitizeMediaName('.rahasia.'), 'rahasia');
 check('slug dan nama slot tidak bisa bertabrakan', sanitizeMediaName('a:b'), 'a-b');
 
+// ---------- Panel Gambar: slot dihitung dari spec tersimpan (bentuk ternormalisasi) ----------
+// Spec tersimpan di KV punya `keys`, bukan `answer`, jadi parse ulang bisa gagal.
+// Panel harus tetap menampilkan slot gambar, bukan 0/0.
+const storedSpec = JSON.stringify(gambarSpec);
+check(
+  'slot dari spec tersimpan tetap terbaca',
+  collectMediaSlotsFromStored(storedSpec),
+  collectMediaSlots(gambarSpec)
+);
+check(
+  'slot dari spec tersimpan tanpa token tetap kosong',
+  collectMediaSlotsFromStored(JSON.stringify(spec)),
+  []
+);
+
 // ---------- Unggahan gambar ----------
 const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 const jpgBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -146,6 +167,163 @@ check('nama dari file', suggestMediaName('Foto Bunga.JPG'), 'foto-bunga');
 check('nama kosong pakai cadangan', suggestMediaName('.jpg', 'gambar'), 'gambar');
 check('placeholder gambar belum diunggah', mediaPlaceholder('tumbuhan').includes('media:tumbuhan'), true);
 check('batas unggahan 8 MB', MAX_MEDIA_BYTES, 8388608);
+
+// ---------- Generate gambar AI (media-gen) ----------
+check('config gen lengkap diterima', !!mediaGenConfig({ IMGGEN_API_URL: 'https://img.example.workers.dev', IMGGEN_API_KEY: 'rahasia' }), true);
+check('config gen tanpa kunci ditolak', mediaGenConfig({ IMGGEN_API_URL: 'https://img.example.workers.dev' }), null);
+check('config gen tanpa URL ditolak', mediaGenConfig({ IMGGEN_API_KEY: 'rahasia' }), null);
+check('config gen http ditolak', mediaGenConfig({ IMGGEN_API_URL: 'http://img.example.workers.dev', IMGGEN_API_KEY: 'rahasia' }), null);
+check('daftar model tidak kosong dan default = model bawaan proxy', IMGGEN_MODELS.length >= 4 && IMGGEN_MODELS[0].id === '@cf/bytedance/stable-diffusion-xl-lightning', true);
+check('daftar model id unik', new Set(IMGGEN_MODELS.map((m) => m.id)).size === IMGGEN_MODELS.length, true);
+check('prompt dibungkus instruksi & topik asli ikut', buildImagePrompt('  skema   relay lampu  ').includes('skema relay lampu'), true);
+check('prompt kosong tetap menghasilkan teks', buildImagePrompt('   ').length > 20, true);
+check('prompt panjang dipangkas (topik maks 400 karakter)', buildImagePrompt('x'.repeat(2000)).length < 700, true);
+
+// ---------- Konteks slot untuk prompt AI / template Gemini ----------
+check('konteks slot dari field image berisi tipe + teks soal', mediaSlotContext(gambarSpec, 'tumbuhan').includes('Perhatikan gambar berikut!'), true);
+check('konteks slot ikut memuat pilihan jawaban', mediaSlotContext(gambarSpec, 'tumbuhan').includes('Fotosintesis'), true);
+check('konteks slot ikut memuat tipe soal', mediaSlotContext(gambarSpec, 'tumbuhan').includes('pilihan ganda'), true);
+check('token markdown dalam teks dibuang dari konteks', mediaSlotContext(gambarSpec, 'bagan-2').includes('Cermati bagan ini.'), true);
+check('konteks kontekstual dibersihkan dari token media', mediaSlotContext(gambarSpec, 'peta-jawa').includes('Perhatikan peta.'), true);
+check('slot tanpa referensi memberi kosong', mediaSlotContext(gambarSpec, 'tidak-ada'), '');
+check('konteks dari stimulus dipakai', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Stimulus Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'Perhatikan gambar berikut ini.\n\nmedia:batik' }],
+      questions: [{ type: 'choice', question: 'Soal A', options: ['1', '2'], answer: '1' }],
+    })
+  );
+  return mediaSlotContext(s, 'batik');
+})().includes('Perhatikan gambar berikut ini.'), true);
+check('stimulus didahulukan daripada teks soal', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'Perhatikan gambar motif ini.\n\nmedia:batik' }],
+      questions: [{ type: 'choice', question: 'media:batik Apa nama motif ini?', options: ['Batik', 'Tenun'], answer: 'Batik', stimulus_id: 's1' }],
+    })
+  );
+  const ctx = mediaSlotContext(s, 'batik');
+  return ctx.includes('Perhatikan gambar motif ini.') && !ctx.includes('Apa nama motif ini?');
+})(), true);
+check('konteks soal ikut memuat bacaan stimulus (slot ada di soal)', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'Teks bacaan singkat tentang seni rupa.' }],
+      questions: [{ type: 'choice', question: 'Amati lukisan ini.\n\nmedia:lukisan', options: ['Impressionisme', 'Realisme'], answer: 'Impressionisme', stimulus_id: 's1' }],
+    })
+  );
+  const ctx = mediaSlotContext(s, 'lukisan');
+  return ctx.includes('Amati lukisan ini.') && ctx.includes('Teks bacaan singkat tentang seni rupa.');
+})(), true);
+check('konteks dari teks mentah saat parse gagal', mediaContextFromRaw('{"title":"x","questions":[{"type":"choice","question":"Perhatikan.\n\nmedia:peta-kota","options":["A","B"],"answer":"A"}]}', 'peta-kota').includes('Perhatikan.'), true);
+check('konteks mentah tanpa token memberi kosong', mediaContextFromRaw('{"title":"x","questions":[]}', 'peta-kota'), '');
+check('spec simpanan (kunci keys) bisa dibaca ulang parseQuizSpec', (() => {
+  const normalized = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'Perhatikan gambar motif ini.\n\nmedia:batik' }],
+      questions: [
+        { type: 'choice', question: 'Apa nama motif ini?', options: ['Batik', 'Tenun'], answer: 'Batik', stimulus_id: 's1', level: 'L1' },
+        { type: 'multi', question: 'Pilih dua.', options: ['A', 'B', 'C'], answer: ['A', 'C'], stimulus_id: 's1' },
+      ],
+    })
+  );
+  const re = parseQuizSpec(JSON.stringify(normalized));
+  return (
+    re.questions.length === 2 &&
+    re.questions[0].keys.join() === normalized.questions[0].keys.join() &&
+    re.questions[1].keys.join() === normalized.questions[1].keys.join() &&
+    re.questions[0].stimulusId === 's1' &&
+    mediaSlotContextFull(re, 'batik').includes('Perhatikan gambar motif ini.') &&
+    mediaSlotContextFull(re, 'batik').includes('Apa nama motif ini?')
+  );
+})(), true);
+check('spec simpanan dengan stimulusId tetap menyatu ke stimulus', (() => {
+  const normalized = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'media:peta-jawa Teks bacaan tentang peta.' }],
+      questions: [{ type: 'choice', question: 'Soal A', options: ['1', '2'], answer: '1', stimulus_id: 's1' }],
+    })
+  );
+  const re = parseQuizSpec(JSON.stringify(normalized));
+  return mediaSlotContextFull(re, 'peta-jawa').includes('Teks bacaan tentang peta.');
+})(), true);
+check('LaTeX $...$ dan markdown *...* dibersihkan dari konteks', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'Pirolisis tanpa oksigen ($anoxic$) menghasilkan $CH_4, C_2H_6$ dan residu *char* karbon.\n\nmedia:skema' }],
+      questions: [{ type: 'choice', question: 'Apa hasilnya?', options: ['Gas', 'Padat'], answer: 'Gas', stimulus_id: 's1', explanation: 'disebut **pirolisis**' }],
+    })
+  );
+  const ctx = mediaSlotContextFull(s, 'skema');
+  return (
+    !/\$/.test(ctx) &&
+    !/\*/.test(ctx) &&
+    ctx.includes('anoxic') &&
+    ctx.includes('CH_4, C_2H_6') &&
+    ctx.includes('char') &&
+    ctx.includes('pirolisis')
+  );
+})(), true);
+check('asterisk perkalian angka tidak terhapus dari konteks', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      questions: [{ type: 'choice', question: 'Hitung 2 * 3 * 4.\n\nmedia:soal-angka', options: ['24', '9'], answer: '24' }],
+    })
+  );
+  return mediaSlotContext(s, 'soal-angka').includes('2 * 3 * 4');
+})(), true);
+check('prompt Gemini full: stimulus + konteks soal digabung', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'Perhatikan gambar motif ini.\n\nmedia:batik' }],
+      questions: [{ type: 'choice', question: 'Apa nama motif ini?', options: ['Batik', 'Tenun'], answer: 'Batik', stimulus_id: 's1' }],
+    })
+  );
+  const full = mediaSlotContextFull(s, 'batik');
+  return full.includes('Perhatikan gambar motif ini.') && full.includes('Apa nama motif ini?') && full.includes('Soal:');
+})(), true);
+check('prompt Gemini full: stimulus tidak diduplikasi (muncul sekali)', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Gem',
+      stimuli: [{ id: 's1', title: 'Bacaan teks', content: 'Perhatikan gambar motif ini.\n\nmedia:batik' }],
+      questions: [{ type: 'choice', question: 'Apa nama motif ini?', options: ['Batik', 'Tenun'], answer: 'Batik', stimulus_id: 's1' }],
+    })
+  );
+  return (mediaSlotContextFull(s, 'batik').match(/Perhatikan gambar motif ini\./g) || []).length === 1;
+})(), true);
+check('prompt Gemini full: tanpa stimulus sama dengan konteks ringkas', (() => {
+  const ctx = mediaSlotContext(gambarSpec, 'tumbuhan');
+  return mediaSlotContextFull(gambarSpec, 'tumbuhan') === ctx && ctx.includes('Perhatikan gambar berikut!');
+})(), true);
+check('prompt Gemini full: slot tanpa referensi kosong', mediaSlotContextFull(gambarSpec, 'tidak-ada'), '');
+check('konteks dari judul kuis dipakai', (() => {
+  const s = parseQuizSpec(
+    JSON.stringify({
+      title: 'Peta media:kepulauan',
+      questions: [{ type: 'choice', question: 'Soal X', options: ['1', '2'], answer: '1' }],
+    })
+  );
+  return mediaSlotContext(s, 'kepulauan');
+})() === 'Peta', true);
+check('prompt Gemini memuat topik asli', buildGeminiPrompt('  siklus   air  ').includes('siklus air'), true);
+check('prompt Gemini tidak terpotong di 400 karakter', (() => {
+  const long = 'konteks '.repeat(200);
+  const p = buildGeminiPrompt(long);
+  return p.includes('Topik: konteks konteks konteks') && p.includes(long.trim().slice(-20));
+})(), true);
+check('prompt Gemini utuh untuk topik kosong', (() => {
+  const p = buildGeminiPrompt('   ');
+  return p.length > 20 && p.includes('ilustrasi edukatif umum') && p.includes('Topik:');
+})(), true);
 
 // ---------- Round-trip editor soal (normalisasi -> format tulis -> parse lagi) ----------
 const rtJson = JSON.stringify(quizToAuthoringSource(gambarSpec));
@@ -307,6 +485,690 @@ const mixedScores = computeItemAnalysis(reportSpec, [
   { score: 90, lulus: true, detail: [{ id: 'q1', type: 'choice', benar: true, jawaban: 'A. A1' }, { id: 'q3', type: 'essay', benar: null, jawaban: 'uraian' }] },
 ]);
 check('analisis: pakai nilai akhir kalau sudah dikoreksi', mixedScores.average, 85);
+
+/* ==========================================================================
+ * Tipe soal lanjutan: ordering, matching, table_fill, two_tier, highlight
+ * ========================================================================== */
+
+const pairSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Jodohkan Mesin',
+    questions: [
+      {
+        type: 'matching',
+        question: 'Jodohkan istilah dengan pengertiannya.',
+        pairs: [
+          { left: 'AGV', right: 'Kendaraan pemandu otomatis' },
+          { left: 'HSE', right: 'Departemen keselamatan kerja' },
+          { left: 'SOP', right: 'Prosedur baku pengerjaan' },
+        ],
+        scoring: 'partial',
+        level: 'L2',
+      },
+    ],
+  })
+);
+const pairQ = pairSpec.questions[0];
+const pairKeys = pairQ.keys[0].split('|').map(Number);
+check('matching: kolom kiri sesuai urutan tulis', pairQ.options, ['AGV', 'HSE', 'SOP']);
+check('matching: kolom kanan ikut disimpan', pairQ.rights.length, 3);
+check(
+  'matching: kunci menunjuk pasangan yang benar',
+  pairKeys.map((index) => pairQ.rights[index]),
+  ['Kendaraan pemandu otomatis', 'Departemen keselamatan kerja', 'Prosedur baku pengerjaan']
+);
+check('matching: kolom kanan tidak sejajar dengan kolom kiri', pairKeys.join('|') !== '0|1|2', true);
+check(
+  'matching: pengacakan kolom kanan selalu sama',
+  parseQuizSpec(JSON.stringify(quizToAuthoringSource(pairSpec))).questions[0].rights,
+  pairQ.rights
+);
+
+const pairFull = gradeSubmission(pairSpec, [{ id: 'q1', value: pairKeys }]);
+check('matching: semua pasangan benar -> nilai penuh', [pairFull.detail[0].benar, pairFull.score], [true, 100]);
+const pairHalf = gradeSubmission(pairSpec, [{ id: 'q1', value: [pairKeys[0], pairKeys[1], pairKeys[0]] }]);
+check('matching: sebagian benar dapat poin parsial', pairHalf.detail[0].poin, Math.round((2 / 3) * 100) / 100);
+check('matching: baris kosong dihitung belum dijawab', gradeSubmission(pairSpec, [{ id: 'q1', value: [null, null, null] }]).score, 0);
+check(
+  'matching: rincian per baris ditampilkan',
+  gradeSubmission(pairSpec, [{ id: 'q1', value: [null, pairKeys[1], null] }]).detail[0].statements.length,
+  3
+);
+
+const ordSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Urutkan Langkah',
+    questions: [
+      {
+        type: 'ordering',
+        question: 'Urutkan langkah kalibrasi berikut.',
+        items: ['Cek koneksi', 'Nyalakan mesin', 'Jalankan kalibrasi'],
+        scoring: 'partial',
+      },
+    ],
+  })
+);
+const ordQ = ordSpec.questions[0];
+const ordKeys = ordQ.keys[0].split('|').map(Number);
+check('ordering: semua item tampil', ordQ.options.length, 3);
+check('ordering: urutan tampil diacak (tidak membocorkan kunci)', ordQ.keys[0] !== '0|1|2', true);
+check(
+  'ordering: jawaban benar mengikuti kunci',
+  gradeSubmission(ordSpec, [{ id: 'q1', value: ordKeys }]).detail[0].benar,
+  true
+);
+check(
+  'ordering: rincian menyebut posisi urutan',
+  gradeSubmission(ordSpec, [{ id: 'q1', value: ordKeys }]).detail[0].statements[0].kunci.startsWith('Urutan ke-'),
+  true
+);
+// Digeser satu posisi: tidak ada item yang berada di posisi benarnya.
+const ordRotated = ordKeys.slice(1).concat(ordKeys.slice(0, 1));
+check('ordering: urutan salah semua dapat nol', gradeSubmission(ordSpec, [{ id: 'q1', value: ordRotated }]).detail[0].poin, 0);
+check(
+  'ordering: sebagian posisi benar dapat poin parsial',
+  gradeSubmission(ordSpec, [
+    { id: 'q1', value: [ordKeys[1], ordKeys[0], ordKeys[2]] },
+  ]).detail[0].poin,
+  Math.round((1 / 3) * 100) / 100
+);
+check('ordering: urutan belum lengkap dianggap kosong', gradeSubmission(ordSpec, [{ id: 'q1', value: [ordKeys[0]] }]).score, 0);
+
+const ordLate = parseQuizSpec(
+  JSON.stringify({
+    title: 'Urutkan dengan kunci',
+    questions: [
+      {
+        type: 'ordering',
+        question: 'Urutkan.',
+        items: ['Langkah B', 'Langkah C', 'Langkah A'],
+        answer: ['Langkah A', 'Langkah B', 'Langkah C'],
+      },
+    ],
+  })
+);
+const ordLateKeys = ordLate.questions[0].keys[0].split('|').map(Number);
+check(
+  'ordering: kunci eksplisit dipetakan ke urutan tampil',
+  ordLateKeys.map((index) => ordLate.questions[0].options[index]),
+  ['Langkah A', 'Langkah B', 'Langkah C']
+);
+check(
+  'ordering: kunci tidak lengkap ditolak',
+  (() => {
+    try {
+      parseQuizSpec(
+        JSON.stringify({ questions: [{ type: 'ordering', question: 'x', items: ['a', 'b'], answer: ['a'] }] })
+      );
+      return 'tidak ditolak';
+    } catch (error) {
+      return error.message.includes('SEMUA') ? 'ditolak' : error.message;
+    }
+  })(),
+  'ditolak'
+);
+
+const fillSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Lengkapi Tabel',
+    questions: [
+      {
+        type: 'table_fill',
+        question: 'Lengkapi titik lebur bahan berikut.',
+        headers: ['Bahan', 'Titik lebur (\u00b0C)'],
+        rows: [
+          ['Timah', { answer: ['327'] }],
+          ['Tembaga', { answer: ['1085', '1.085'] }],
+        ],
+        scoring: 'partial',
+      },
+    ],
+  })
+);
+const fillQ = fillSpec.questions[0];
+check('table_fill: dua sel rumpang terdeteksi', fillQ.blanks.length, 2);
+check('table_fill: label sel memakai sel statis di barisnya', fillQ.blanks[0].label, 'Timah');
+check('table_fill: sel statis tidak jadi rumpang', fillQ.tableRows[0][0], 'Timah');
+check('table_fill: judul kolom tersimpan', fillQ.tableHeaders, ['Bahan', 'Titik lebur (\u00b0C)']);
+check(
+  'table_fill: jawaban toleran spasi & huruf besar',
+  gradeSubmission(fillSpec, [{ id: 'q1', value: [' 327 ', '1085'] }]).detail[0].benar,
+  true
+);
+check(
+  'table_fill: satu sel benar dapat poin parsial',
+  gradeSubmission(fillSpec, [{ id: 'q1', value: ['327', 'salah'] }]).detail[0].poin,
+  0.5
+);
+check(
+  'table_fill: rincian menyebut sel yang keliru',
+  gradeSubmission(fillSpec, [{ id: 'q1', value: ['327', 'salah'] }]).detail[0].statements[1].kunci,
+  '1085 / 1 085'
+);
+check('table_fill: tabel kosong ditolak', (() => {
+  try {
+    parseQuizSpec(JSON.stringify({ questions: [{ type: 'table_fill', question: 'x', rows: [['a', 'b']] }] }));
+    return 'tidak ditolak';
+  } catch (error) {
+    return error.message.includes('sel rumpang') ? 'ditolak' : error.message;
+  }
+})(), 'ditolak');
+
+const tierSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Pernyataan + Alasan',
+    questions: [
+      {
+        type: 'two_tier',
+        question: 'Setujukah kamu dengan pernyataan teknisi tersebut?',
+        options: ['Setuju', 'Tidak setuju'],
+        answer: 'Setuju',
+        reasons: ['Karena manajemen mengabaikan jadwal perawatan', 'Karena mesinnya sudah tua'],
+        reason_answer: 'Karena manajemen mengabaikan jadwal perawatan',
+        scoring: 'partial',
+      },
+    ],
+  })
+);
+check('two_tier: kunci dua tingkat', tierSpec.questions[0].keys, ['0|0']);
+check('two_tier: pilihan alasan tersimpan', tierSpec.questions[0].reasons.length, 2);
+check('two_tier: keduanya benar -> benar penuh', gradeSubmission(tierSpec, [{ id: 'q1', value: [0, 0] }]).detail[0].benar, true);
+check('two_tier: alasan keliru dapat setengah poin', gradeSubmission(tierSpec, [{ id: 'q1', value: [0, 1] }]).detail[0].poin, 0.5);
+check('two_tier: keduanya kosong dianggap belum dijawab', gradeSubmission(tierSpec, [{ id: 'q1', value: [null, null] }]).score, 0);
+check('two_tier: tanpa alasan ditolak', (() => {
+  try {
+    parseQuizSpec(JSON.stringify({ questions: [{ type: 'two_tier', question: 'x', options: ['a', 'b'], answer: 'a' }] }));
+    return 'tidak ditolak';
+  } catch (error) {
+    return error.message.includes('reasons') ? 'ditolak' : error.message;
+  }
+})(), 'ditolak');
+
+const hlSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Klik Kata',
+    questions: [
+      {
+        type: 'highlight',
+        question: 'Klik kata yang menunjukkan sikap jujur.',
+        text: 'Budi {mengembalikan} uang yang ia temukan kepada {guru} di sekolah.',
+        answer: ['mengembalikan'],
+        scoring: 'partial',
+      },
+    ],
+  })
+);
+const hlQ = hlSpec.questions[0];
+check('highlight: dua kata bisa diklik', hlQ.segments.filter((segment) => segment.selectable).length, 2);
+check('highlight: bacaan disimpan tanpa kurawal', hlQ.passage, 'Budi mengembalikan uang yang ia temukan kepada guru di sekolah.');
+check('highlight: kunci menunjuk kata yang benar', hlQ.keys, ['0']);
+check('highlight: teks soal tetap instruksi', hlQ.question, 'Klik kata yang menunjukkan sikap jujur.');
+check('highlight: kata benar saja -> benar penuh', gradeSubmission(hlSpec, [{ id: 'q1', value: [0] }]).detail[0].benar, true);
+check('highlight: memilih kata salah -> nol', gradeSubmission(hlSpec, [{ id: 'q1', value: [1] }]).detail[0].poin, 0);
+check('highlight: benar + salah sekaligus tidak dapat poin', gradeSubmission(hlSpec, [{ id: 'q1', value: [0, 1] }]).detail[0].poin, 0);
+check('highlight: tanpa kata yang bisa diklik ditolak', (() => {
+  try {
+    parseQuizSpec(JSON.stringify({ questions: [{ type: 'highlight', question: 'x', text: 'tanpa penanda', answer: ['a'] }] }));
+    return 'tidak ditolak';
+  } catch (error) {
+    return error.message.includes('kurawal') ? 'ditolak' : error.message;
+  }
+})(), 'ditolak');
+check('highlight: kunci tidak ada di bacaan ditolak', (() => {
+  try {
+    parseQuizSpec(JSON.stringify({ questions: [{ type: 'highlight', question: 'x', text: 'Budi {datang} pagi.', answer: ['pulang'] }] }));
+    return 'tidak ditolak';
+  } catch (error) {
+    return error.message.includes('tidak ditemukan') ? 'ditolak' : error.message;
+  }
+})(), 'ditolak');
+check(
+  'highlight: soal ditampilkan dengan seluruh bacaannya',
+  gradeSubmission(hlSpec, [{ id: 'q1', value: [0] }]).detail[0].question_html.includes('uang yang ia temukan'),
+  true
+);
+
+// Round-trip editor: spec -> format tulis guru -> spec lagi, tanpa kehilangan kunci.
+const roundTrip = (quiz) => parseQuizSpec(JSON.stringify(quizToAuthoringSource(quiz)));
+check('round-trip matching: kunci tetap sama', roundTrip(pairSpec).questions[0].keys, pairQ.keys);
+check('round-trip matching: kolom kanan tetap sama', roundTrip(pairSpec).questions[0].rights, pairQ.rights);
+check('round-trip matching: tipe tetap sama', roundTrip(pairSpec).questions[0].type, 'matching');
+check('round-trip table_fill: kunci tetap sama', roundTrip(fillSpec).questions[0].blanks, fillQ.blanks);
+check('round-trip table_fill: baris tetap sama', roundTrip(fillSpec).questions[0].tableRows, fillQ.tableRows);
+check('round-trip two_tier: kunci tetap sama', roundTrip(tierSpec).questions[0].keys, ['0|0']);
+check('round-trip highlight: kunci tetap sama', roundTrip(hlSpec).questions[0].keys, ['0']);
+check('round-trip highlight: penanda kurawal ditulis ulang', roundTrip(hlSpec).questions[0].passage, hlQ.passage);
+check(
+  'round-trip ordering: kunci tetap setara',
+  gradeSubmission(roundTrip(ordSpec), [
+    { id: 'q1', value: roundTrip(ordSpec).questions[0].keys[0].split('|').map(Number) },
+  ]).detail[0].benar,
+  true
+);
+check(
+  'round-trip semua tipe lanjutan sekaligus',
+  [pairSpec, ordSpec, fillSpec, tierSpec, hlSpec].every((quiz) => roundTrip(quiz).questions.length === 1),
+  true
+);
+
+// Tipe yang dipakai naskah TKA: stimulus dipakai bersama + kategori + pembahasan.
+const tkaSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'TKA Bahasa Inggris SMK',
+    passing_score: 70,
+    stimuli: [{ id: 's1', title: 'Company Operational Memo', content: 'All technicians must wear high-visibility vests.' }],
+    questions: [
+      { type: 'choice', level: 'L1', stimulus: 's1', question: 'Where are the vests?', options: ['Gate 2', 'Office'], answer: 'Gate 2', explanation: 'Teks menyebut Gate 2.' },
+      { type: 'mcma', level: 'L2', stimulus: 's1', question: 'Pilih dua yang benar.', options: ['a', 'b', 'c'], answer: ['a', 'b'] },
+      {
+        type: 'pg_kompleks_kategori',
+        level: 'L3',
+        stimulus: 's1',
+        question: 'Tentukan status tiap pernyataan.',
+        statements: [{ text: 'Vest wajib.', answer: true }, { text: 'Vest opsional.', answer: false }],
+      },
+    ],
+  })
+);
+check('tka: alias mcma dikenali sebagai multi', tkaSpec.questions[1].type, 'multi');
+check('tka: alias pg_kompleks_kategori jadi category', tkaSpec.questions[2].type, 'category');
+check('tka: stimulus bersama dipakai tiga soal', tkaSpec.questions.map((question) => question.stimulusId), ['s1', 's1', 's1']);
+const tkaGrade = gradeSubmission(tkaSpec, [
+  { id: 'q1', value: 0 },
+  { id: 'q2', value: [0, 1] },
+  { id: 'q3', value: [true, false] },
+]);
+check('tka: pembahasan ikut penilaian', tkaGrade.detail[0].pembahasan.includes('Gate 2'), true);
+check('tka: level kognitif tersimpan', tkaSpec.questions.map((question) => question.level), ['L1', 'L2', 'L3']);
+check('tka: label kolom kategori bisa diganti', (() => {
+  const custom = parseQuizSpec(
+    JSON.stringify({
+      questions: [
+        {
+          type: 'category',
+          question: 'x',
+          labels: ['Sesuai', 'Tidak Sesuai'],
+          statements: [{ text: 'a', answer: true }, { text: 'b', answer: false }],
+        },
+      ],
+    })
+  );
+  return custom.questions[0].labels;
+})(), ['Sesuai', 'Tidak Sesuai']);
+
+/* Gemini kadang menulis dua nilai untuk kunci yang harus SATU boolean
+   ("answer": [false, true]). Parser harus tetap terbaca, nilai pertama menang. */
+const twoValueCat = parseQuizSpec(
+  JSON.stringify({
+    questions: [
+      {
+        type: 'category',
+        question: 'Tentukan status.',
+        statements: [
+          { text: 'Pertama', answer: [false, true] },
+          { text: 'Kedua', answer: 'benar, salah' },
+          { text: 'Ketiga', answer: ['true'] },
+          { text: 'Keempat', answer: false },
+        ],
+      },
+    ],
+  })
+);
+check('kategori: kunci dua nilai (array) dipakai nilai pertama', twoValueCat.questions[0].statements[0].answer, false);
+check('kategori: kunci dua nilai (string) dipakai nilai pertama', twoValueCat.questions[0].statements[1].answer, true);
+check('kategori: kunci array satu elemen tetap benar', twoValueCat.questions[0].statements[2].answer, true);
+check('kategori: kunci boolean biasa tidak berubah', twoValueCat.questions[0].statements[3].answer, false);
+check('kategori: dua nilai tetap bobotnya benar', twoValueCat.questions[0].keys, ['false', 'true', 'true', 'false']);
+const twoValueTf = parseQuizSpec(
+  JSON.stringify({ questions: [{ type: 'true_false', question: 'x', answer: [true, false] }] })
+);
+check('true_false: kunci dua nilai (array) dipakai nilai pertama', twoValueTf.questions[0].keys, ['true']);
+
+/* --- Renderer: panel navigasi, tanda ragu, dan tata letak dua kolom --------- */
+// Bagian markup saja (tanpa blok <script>), supaya hitungan tidak kena nama
+// selector di dalam kode klien.
+const markupOf = (html) => html.split('<script>')[0];
+
+const navHtml = renderQuizApp(tkaSpec, 'tka-bahasa-inggris');
+check('render: panel navigasi ada', navHtml.includes('id="nav-grid"'), true);
+check('render: penghitung di panel navigasi ada', navHtml.includes('id="nav-count"'), true);
+check('render: tombol tanda ragu ada di tiap kartu', (markupOf(navHtml).match(/data-flag/g) || []).length, 3);
+check('render: tipe soal ikut ditulis di kartu', navHtml.includes('data-type="category"'), true);
+check('render: bacaan dua kolom dipakai saat soal punya stimulus', navHtml.includes('q-group-split'), true);
+check('render: kotak tawaran melanjutkan ada', navHtml.includes('id="resume-box"'), true);
+check('render: jawaban disimpan ke localStorage per aplikasi', navHtml.includes("'quiz-attempt:' + CFG.slug"), true);
+check('render: pemulihan jawaban menunggu keputusan siswa', navHtml.includes("getElementById('resume-yes')"), true);
+check('render: panel navigasi tidak ikut tercetak', navHtml.includes('q-nav q-no-print'), true);
+
+const ordHtml = renderQuizApp(ordSpec, 'uji-urutan');
+check('render ordering: tombol naik-turun ada', ordHtml.includes('data-move="-1"'), true);
+check('render ordering: tiap item punya penanda posisi', (markupOf(ordHtml).match(/q-ord-pos/g) || []).length, 3);
+const pairHtml = renderQuizApp(pairSpec, 'uji-jodohkan');
+check('render matching: kolom kanan jadi daftar pilihan', (markupOf(pairHtml).match(/q-match-select/g) || []).length, 3);
+check('render matching: opsi kanan diberi huruf', pairHtml.includes('>A. '), true);
+const fillHtml = renderQuizApp(fillSpec, 'uji-tabel');
+check('render table_fill: dua kotak isian dibuat', (fillHtml.match(/class="q-input q-fill"/g) || []).length, 2);
+check('render table_fill: judul kolom tampil', fillHtml.includes('Titik lebur'), true);
+const tierHtml = renderQuizApp(tierSpec, 'uji-alasan');
+check('render two_tier: dua tingkat radio dibuat', (tierHtml.match(/name="ans-q1-t[12]"/g) || []).length, 4);
+const hlHtml = renderQuizApp(hlSpec, 'uji-highlight');
+check('render highlight: bacaan jadi tombol yang bisa diklik', (hlHtml.match(/class="q-hl"/g) || []).length, 2);
+check('render highlight: teks biasa tidak jadi tombol', hlHtml.includes('di sekolah.'), true);
+
+/* --- Analisis butir untuk soal berbaris ------------------------------------ */
+const weakSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Analisis Baris',
+    questions: [
+      {
+        type: 'category',
+        question: 'Tentukan status pernyataan berikut.',
+        statements: [
+          { text: 'Pernyataan pertama', answer: true },
+          { text: 'Pernyataan kedua', answer: false },
+        ],
+      },
+    ],
+  })
+);
+const rowSubmission = (rows) => ({
+  score: 50,
+  lulus: false,
+  detail: [
+    {
+      id: 'q1',
+      type: 'category',
+      benar: rows.every(Boolean),
+      jawaban: 'x',
+      statements: rows.map((benar, index) => ({
+        text: index === 0 ? 'Pernyataan pertama' : 'Pernyataan kedua',
+        benar,
+      })),
+    },
+  ],
+});
+const weakReport = computeItemAnalysis(weakSpec, [
+  rowSubmission([false, true]),
+  rowSubmission([false, true]),
+  rowSubmission([false, true]),
+  rowSubmission([true, true]),
+]);
+check('analisis baris: bagian tersering keliru ditemukan', weakReport.items[0].weakestRows, [
+  { text: 'Pernyataan pertama', wrong: 3, total: 4 },
+]);
+check('analisis baris: baris yang selalu benar tidak masuk daftar', weakReport.items[0].weakestRows.length, 1);
+check('analisis baris: soal PG tidak punya daftar baris', analysis.items[0].weakestRows, null);
+check(
+  'analisis baris: ditampilkan di halaman rekap',
+  renderItemAnalysis(weakReport).includes('Bagian tersering keliru'),
+  true
+);
+check(
+  'analisis: label tipe soal lanjutan dikenali',
+  ['ordering', 'matching', 'table_fill', 'two_tier', 'highlight', 'category'].every((type) =>
+    renderItemAnalysis(
+      computeItemAnalysis(
+        parseQuizSpec(
+          JSON.stringify({
+            title: 'Label',
+            questions: [
+              {
+                type,
+                question: 'x',
+                ...(type === 'ordering' ? { items: ['a', 'b'] } : {}),
+                ...(type === 'matching'
+                  ? { pairs: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }] }
+                  : {}),
+                ...(type === 'table_fill'
+                  ? { rows: [['a', { answer: ['x'] }]] }
+                  : {}),
+                ...(type === 'two_tier'
+                  ? { options: ['a', 'b'], answer: 'a', reasons: ['x', 'y'], reason_answer: 'x' }
+                  : {}),
+                ...(type === 'highlight' ? { text: 'a {b} c', answer: ['b'] } : {}),
+                ...(type === 'category' ? { statements: [{ text: 'a', answer: true }] } : {}),
+              },
+            ],
+          })
+        ),
+        [rowSubmission([false])]
+      )
+    ).includes('undefined') === false
+  ),
+  true
+);
+
+/* --- Editor soal: tipe lanjutan & konvensi tabel --------------------------- */
+// Editor adalah skrip browser. Supaya logikanya tetap bisa diuji tanpa browser,
+// ia membuka pintu window.QUIZ_EDITOR_HELPERS kalau boot.exposeHelpers diisi.
+const editorSource = readFileSync(new URL('../public/vendor/quiz-editor.js', import.meta.url), 'utf8');
+
+function stubElement() {
+  return {
+    value: '',
+    innerHTML: '',
+    textContent: '',
+    className: '',
+    disabled: false,
+    classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+    addEventListener() {},
+    querySelectorAll() { return []; },
+  };
+}
+
+function runEditor(source) {
+  const elements = new Map();
+  const fakeWindow = {
+    QUIZ_EDITOR: { slug: 'uji-editor', source, exposeHelpers: true },
+    addEventListener() {},
+    scrollTo() {},
+    confirm() { return true; },
+  };
+  const fakeDocument = {
+    body: { scrollHeight: 0 },
+    getElementById(id) {
+      if (!elements.has(id)) elements.set(id, stubElement());
+      return elements.get(id);
+    },
+  };
+  new Function('window', 'document', editorSource)(fakeWindow, fakeDocument);
+  return fakeWindow.QUIZ_EDITOR_HELPERS;
+}
+
+const editorJson = {
+  title: 'Editor Uji',
+  questions: [
+    { type: 'category', question: 'Kategori', statements: [{ text: 'a', answer: true }, { text: 'b', answer: false }] },
+    { type: 'matching', question: 'Jodohkan', pairs: [{ left: 'a', right: 'p' }, { left: 'b', right: 'q' }] },
+    { type: 'ordering', question: 'Urutkan', items: ['Pertama', 'Kedua', 'Ketiga'] },
+    { type: 'table_fill', question: 'Tabel', headers: ['Bahan', 'Titik lebur'], rows: [['Timah', { answer: ['327'] }]] },
+    {
+      type: 'two_tier',
+      question: 'Alasan',
+      options: ['Setuju', 'Tidak setuju'],
+      answer: 'Setuju',
+      reasons: ['Karena a', 'Karena b'],
+      reason_answer: 'Karena b',
+    },
+    { type: 'highlight', question: 'Klik kata', text: 'Budi {mengembalikan} uang itu.', answer: ['mengembalikan'] },
+  ],
+};
+const editor = runEditor(editorJson);
+check('editor: skrip editor bisa dijalankan tanpa browser', typeof editor.normalizeForSave, 'function');
+check('editor: semua tipe lanjutan lolos validasi', editor.problems(), []);
+check('editor: tabel ditampilkan dengan penanda kurawal', editor.tableRowsText(editorJson.questions[3]), 'Timah | {327}');
+check(
+  'editor: teks tabel dibaca kembali jadi kunci',
+  editor.parseTableRows('Timah | {327 / 300}\nTembaga | {1085}'),
+  [['Timah', { answer: ['327', '300'] }], ['Tembaga', { answer: ['1085'] }]]
+);
+
+editor.normalizeForSave();
+check(
+  'editor: urutan soal & tipe tetap utuh setelah disimpan',
+  editor.state.questions.map((question) => question.type),
+  ['category', 'matching', 'ordering', 'table_fill', 'two_tier', 'highlight']
+);
+check(
+  'editor: hasil simpan tetap diterima parser kuis',
+  parseQuizSpec(JSON.stringify(editor.state)).questions.map((question) => question.type),
+  ['category', 'matching', 'ordering', 'table_fill', 'two_tier', 'highlight']
+);
+check(
+  'editor: kunci alasan tetap benar setelah disimpan',
+  parseQuizSpec(JSON.stringify(editor.state)).questions[4].keys,
+  ['0|1']
+);
+
+const orderFix = runEditor({
+  questions: [{ type: 'ordering', question: 'Urutkan', items: ['B', 'C', 'A'], answer: ['A', 'B', 'C'] }],
+});
+check('editor: urutan benar dipindah ke daftar item', orderFix.state.questions[0].items, ['A', 'B', 'C']);
+check('editor: kunci eksplisit dibuang setelah dipindah', 'answer' in orderFix.state.questions[0], false);
+
+const badTable = runEditor({ questions: [{ type: 'table_fill', question: 'Tabel', rows: [['a', 'b']] }] });
+check('editor: tabel tanpa sel rumpang ditolak', badTable.problems().length > 0, true);
+const badHighlight = runEditor({
+  questions: [{ type: 'highlight', question: 'Klik kata', text: 'tanpa penanda', answer: ['a'] }],
+});
+check('editor: bacaan tanpa kurawal ditolak', badHighlight.problems().length > 0, true);
+const badPairs = runEditor({
+  questions: [{ type: 'matching', question: 'Jodohkan', pairs: [{ left: 'a', right: '' }, { left: 'b', right: 'q' }] }],
+});
+check('editor: pasangan tidak lengkap ditolak', badPairs.problems().length > 0, true);
+
+const messyCat = runEditor({
+  questions: [
+    {
+      type: 'category',
+      question: 'Rapikan',
+      statements: [
+        { text: 'a', answer: [false, true] },
+        { text: 'b', answer: 'benar, salah' },
+        { text: 'c', answer: true },
+      ],
+    },
+    { type: 'true_false', question: 'x', answer: [true, false] },
+  ],
+});
+messyCat.normalizeForSave();
+check(
+  'editor: kunci pernyataan duaan dirapikan jadi satu boolean',
+  messyCat.state.questions[0].statements.map((statement) => statement.answer),
+  [false, true, true]
+);
+check('editor: true_false duaan dirapikan jadi satu boolean', messyCat.state.questions[1].answer, true);
+check(
+  'editor: hasil rapikan tetap diterima parser kuis',
+  parseQuizSpec(JSON.stringify(messyCat.state)).questions[0].keys,
+  ['false', 'true', 'true']
+);
+
+/* --- Kebersihan halaman kuis dengan semua tipe sekaligus ------------------- */
+const allTypesSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Semua Tipe',
+    passing_score: 70,
+    stimuli: [{
+      id: 's1',
+      title: 'Memo',
+      content: 'Para teknisi wajib memakai vest dan menjaga jarak 2 meter dari jalur AGV.',
+    }],
+    questions: [
+      { type: 'choice', question: 'Pilih.', options: ['a', 'b'], answer: 'a', stimulus: 's1' },
+      { type: 'multi', question: 'Pilih banyak.', options: ['a', 'b', 'c'], answer: ['a', 'b'] },
+      { type: 'category', question: 'Tentukan.', statements: [{ text: 'a', answer: true }, { text: 'b', answer: false }] },
+      { type: 'matching', question: 'Jodohkan.', pairs: [{ left: 'a', right: 'p' }, { left: 'b', right: 'q' }] },
+      { type: 'ordering', question: 'Urutkan.', items: ['satu', 'dua', 'tiga'] },
+      { type: 'table_fill', question: 'Isi tabel.', headers: ['Bahan', 'Suhu'], rows: [['Timah', { answer: ['327'] }], ['Tembaga', { answer: ['1085'] }]] },
+      {
+        type: 'two_tier',
+        question: 'Setujukah?',
+        options: ['Setuju', 'Tidak'],
+        answer: 'Tidak',
+        reasons: ['Karena a', 'Karena b'],
+        reason_answer: 'Karena a',
+      },
+      { type: 'highlight', question: 'Klik kata jujur.', text: 'Budi {mengembalikan} uang itu kepada {guru}.', answer: ['mengembalikan'] },
+      { type: 'short', question: 'Isian.', answer: ['x'] },
+      { type: 'essay', question: 'Uraikan.', points: 5 },
+    ],
+  })
+);
+const allHtml = renderQuizApp(allTypesSpec, 'uji-semua-tipe');
+check('render semua tipe: parser menerima 10 butir', allTypesSpec.questions.length, 10);
+// Dicek pada bagian markup saja: kode klien memang memakai kata "undefined".
+check('render semua tipe: penanda sel rumpang tidak bocor ke halaman', markupOf(allHtml).includes('@@BLANK'), false);
+check('render semua tipe: tidak ada nilai undefined di tampilan', markupOf(allHtml).includes('undefined'), false);
+check('render semua tipe: tidak ada objek mentah di tampilan', markupOf(allHtml).includes('[object Object]'), false);
+check('render semua tipe: kotak isian tabel dibuat sesuai jumlah rumpang', (markupOf(allHtml).match(/class="q-input q-fill"/g) || []).length, 2);
+check('render semua tipe: kartu ditandai tipe masing-masing', (markupOf(allHtml).match(/data-type=/g) || []).length, 10);
+check('render semua tipe: panel navigasi dapat 10 nomor saat dibuka', allHtml.includes("navGrid.appendChild(button)"), true);
+check('render semua tipe: tombol kirim tetap ada', allHtml.includes('id="submit-btn"'), true);
+check('render semua tipe: judul kolom rincian menyesuaikan tipe', allHtml.includes('item.row_label || '), true);
+
+// Judul kolom rincian di layar pembahasan ikut tipe soalnya, bukan selalu "Pernyataan".
+check(
+  'rincian: label baris dikirim ke halaman hasil',
+  [
+    gradeSubmission(hlSpec, [{ id: 'q1', value: [0] }]).detail[0].row_label,
+    gradeSubmission(fillSpec, [{ id: 'q1', value: ['327', '1085'] }]).detail[0].row_label,
+    gradeSubmission(ordSpec, [{ id: 'q1', value: ordKeys }]).detail[0].row_label,
+    gradeSubmission(pairSpec, [{ id: 'q1', value: pairKeys }]).detail[0].row_label,
+    gradeSubmission(tierSpec, [{ id: 'q1', value: [0, 0] }]).detail[0].row_label,
+  ],
+  ['Kata/frasa', 'Sel', 'Langkah', 'Pernyataan', 'Bagian']
+);
+check(
+  'rincian: soal PG tidak punya tabel rincian',
+  gradeSubmission(ordSpec, [{ id: 'q1', value: ordKeys }]) &&
+    gradeSubmission(parseQuizSpec(JSON.stringify({ questions: [{ type: 'choice', question: 'x', options: ['a', 'b'], answer: 'a' }] })), [
+      { id: 'q1', value: 0 },
+    ]).detail[0].statements,
+  undefined
+);
+
+/* --- Dokumen prompt Gem: semua contoh JSON harus tetap valid -------------- */
+const promptDoc = readFileSync(new URL('../docs/gemini-gem-prompt-full.md', import.meta.url), 'utf8');
+const jsonBlocks = [...promptDoc.matchAll(/```json\n([\s\S]*?)```/g)].map((match) => match[1]);
+check('dokumen prompt: ada contoh JSON', jsonBlocks.length > 5, true);
+const brokenBlocks = jsonBlocks.filter((block) => {
+  try {
+    JSON.parse(block);
+    return false;
+  } catch {
+    return true;
+  }
+});
+check('dokumen prompt: semua blok contoh adalah JSON valid', brokenBlocks.length, 0);
+const fullExample = jsonBlocks.find((block) => {
+  try {
+    return Array.isArray(JSON.parse(block).questions) && JSON.parse(block).questions.length > 5;
+  } catch {
+    return false;
+  }
+});
+check('dokumen prompt: ada satu contoh lengkap dari Gem', typeof fullExample, 'string');
+const promptSpec = parseQuizSpec(fullExample);
+check(
+  'dokumen prompt: contoh lengkap memakai semua 11 tipe',
+  [...new Set(promptSpec.questions.map((question) => question.type))].sort(),
+  ['category', 'choice', 'essay', 'highlight', 'matching', 'multi', 'ordering', 'short', 'table_fill', 'true_false', 'two_tier']
+);
+check('dokumen prompt: contoh lengkap pakai stimulus bersama', promptSpec.questions.some((question) => question.stimulusId), true);
+check(
+  'dokumen prompt: setiap tipe punya penjelasan di daftar tipe',
+  ['matching', 'ordering', 'table_fill', 'two_tier', 'highlight', 'category'].every(
+    (type) => promptDoc.includes('`' + type + '`')
+  ),
+  true
+);
+check(
+  'dokumen prompt: kontrak endpoint submit disebut persis',
+  promptDoc.includes('/api/submit/') && promptDoc.includes('student_name'),
+  true
+);
+check('dokumen prompt: larangan base64 ada', promptDoc.includes('base64'), true);
 
 console.log(failed === 0 ? '\nSemua tes lulus.' : `\n${failed} tes GAGAL.`);
 process.exit(failed === 0 ? 0 : 1);

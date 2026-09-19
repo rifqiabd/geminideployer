@@ -18,6 +18,10 @@ import { escapeHtml, sanitizeMediaName } from './quiz.ts';
 export type MediaBindings = {
   STORAGE: KVNamespace;
   MEDIA?: R2Bucket;
+  // Opsional: API generate gambar AI (proxy free-image-generation-api).
+  // Kalau keduanya diisi, panel Gambar mendapat tombol "Generate AI".
+  IMGGEN_API_URL?: string;
+  IMGGEN_API_KEY?: string;
 };
 
 /** Batas ukuran satu file. Foto dari HP (3-5 MB) masih masuk, video tidak. */

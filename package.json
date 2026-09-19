@@ -3,6 +3,12 @@
     "hono": "^4.13.8"
   },
   "scripts": {
-    "test": "node tests/quiz.test.mjs"
+    "test": "node tests/quiz.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260919.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.135.0"
   }
 }
