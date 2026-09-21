@@ -515,6 +515,8 @@ export function rehydrateQuestion(rawValue: unknown, index: number): QuizQuestio
     explanation: String(raw.explanation ?? '').trim(),
     level: String(raw.level ?? '').trim(),
     stimulusId: String(raw.stimulusId ?? '').trim(),
+    stimulusTitle: String(raw.stimulusTitle ?? '').trim(),
+    stimulusContent: String(raw.stimulusContent ?? '').trim(),
     rights: stringList(raw.rights),
     blanks,
     reasons: stringList(raw.reasons),
@@ -609,6 +611,8 @@ export function normalizeQuestion(rawValue: unknown, index: number): QuizQuestio
     // Diisi di parseQuizSpec setelah daftar stimulus dikumpulkan, karena isinya
     // bisa berupa id stimulus bersama ATAU teks bacaan yang ditulis langsung.
     stimulusId: '',
+    stimulusTitle: '',
+    stimulusContent: '',
     rights: [] as string[],
     blanks: [] as QuizBlank[],
     reasons: [] as string[],
@@ -880,9 +884,11 @@ export function parseQuizSpec(raw: string): QuizSpec {
     question.id = id;
   }
 
-  // Bacaan bersama ("Stimulus 1 untuk soal 1-3"): dikumpulkan dulu, lalu tiap
-  // soal diarahkan ke stimulusnya. Bisa berupa id bersama, atau teks bacaan yang
-  // ditulis langsung di soal — yang kedua otomatis dibuatkan stimulus sendiri.
+  // Bacaan/stimulus: bisa berupa id bersama, objek {title, content}, atau teks
+  // yang ditulis langsung di soal. Format lama (daftar "stimuli" + rujukan id
+  // grup) tetap diterima, lalu SEMUA bacaan didenormalisasi ke tiap soal —
+  // setiap butir akhirnya memegang salinan bacaannya sendiri (satu stimulus
+  // untuk satu soal), sehingga rendering tidak perlu lagi mengelompokkan.
   const stimuli = normalizeStimuli(pick(obj, ['stimuli', 'stimulus', 'bacaan', 'daftar_bacaan', 'wacana']));
   const knownStimulus = new Set(stimuli.map((stimulus) => stimulus.id));
   let autoStimulus = 0;
@@ -892,12 +898,16 @@ export function parseQuizSpec(raw: string): QuizSpec {
     if (reference === undefined) continue;
 
     if (reference && typeof reference === 'object' && !Array.isArray(reference)) {
-      const obj = reference as Record<string, unknown>;
-      const content = String(pick(obj, ['content', 'text', 'teks', 'isi', 'bacaan', 'konten']) ?? '').trim();
+      const entry = reference as Record<string, unknown>;
+      const content = String(pick(entry, ['content', 'text', 'teks', 'isi', 'bacaan', 'konten']) ?? '').trim();
       if (!content) continue;
+      question.stimulusTitle = String(pick(entry, ['title', 'judul', 'nama']) ?? '').trim();
+      question.stimulusContent = content;
+      if (question.stimulusId) continue;
       autoStimulus += 1;
       const id = `s-auto-${autoStimulus}`;
-      stimuli.push({ id, title: String(pick(obj, ['title', 'judul', 'nama']) ?? `Bacaan ${autoStimulus}`), content });
+      if (!question.stimulusTitle) question.stimulusTitle = `Bacaan ${autoStimulus}`;
+      stimuli.push({ id, title: question.stimulusTitle, content });
       question.stimulusId = id;
       continue;
     }
@@ -912,6 +922,19 @@ export function parseQuizSpec(raw: string): QuizSpec {
     const id = `s-auto-${autoStimulus}`;
     stimuli.push({ id, title: `Bacaan ${autoStimulus}`, content: text });
     question.stimulusId = id;
+    question.stimulusContent = text;
+    question.stimulusTitle = `Bacaan ${autoStimulus}`;
+  }
+
+  // Denormalisasi: salin bacaan ke tiap soal (mencakup rujukan grup lama pada
+  // spec mentah maupun spec tersimpan yang dibaca ulang via rehydrate).
+  for (const question of questions) {
+    if (question.stimulusContent || !question.stimulusId) continue;
+    const stimulus = stimuli.find((entry) => entry.id === question.stimulusId);
+    if (stimulus) {
+      question.stimulusTitle = stimulus.title;
+      question.stimulusContent = stimulus.content;
+    }
   }
 
   const features = detectFeatures(raw, questions);
@@ -979,7 +1002,14 @@ export function quizToAuthoringSource(quiz: QuizSpec): Record<string, unknown> {
     if (question.level) item.level = question.level;
     if (question.explanation) item.explanation = question.explanation;
     if (question.scoring === 'partial') item.scoring = 'partial';
-    if (question.stimulusId) item.stimulus = question.stimulusId;
+    // Setiap soal memegang bacaannya sendiri: tulis objek stimulus per soal
+    // (bukan rujukan id grup) supaya editor bisa mengubah tiap bacaan mandiri.
+    if (question.stimulusContent) {
+      item.stimulus = {
+        ...(question.stimulusTitle ? { title: question.stimulusTitle } : {}),
+        content: question.stimulusContent,
+      };
+    }
 
     if (question.type === 'choice') {
       item.options = question.options;
@@ -1027,12 +1057,10 @@ export function quizToAuthoringSource(quiz: QuizSpec): Record<string, unknown> {
     return item;
   });
 
-  const stimuli = quiz.stimuli ?? [];
   return {
     title: quiz.title,
     description: quiz.description,
     passing_score: quiz.passingScore,
-    ...(stimuli.length ? { stimuli } : {}),
     ...(quiz.showExplanation === false ? { show_explanation: false } : {}),
     questions,
   };

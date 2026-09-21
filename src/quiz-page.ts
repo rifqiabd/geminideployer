@@ -5,22 +5,22 @@
 import { escapeHtml, mediaBaseFor, optionLetter } from './quiz-util.ts';
 import { inlineRich, renderRichText } from './quiz-rich.ts';
 import { HLJS_BASE, KATEX_BASE } from './quiz-types.ts';
-import type { Feature, QuizQuestion, QuizSpec, QuizStimulus } from './quiz-types.ts';
+import type { Feature, QuizQuestion, QuizSpec } from './quiz-types.ts';
 
 
 /* -------------------------------------------------------------------------- */
 /* Generator halaman kuis                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** Kartu bacaan/stimulus bersama, ditampilkan sekali di atas kelompok soalnya. */
-export function renderStimulusCard(stimulus: QuizStimulus, features: Set<Feature>, mediaBase: string, order: number): string {
+/** Kartu bacaan/stimulus milik satu soal, ditaruh tepat di atas kartu soalnya. */
+export function renderStimulusCard(title: string, content: string, features: Set<Feature>, mediaBase: string, anchorId: string, order: number): string {
   return `
-    <section class="q-stimulus" id="stim-${escapeHtml(stimulus.id)}">
+    <section class="q-stimulus" id="stim-${escapeHtml(anchorId)}">
       <div class="q-stimulus-head">
         <span class="q-stimulus-badge">Bacaan ${order}</span>
-        <h2>${escapeHtml(stimulus.title)}</h2>
+        <h2>${escapeHtml(title)}</h2>
       </div>
-      <div class="q-stimulus-body">${renderRichText(stimulus.content, features, mediaBase)}</div>
+      <div class="q-stimulus-body">${renderRichText(content, features, mediaBase)}</div>
     </section>`;
 }
 
@@ -103,9 +103,6 @@ export function renderQuestionCard(question: QuizQuestion, features: Set<Feature
   }
   const tagHtml = tags.length ? ` <span class="q-tag">${escapeHtml(tags.join(' • '))}</span>` : '';
   const levelHtml = question.level ? ` <span class="q-tag q-tag-level">${escapeHtml(question.level)}</span>` : '';
-  const jumpHtml = question.stimulusId
-    ? ` <a class="q-jump" href="#stim-${escapeHtml(question.stimulusId)}"><i class="q-jump-icon"></i>Lihat bacaan</a>`
-    : '';
 
   let controls = '';
   if (question.type === 'choice' || question.type === 'multi') {
@@ -224,7 +221,7 @@ export function renderQuestionCard(question: QuizQuestion, features: Set<Feature
     <div class="q-card" data-qid="${escapeHtml(question.id)}" data-type="${question.type}">
       <div class="q-card-head">
         <span class="q-num">${question.no}</span>
-        <div class="q-text">${renderRichText(question.question, features, mediaBase)}${levelHtml}${tagHtml}${jumpHtml}</div>
+        <div class="q-text">${renderRichText(question.question, features, mediaBase)}${levelHtml}${tagHtml}</div>
         <button type="button" class="q-flag" data-flag aria-pressed="false" title="Tandai soal ini ragu-ragu">Ragu</button>
       </div>
       ${controls}
@@ -237,38 +234,24 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
   const features = new Set(quiz.features);
   const mediaBase = mediaBaseFor(slug);
 
-  // Soal dikelompokkan mengikuti bacaan bersamanya, supaya satu stimulus tampil
-  // SEKALI di atas kelompok soalnya — bukan diulang di tiap soal (seperti naskah
-  // TKA: "Stimulus 1 untuk soal 1-3").
-  const groups: Array<{ stimulus: QuizStimulus | null; questions: QuizQuestion[] }> = [];
-  const groupSlot = new Map<string, number>();
-  for (const question of quiz.questions) {
-    const slot = groupSlot.get(question.stimulusId);
-    if (slot !== undefined) {
-      groups[slot].questions.push(question);
-      continue;
-    }
-    groupSlot.set(question.stimulusId, groups.length);
-    groups.push({
-      stimulus: question.stimulusId
-        ? quiz.stimuli.find((stimulus) => stimulus.id === question.stimulusId) ?? null
-        : null,
-      questions: [question],
-    });
-  }
-
+  // Setiap soal memegang bacaannya sendiri (denormalisasi saat parse): stimulus
+  // dirender langsung di atas kartu soalnya — satu stimulus untuk satu soal,
+  // tanpa pengelompokan seperti naskah TKA yang berbagi satu bacaan.
   let stimulusOrder = 0;
-  const cards = groups
-    .map((group) => {
-      const body = group.questions.map((question) => renderQuestionCard(question, features, mediaBase)).join('');
-      if (!group.stimulus) return `<div class="q-group">${body}</div>`;
-      stimulusOrder += 1;
-      // Bacaan ditaruh di kolom kiri saat layar lebar, jadi siswa bisa membaca
-      // sambil menjawab tanpa menggulir bolak-balik (gaya aplikasi ujian).
-      return `<div class="q-group q-group-split">
-        <div class="q-group-side">${renderStimulusCard(group.stimulus, features, mediaBase, stimulusOrder)}</div>
-        <div class="q-group-body">${body}</div>
-      </div>`;
+  const cards = quiz.questions
+    .map((question) => {
+      const reading = question.stimulusContent
+        ? renderStimulusCard(
+            question.stimulusTitle || `Bacaan ${stimulusOrder + 1}`,
+            question.stimulusContent,
+            features,
+            mediaBase,
+            question.id,
+            ++stimulusOrder
+          )
+        : '';
+      const body = renderQuestionCard(question, features, mediaBase);
+      return `<div class="q-group">${reading}${body}</div>`;
     })
     .join('');
   const objectivePoints = quiz.questions
@@ -334,6 +317,7 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
         <h1>${escapeHtml(quiz.title || 'Kuis')}</h1>
         <p>${quiz.questions.length} soal • nilai minimal lulus ${quiz.passingScore}${levelLine}</p>
       </div>
+      <a class="q-btn q-btn-mini q-no-print" href="?print=1" title="Cetak / Simpan PDF">Cetak</a>
     </div>
   </header>
 
@@ -914,6 +898,283 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
   renderMath(document.body);
   highlightCode(document);
 })();
+  </script>
+</body>
+</html>`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Lembar cetak (Print to PDF)                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Naskah soal versi cetak (A4) dari kuis JSON. Kartu soal dirender STATIS —
+ * tanpa input/select/button — supaya bisa dikerjakan siswa di atas kertas. Urutan
+ * opsi mengikuti urutan yang tampil di aplikasi (sudah diacak deterministik di
+ * parser), jadi cetakannya konsisten dengan kunci tersimpan.
+ * `showKunci` menambahkan blok "Kunci" (+ pembahasan) untuk pegangan guru.
+ */
+export function renderPrintSheet(
+  quiz: QuizSpec,
+  slug: string,
+  options: { showKunci?: boolean; layout?: '1col' | '2col'; auto?: boolean } = {}
+): string {
+  const showKunci = !!options.showKunci;
+  const twoColumns = options.layout === '2col';
+  const autoPrint = !!options.auto;
+  const features = new Set(quiz.features);
+  const mediaBase = mediaBaseFor(slug);
+
+  const levelCounts = new Map<string, number>();
+  for (const question of quiz.questions) {
+    if (!question.level) continue;
+    levelCounts.set(question.level, (levelCounts.get(question.level) ?? 0) + 1);
+  }
+  const levelLine = levelCounts.size
+    ? ` • ${[...levelCounts.entries()].map(([level, count]) => `${escapeHtml(level)} ${count}`).join(' • ')}`
+    : '';
+
+  const staticBody = (question: QuizQuestion): string => {
+    const letter = (index: number) => `<span class="q-print-optkey">${escapeHtml(optionLetter(index))}.</span>`;
+
+    if (question.type === 'choice' || question.type === 'multi' || question.type === 'true_false') {
+      return `<ol class="q-print-opts">${question.options
+        .map((option, index) => `<li>${letter(index)}<span>${inlineRich(option, features, mediaBase)}</span></li>`)
+        .join('')}</ol>`;
+    }
+
+    if (question.type === 'category') {
+      const rows = question.statements
+        .map((statement, index) => {
+          const mark = showKunci && statement.answer ? '✓' : '';
+          return `<tr data-statement="${index}"><td class="q-matrix-text"><span class="q-matrix-no">${index + 1}</span>${inlineRich(statement.text, features, mediaBase)}</td><td class="q-print-mark">${mark}</td><td class="q-print-mark">${!mark && showKunci && !statement.answer ? '✓' : ''}</td></tr>`;
+        })
+        .join('');
+      return `<div class="q-matrix-wrap"><table class="q-matrix">
+        <thead><tr><th>Pernyataan</th><th>${escapeHtml(question.labels[0])}</th><th>${escapeHtml(question.labels[1])}</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+    }
+
+    if (question.type === 'matching') {
+      const cols = question.options
+        .map(
+          (left, index) =>
+            `<div class="q-print-match-row"><span class="q-match-left"><span class="q-match-no">${index + 1}</span><span class="q-opt-text">${inlineRich(left, features, mediaBase)}</span></span><span class="q-print-gap"></span><span class="q-print-right">${optionLetter(index)}) ${escapeHtml(
+              question.rights[index] ?? ''
+            )}</span></div>`
+        )
+        .join('');
+
+      const kunciNote =
+        showKunci && question.keyLabel
+          ? `<div class="q-print-line-note">${escapeHtml(question.keyLabel)}</div>`
+          : '';
+      return `<div class="q-print-match"><div class="q-match-head"><span>Pernyataan</span><span></span><span>Pasangan</span></div>${cols}</div>${kunciNote}`;
+    }
+
+    if (question.type === 'ordering') {
+      return `<div class="q-ord">${question.options
+        .map(
+          (option, index) =>
+            `<div class="q-ord-row"><span class="q-ord-pos"><span class="q-print-ord-box">&nbsp;</span></span><span class="q-ord-text">${inlineRich(option, features, mediaBase)}</span></div>`
+        )
+        .join('')}</div>`;
+    }
+
+    if (question.type === 'table_fill') {
+      const width = Math.max(
+        question.tableRows.reduce((max, row) => Math.max(max, row.length), 0),
+        question.tableHeaders.length
+      );
+      const columns = Array.from({ length: width }, (_unused, index) => question.tableHeaders[index] ?? '');
+      const hasHead = columns.some((column) => column.trim() !== '');
+      const head = hasHead
+        ? `<thead><tr>${columns.map((column) => `<th>${inlineRich(column, features, mediaBase)}</th>`).join('')}</tr></thead>`
+        : '';
+      const body = question.tableRows
+        .map((row) => {
+          const cells = columns
+            .map((_column, index) => {
+              const cell = row[index] ?? '';
+              const blank = /^@@BLANK(\d+)@@$/.exec(cell);
+              if (!blank) return `<td>${inlineRich(cell, features, mediaBase)}</td>`;
+              const blankIndex = Number(blank[1]);
+              return `<td><span class="q-print-blank">${showKunci ? escapeHtml(question.blanks[blankIndex]?.accepted[0] ?? '...') : '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'}</span></td>`;
+            })
+            .join('');
+          return `<tr>${cells}</tr>`;
+        })
+        .join('');
+      return `<div class="q-table-wrap"><table class="q-table q-table-fill">${head}<tbody>${body}</tbody></table></div>`;
+    }
+
+    if (question.type === 'two_tier') {
+      const group = (label: string, choices: string[]) =>
+        `<p class="q-tier-label">${label}</p><ol class="q-print-opts">${choices
+          .map((choice, index) => `<li>${letter(index)}<span>${inlineRich(choice, features, mediaBase)}</span></li>`)
+          .join('')}</ol>`;
+      return `<div class="q-tier">${group('1. Pilih pernyataan', question.options)}</div><div class="q-tier">${group('2. Pilih alasan yang mendukung', question.reasons)}</div>`;
+    }
+
+    if (question.type === 'highlight') {
+      const body = question.segments
+        .map((segment) => {
+          if (!segment.selectable) return escapeHtml(segment.text);
+          if (showKunci && segment.answer) return `<strong>${escapeHtml(segment.text)}</strong>`;
+          return `<span class="q-print-token">${escapeHtml(segment.text)}</span>`;
+        })
+        .join('');
+      return `<div class="q-passage">${body}</div>`;
+    }
+
+    if (question.type === 'short') {
+      return `<div class="q-print-line"></div>`;
+    }
+
+    return `<div class="q-print-essay"></div>`;
+  };
+
+  let order = 0;
+  const sheets = quiz.questions
+    .map((question) => {
+      const reading = question.stimulusContent
+        ? renderStimulusCard(
+            question.stimulusTitle || `Bacaan ${order + 1}`,
+            question.stimulusContent,
+            features,
+            mediaBase,
+            question.id,
+            ++order
+          )
+        : '';
+      const kunci = showKunci
+        ? `<div class="q-print-key"><strong>Kunci:</strong>${escapeHtml(question.keyLabel || '-')}</div>` +
+          (question.explanation
+            ? `<div class="q-print-key q-print-explain"><strong>Pembahasan:</strong>${renderRichText(question.explanation, features, mediaBase)}</div>`
+            : '')
+        : '';
+      return `<div class="q-group">${reading}<div class="q-card"><div class="q-card-head"><span class="q-num">${question.no}</span><div class="q-text">${renderRichText(question.question, features, mediaBase)}${question.level ? ` <span class="q-tag q-tag-level">${escapeHtml(question.level)}</span>` : ''}</div></div>${staticBody(question)}${kunci}</div></div>`;
+    })
+    .join('');
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cetak — ${escapeHtml(quiz.title || 'Kuis')}</title>
+  <link rel="stylesheet" href="/vendor/quiz.css">
+  ${features.has('math') ? `<link rel="stylesheet" href="${KATEX_BASE}/katex.min.css">` : ''}
+  <style>
+    .q-print-body { padding: 24px 18px; }
+    .q-print-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+    .q-print-header h1 { margin: 0 0 4px; font-size: 19px; }
+    .q-print-header p { margin: 0; font-size: 12px; color: #222; }
+    .q-print-key { margin-top: 10px; padding: 8px 10px; border: 1px dashed #555; background: #f4f4f4; font-size: 12.5px; }
+    .q-print-key strong { margin-right: 6px; }
+    .q-print-explain { margin-top: 6px; }
+    .q-print-biodata { display: flex; flex-wrap: wrap; column-gap: 28px; row-gap: 5px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #bbb; }
+    .q-print-field { display: flex; align-items: baseline; min-width: 240px; font-size: 13px; }
+    .q-print-field label { width: 128px; flex: none; font-weight: 600; }
+    .q-print-field span { flex: 1; min-width: 150px; height: 18px; border-bottom: 1px solid #000; }
+    .q-print-line { height: 26px; border-bottom: 1px solid #000; margin-top: 12px; }
+    .q-print-essay { height: 130px; border: 1px solid #ccc; margin-top: 12px; }
+    .q-print-blank { display: inline-block; min-width: 110px; border-bottom: 1px solid #000; }
+    .q-print-token { border-bottom: 1px solid #000; }
+    .q-print-ord-box { display: inline-block; width: 20px; height: 22px; border: 1px solid #000; }
+    .q-print-mark { width: 44px; text-align: center; }
+    .q-print-match { margin-top: 12px; }
+    .q-print-match-row { display: grid; grid-template-columns: 1fr 34px 1fr; align-items: start; gap: 6px; padding: 4px 0; }
+    .q-print-gap { border-bottom: 1px solid #bbb; height: 18px; }
+    .q-print-right { padding-left: 8px; }
+    .q-print-line-note { margin-top: 10px; font-size: 12px; color: #333; }
+    ol.q-print-opts { margin: 8px 0 0; padding-left: 20px; }
+    ol.q-print-opts li { margin: 4px 0; }
+    .q-print-optkey { margin-right: 8px; }
+    .q-print-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; padding: 10px 12px; background: #0f172a; color: #e2e8f0; border-radius: 10px; font-size: 13px; }
+    .q-print-bar-label { margin-right: auto; color: #94a3b8; }
+    .q-print-seg { display: inline-flex; border: 1px solid #475569; border-radius: 8px; overflow: hidden; }
+    .q-print-seg button { padding: 6px 14px; background: #1e293b; color: #94a3b8; border: none; cursor: pointer; font-size: 12.5px; }
+    .q-print-seg button:hover { color: #fff; }
+    .q-print-seg button.on { background: #7c3aed; color: #fff; }
+    .q-print-run { padding: 6px 14px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+    .q-print-cols { column-count: 1; column-gap: 28px; }
+    .q-print-cols.is-2col { column-count: 2; }
+    .q-print-cols .q-group, .q-print-cols .q-card, .q-print-cols .q-stimulus { break-inside: avoid; }
+    .q-print-foot { margin-top: 26px; font-size: 11px; color: #555; text-align: center; }
+    @page { size: A4; margin: 10mm; }
+  </style>
+</head>
+<body>
+  <header class="q-print-header">
+    <h1>${escapeHtml(quiz.title || 'Kuis')}</h1>
+    <p>${quiz.questions.length} soal${levelLine}</p>
+    ${quiz.description && !showKunci ? `<p style="margin-top:6px">${renderRichText(quiz.description, features, mediaBase)}</p>` : ''}
+  </header>
+
+  <main class="q-print-body">
+    ${showKunci ? '' : `
+    <div class="q-print-biodata">
+      <div class="q-print-field"><label>Nama</label><span></span></div>
+      <div class="q-print-field"><label>Kelas</label><span></span></div>
+      <div class="q-print-field"><label>Nomor Absen</label><span></span></div>
+      <div class="q-print-field"><label>Tanggal</label><span></span></div>
+    </div>`}
+    ${
+      autoPrint
+        ? ''
+        : `<div class="q-print-bar q-no-print" data-cols-bar>
+      <span class="q-print-bar-label">Tata letak</span>
+      <span class="q-print-seg">
+        <button type="button" data-cols="1col" class="${twoColumns ? '' : 'on'}">1 Kolom</button>
+        <button type="button" data-cols="2col" class="${twoColumns ? 'on' : ''}">2 Kolom</button>
+      </span>
+      <button type="button" id="print-run" class="q-print-run">Cetak / Simpan PDF</button>
+    </div>`
+    }
+    <div class="q-print-cols${twoColumns ? ' is-2col' : ''}">
+      ${sheets}
+    </div>
+    <p class="q-print-foot">Dicetak dari /p/${escapeHtml(slug)}</p>
+  </main>
+
+  ${features.has('math') ? `<script src="${KATEX_BASE}/katex.min.js"></script><script src="${KATEX_BASE}/contrib/auto-render.min.js"></script>` : ''}
+  <script>
+  (function () {
+    ${features.has('math') ? `
+    function renderMath(scope) {
+      if (typeof renderMathInElement !== 'function') return;
+      try {
+        renderMathInElement(scope || document.body, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false
+        });
+      } catch (err) {}
+    }
+    renderMath(document.body);` : ''}
+    ${
+      autoPrint
+        ? `window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });`
+        : `(function () {
+      var cols = document.querySelector('.q-print-cols');
+      var bar = document.querySelector('[data-cols-bar]');
+      if (!cols || !bar) return;
+      var seg = bar.querySelectorAll('[data-cols]');
+      seg.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var isTwo = btn.getAttribute('data-cols') === '2col';
+          cols.classList.toggle('is-2col', isTwo);
+          seg.forEach(function (b) { b.classList.toggle('on', b === btn); });
+        });
+      });
+      var run = document.getElementById('print-run');
+      if (run) run.addEventListener('click', function () { window.print(); });
+    })();`
+    }
+  })();
   </script>
 </body>
 </html>`;

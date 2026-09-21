@@ -49,6 +49,48 @@
     }
   });
 
+  // Stimulus lama berbentuk "daftar bersama + rujukan id" (atau teks langsung).
+  // Semua dinormalisasi jadi salinan per soal `stimulus: {title, content}` supaya
+  // guru bisa mengedit / menghapus bacaan tiap soal secara mandiri — satu
+  // stimulus untuk satu soal. Daftar "stimuli" level atas lalu dibuang.
+  var stimulusById = {};
+  (Array.isArray(state.stimuli) ? state.stimuli : []).forEach(function (entry, i) {
+    var object = entry && typeof entry === 'object' ? entry : {};
+    var content = String(object.content || object.text || object.teks || object.isi || object.konten || (typeof entry === 'string' ? entry : '') || '').trim();
+    if (!content) return;
+    var id = String(object.id || object.kode || '').trim() || 's' + (i + 1);
+    stimulusById[id] = { title: String(object.title || object.judul || object.nama || '').trim(), content: content };
+  });
+  state.questions.forEach(function (q) {
+    if (!q || typeof q !== 'object') return;
+    var raw = q.stimulus !== undefined ? q.stimulus : q.stimulus_id !== undefined ? q.stimulus_id : q.bacaan !== undefined ? q.bacaan : q.wacana;
+    delete q.stimulus;
+    delete q.stimulus_id;
+    delete q.bacaan;
+    delete q.wacana;
+    if (raw === undefined || raw === null || raw === '') return;
+    var title = '';
+    var content = '';
+    if (typeof raw === 'object') {
+      title = String(raw.title || raw.judul || raw.nama || '').trim();
+      content = String(raw.content || raw.text || raw.teks || raw.isi || raw.bacaan || raw.konten || '').trim();
+    } else {
+      var text = String(raw).trim();
+      var shared = stimulusById[text] || stimulusById[text.replace(/^#/, '')];
+      if (shared) { title = shared.title; content = shared.content; }
+      else content = text;
+    }
+    if (content) q.stimulus = { title: title, content: content };
+  });
+  delete state.stimuli;
+
+  function stimulusOf(q) {
+    var value = q.stimulus;
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    if (!value || typeof value !== 'object') q.stimulus = { title: '', content: '' };
+    return q.stimulus;
+  }
+
   var listEl = document.getElementById('qe-questions');
   var banner = document.getElementById('qe-banner');
   var countEl = document.getElementById('qe-count');
@@ -380,6 +422,15 @@
         '</div>' +
       '</div>' +
       '<textarea data-index="' + index + '" data-field="question" rows="2" placeholder="Tulis pertanyaan di sini..." class="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm">' + esc(q.question || '') + '</textarea>' +
+      '<div class="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3 space-y-2">' +
+        '<div class="flex items-center gap-2">' +
+          '<i class="fa-solid fa-book-open text-slate-500 text-xs"></i>' +
+          '<span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Bacaan (stimulus) — opsional, milik soal ini</span>' +
+        '</div>' +
+        '<input data-index="' + index + '" data-field="stimulus-title" value="' + esc(stimulusOf(q).title) +
+          '" placeholder="Judul bacaan, mis: Company Memo (boleh kosong)" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs">' +
+        '<textarea data-index="' + index + '" data-field="stimulus-content" rows="3" placeholder="Tulis bacaan untuk soal ini saja. Kosongkan kalau soal tidak memakai bacaan." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">' + esc(stimulusOf(q).content) + '</textarea>' +
+      '</div>' +
       '<div class="flex items-center gap-2">' +
         '<i class="fa-solid fa-image text-slate-500 text-xs"></i>' +
         '<input data-index="' + index + '" data-field="image" value="' + esc(imageText(q)) + '" placeholder="nama slot gambar, mis: tumbuhan (boleh dikosongkan)" class="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono">' +
@@ -411,6 +462,10 @@
     var opt = Number(el.getAttribute('data-opt'));
     if (field === 'question') q.question = el.value;
     else if (field === 'points') q.points = Number(el.value) > 0 ? Number(el.value) : 1;
+    else if (field === 'stimulus-title' || field === 'stimulus-content') {
+      var stim = stimulusOf(q);
+      stim[field === 'stimulus-title' ? 'title' : 'content'] = el.value;
+    }
     else if (field === 'options' || field === 'items' || field === 'reasons') {
       var list = Array.isArray(q[field]) ? q[field] : (q[field] = []);
       list[opt] = el.value;
@@ -572,6 +627,17 @@
   function normalizeForSave() {
     state.questions.forEach(function (q) {
       var type = typeOf(q);
+
+      // Stimulus disimpan sebagai objek {title, content} per soal. Judul tanpa
+      // konten dibuang; keduanya kosong = soal tanpa bacaan.
+      if (q.stimulus && typeof q.stimulus === 'object' && !Array.isArray(q.stimulus)) {
+        var stimTitle = String(q.stimulus.title || '').trim();
+        var stimContent = String(q.stimulus.content || '').trim();
+        if (stimContent) q.stimulus = stimTitle ? { title: stimTitle, content: stimContent } : { content: stimContent };
+        else delete q.stimulus;
+      } else {
+        delete q.stimulus;
+      }
 
       if (type === 'ordering') {
         // `items` = urutan benar; kunci eksplisit tidak dipakai lagi.

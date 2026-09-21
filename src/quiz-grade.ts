@@ -504,5 +504,3 @@ export function gradeSubmission(
 /* -------------------------------------------------------------------------- */
 /* Generator halaman kuis                                                     */
 /* -------------------------------------------------------------------------- */
-
-/** Kartu bacaan/stimulus bersama, ditampilkan sekali di atas kelompok soalnya. */

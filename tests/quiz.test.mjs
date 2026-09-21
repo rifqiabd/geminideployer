@@ -4,6 +4,7 @@ import {
   parseQuizSpec,
   gradeSubmission,
   renderQuizApp,
+  renderPrintSheet,
   collectMediaSlots,
   collectMediaSlotsFromStored,
   mediaBaseFor,
@@ -177,7 +178,8 @@ check('daftar model tidak kosong dan default = model bawaan proxy', IMGGEN_MODEL
 check('daftar model id unik', new Set(IMGGEN_MODELS.map((m) => m.id)).size === IMGGEN_MODELS.length, true);
 check('prompt dibungkus instruksi & topik asli ikut', buildImagePrompt('  skema   relay lampu  ').includes('skema relay lampu'), true);
 check('prompt kosong tetap menghasilkan teks', buildImagePrompt('   ').length > 20, true);
-check('prompt panjang dipangkas (topik maks 400 karakter)', buildImagePrompt('x'.repeat(2000)).length < 700, true);
+check('prompt panjang dipangkas (topik maks 400 karakter)', buildImagePrompt('x'.repeat(2000)).length < 1000, true);
+check('prompt gambar minta gaya menarik & tidak terlalu sederhana', buildImagePrompt('skema relay').includes('menarik') && buildImagePrompt('skema relay').includes('terlalu sederhana'), true);
 
 // ---------- Konteks slot untuk prompt AI / template Gemini ----------
 check('konteks slot dari field image berisi tipe + teks soal', mediaSlotContext(gambarSpec, 'tumbuhan').includes('Perhatikan gambar berikut!'), true);
@@ -324,6 +326,7 @@ check('prompt Gemini utuh untuk topik kosong', (() => {
   const p = buildGeminiPrompt('   ');
   return p.length > 20 && p.includes('ilustrasi edukatif umum') && p.includes('Topik:');
 })(), true);
+check('prompt Gemini minta gaya menarik & enak dilihat', buildGeminiPrompt('siklus air').includes('menarik') && buildGeminiPrompt('siklus air').includes('enak dilihat'), true);
 
 // ---------- Round-trip editor soal (normalisasi -> format tulis -> parse lagi) ----------
 const rtJson = JSON.stringify(quizToAuthoringSource(gambarSpec));
@@ -773,6 +776,14 @@ const tkaSpec = parseQuizSpec(
 check('tka: alias mcma dikenali sebagai multi', tkaSpec.questions[1].type, 'multi');
 check('tka: alias pg_kompleks_kategori jadi category', tkaSpec.questions[2].type, 'category');
 check('tka: stimulus bersama dipakai tiga soal', tkaSpec.questions.map((question) => question.stimulusId), ['s1', 's1', 's1']);
+check(
+  'tka: bacaan didenormalisasi ke tiap soal (satu stimulus satu soal)',
+  tkaSpec.questions.every(
+    (question) =>
+      question.stimulusTitle === 'Company Operational Memo' && question.stimulusContent === 'All technicians must wear high-visibility vests.'
+  ),
+  true
+);
 const tkaGrade = gradeSubmission(tkaSpec, [
   { id: 'q1', value: 0 },
   { id: 'q2', value: [0, 1] },
@@ -834,7 +845,8 @@ check('render: panel navigasi ada', navHtml.includes('id="nav-grid"'), true);
 check('render: penghitung di panel navigasi ada', navHtml.includes('id="nav-count"'), true);
 check('render: tombol tanda ragu ada di tiap kartu', (markupOf(navHtml).match(/data-flag/g) || []).length, 3);
 check('render: tipe soal ikut ditulis di kartu', navHtml.includes('data-type="category"'), true);
-check('render: bacaan dua kolom dipakai saat soal punya stimulus', navHtml.includes('q-group-split'), true);
+check('render: tiap soal berbacaan memuat kartu stimulusnya sendiri', (markupOf(navHtml).match(/class="q-stimulus"/g) || []).length, 3);
+check('render: bacaan tidak dikelompokkan (tanpa dua kolom kiri)', navHtml.includes('q-group-split'), false);
 check('render: kotak tawaran melanjutkan ada', navHtml.includes('id="resume-box"'), true);
 check('render: jawaban disimpan ke localStorage per aplikasi', navHtml.includes("'quiz-attempt:' + CFG.slug"), true);
 check('render: pemulihan jawaban menunggu keputusan siswa', navHtml.includes("getElementById('resume-yes')"), true);
@@ -854,6 +866,38 @@ check('render two_tier: dua tingkat radio dibuat', (tierHtml.match(/name="ans-q1
 const hlHtml = renderQuizApp(hlSpec, 'uji-highlight');
 check('render highlight: bacaan jadi tombol yang bisa diklik', (hlHtml.match(/class="q-hl"/g) || []).length, 2);
 check('render highlight: teks biasa tidak jadi tombol', hlHtml.includes('di sekolah.'), true);
+
+/* --- Print to PDF: lembar statis, tata letak 1/2 kolom, kunci opsional ------ */
+check('render: tombol Cetak di header kuis menuju mode cetak', navHtml.includes('href="?print=1"'), true);
+
+const plainSheet = renderPrintSheet(tkaSpec, 'tka-bahasa-inggris');
+check('print: semua teks soal ikut tercetak', tkaSpec.questions.every((question) => plainSheet.includes(question.question)), true);
+check('print: bacaan dicetak per soal (kartu stimulus utuh)', (markupOf(plainSheet).match(/class="q-stimulus"/g) || []).length, 3);
+check('print: tidak ada kontrol interaktif soal', /<input|<select|<textarea|data-move|class="q-hl"|data-flag/.test(markupOf(plainSheet)), false);
+check('print: toolbar tata letak tampil saat non-auto', plainSheet.includes('data-cols-bar'), true);
+check('print: default satu kolom', plainSheet.includes('q-print-cols is-2col'), false);
+check('print: tanpa kunci saat showKunci false', plainSheet.includes('<strong>Kunci:</strong>'), false);
+check('print: tanpa pembahasan saat showKunci false', plainSheet.includes('Teks menyebut Gate 2.'), false);
+check('print: non-auto tidak langsung memicu dialog cetak', plainSheet.includes('setTimeout(function () { window.print(); }, 400)'), false);
+
+const mathSheet = renderPrintSheet(spec, 'uji-lokal');
+check('print: KaTeX CSS ikut dimuat', mathSheet.includes('katex.min.css'), true);
+check('print: auto-render math memakai opsi aman', mathSheet.includes('throwOnError: false'), true);
+check('print: form identitas di atas soal', plainSheet.includes('q-print-biodata') && plainSheet.includes('Nama') && plainSheet.includes('Kelas') && plainSheet.includes('Nomor Absen'), true);
+
+const autoSheet = renderPrintSheet(tkaSpec, 'tka-bahasa-inggris', { auto: true });
+check('print: auto langsung memicu dialog cetak', autoSheet.includes('setTimeout(function () { window.print(); }, 400)'), true);
+check('print: auto tanpa toolbar', autoSheet.includes('data-cols-bar'), false);
+
+const twoCol = renderPrintSheet(tkaSpec, 'tka-bahasa-inggris', { layout: '2col' });
+check('print: dua kolom mengaktifkan is-2col', twoCol.includes('class="q-print-cols is-2col"'), true);
+check('print: dua kolom tetap tanpa kunci', twoCol.includes('<strong>Kunci:</strong>'), false);
+
+const keySheet = renderPrintSheet(tkaSpec, 'tka-bahasa-inggris', { showKunci: true });
+check('print+kunci: blok kunci ada di tiap soal', (markupOf(keySheet).match(/class="q-print-key"/g) || []).length, 3);
+check('print+kunci: keyLabel ikut tercetak', keySheet.includes(tkaSpec.questions[0].keyLabel), true);
+check('print+kunci: pembahasan ikut tercetak', keySheet.includes('Teks menyebut Gate 2.'), true);
+check('print+kunci: kategori kunci benar ditandai ceklis', /q-print-mark">✓</.test(keySheet), true);
 
 /* --- Analisis butir untuk soal berbaris ------------------------------------ */
 const weakSpec = parseQuizSpec(
@@ -1026,6 +1070,52 @@ const orderFix = runEditor({
 check('editor: urutan benar dipindah ke daftar item', orderFix.state.questions[0].items, ['A', 'B', 'C']);
 check('editor: kunci eksplisit dibuang setelah dipindah', 'answer' in orderFix.state.questions[0], false);
 
+// Stimulus masuk ke editor bisa berbentuk daftar bersama + id, teks langsung,
+// atau objek {title, content}. Semua harus jadi objek per soal (satu stimulus
+// untuk satu soal) supaya guru bisa mengedit bacaan tiap soal secara mandiri.
+const legacyStim = runEditor({
+  stimuli: [{ id: 's1', title: 'Memo', content: 'Teks memo bersama.' }],
+  questions: [
+    { type: 'choice', question: 'Soal 1', options: ['a', 'b'], answer: 'a', stimulus: 's1' },
+    { type: 'short', question: 'Soal 2', answer: ['x'], stimulus: 'Teks langsung.' },
+  ],
+});
+check('editor: stimulus bersama didenormalisasi per soal', legacyStim.state.questions[0].stimulus, {
+  title: 'Memo',
+  content: 'Teks memo bersama.',
+});
+check('editor: daftar stimulus level atas dibuang', 'stimuli' in legacyStim.state, false);
+check('editor: stimulus teks langsung jadi konten per soal', legacyStim.state.questions[1].stimulus.content, 'Teks langsung.');
+legacyStim.state.questions[0].stimulus.content = 'Memo diedit.';
+legacyStim.normalizeForSave();
+check('editor: stimulus tetap utuh setelah simpan', legacyStim.state.questions[0].stimulus, { title: 'Memo', content: 'Memo diedit.' });
+check(
+  'editor: hasil simpan stimulus diterima parser',
+  parseQuizSpec(JSON.stringify(legacyStim.state)).questions[0].stimulusContent,
+  'Memo diedit.'
+);
+
+const objStim = runEditor({
+  questions: [
+    {
+      type: 'choice',
+      question: 'Pilih.',
+      options: ['a', 'b'],
+      answer: 'a',
+      stimulus: { title: 'Bacaan A', content: 'Teks A.' },
+    },
+  ],
+});
+objStim.normalizeForSave();
+check('editor: stimulus objek dipertahankan', objStim.state.questions[0].stimulus, { title: 'Bacaan A', content: 'Teks A.' });
+const emptyStim = runEditor({
+  questions: [
+    { type: 'choice', question: 'Pilih.', options: ['a', 'b'], answer: 'a', stimulus: { title: 'x', content: '   ' } },
+  ],
+});
+emptyStim.normalizeForSave();
+check('editor: stimulus kosong dibuang saat simpan', 'stimulus' in emptyStim.state.questions[0], false);
+
 const badTable = runEditor({ questions: [{ type: 'table_fill', question: 'Tabel', rows: [['a', 'b']] }] });
 check('editor: tabel tanpa sel rumpang ditolak', badTable.problems().length > 0, true);
 const badHighlight = runEditor({
@@ -1097,6 +1187,12 @@ const allTypesSpec = parseQuizSpec(
 );
 const allHtml = renderQuizApp(allTypesSpec, 'uji-semua-tipe');
 check('render semua tipe: parser menerima 10 butir', allTypesSpec.questions.length, 10);
+check(
+  'render semua tipe: stimulus bersama didenormalisasi ke soal',
+  allTypesSpec.questions[0].stimulusContent,
+  'Para teknisi wajib memakai vest dan menjaga jarak 2 meter dari jalur AGV.'
+);
+check('render semua tipe: kartu soal berbacaan diikuti stimulusnya', (markupOf(allHtml).match(/class="q-stimulus"/g) || []).length, 1);
 // Dicek pada bagian markup saja: kode klien memang memakai kata "undefined".
 check('render semua tipe: penanda sel rumpang tidak bocor ke halaman', markupOf(allHtml).includes('@@BLANK'), false);
 check('render semua tipe: tidak ada nilai undefined di tampilan', markupOf(allHtml).includes('undefined'), false);
@@ -1155,7 +1251,7 @@ check(
   [...new Set(promptSpec.questions.map((question) => question.type))].sort(),
   ['category', 'choice', 'essay', 'highlight', 'matching', 'multi', 'ordering', 'short', 'table_fill', 'true_false', 'two_tier']
 );
-check('dokumen prompt: contoh lengkap pakai stimulus bersama', promptSpec.questions.some((question) => question.stimulusId), true);
+check('dokumen prompt: contoh lengkap pakai stimulus per soal', promptSpec.questions.some((question) => question.stimulusContent), true);
 check(
   'dokumen prompt: setiap tipe punya penjelasan di daftar tipe',
   ['matching', 'ordering', 'table_fill', 'two_tier', 'highlight', 'category'].every(

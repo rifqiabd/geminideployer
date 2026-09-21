@@ -67,6 +67,8 @@ export function collectMediaSlots(quiz: QuizSpec): string[] {
     scan(question.question);
     scan(question.explanation);
     scan(question.passage);
+    scan(question.stimulusTitle);
+    scan(question.stimulusContent);
     for (const option of question.options) scan(option);
     for (const right of question.rights) scan(right);
     for (const reason of question.reasons) scan(reason);
@@ -209,14 +211,19 @@ export function collectSlotContext(quiz: QuizSpec, slot: string): { stimulus: st
       bits.push('tabel: ' + question.tableRows.map((row) => row.map((cell) => cleanContextText(cell)).join(' | ')).join(' / '));
     }
     if (question.explanation) bits.push('penjelasan: ' + cleanContextText(question.explanation));
-    // Bacaan bersama ikut menempel ke konteks soal (kecuali varian lengkap yang
-    // sudah menampilkan stimulus lebih dulu — mencegah bacaan muncul dua kali).
-    if (appendReading && question.stimulusId) {
-      const stimulus = stimuliById.get(question.stimulusId);
-      if (stimulus) {
-        const reading = cleanContextText(`${stimulus.title ? stimulus.title + '. ' : ''}${stimulus.content}`);
-        if (reading) bits.push('stimulus: ' + reading);
+    // Bacaan milik soal disertakan ke konteks (kecuali varian lengkap yang sudah
+    // menampilkan stimulus lebih dulu — mencegah bacaan muncul dua kali). Karena
+    // setiap soal kini memegang salinan bacaannya, cukup baca dari soal; kalau
+    // kosong (spec lama), coba lewat daftar stimulus bersama.
+    if (appendReading) {
+      let reading = question.stimulusContent
+        ? cleanContextText(`${question.stimulusTitle ? question.stimulusTitle + '. ' : ''}${question.stimulusContent}`)
+        : '';
+      if (!reading && question.stimulusId) {
+        const stimulus = stimuliById.get(question.stimulusId);
+        if (stimulus) reading = cleanContextText(`${stimulus.title ? stimulus.title + '. ' : ''}${stimulus.content}`);
       }
+      if (reading) bits.push('stimulus: ' + reading);
     }
     // Dibatasi supaya pas batas endpoint generate (700 karakter) sekaligus fokus
     // ke bagian yang paling relevan (teks soal & bacaan diletakkan di depan).
@@ -233,8 +240,10 @@ export function collectSlotContext(quiz: QuizSpec, slot: string): { stimulus: st
     return { question, ctx, primaryRaw, all };
   });
 
-  // Prioritas 1: STIMULUS yang memakai token — bacaan bersama didahulukan karena
-  // itulah bagian yang guru maksudkan untuk digambarkan (stimulus "untuk soal 1-3").
+  // Prioritas 1: STIMULUS yang memakai token — bacaan didahulukan karena itulah
+  // bagian yang guru maksudkan untuk digambarkan. Semua stimulus sudah terkumpul
+  // di `quiz.stimuli` (baik yang bersama maupun milik per soal), lalu kalau punya
+  // data soal ikut dipertimbangkan sebagai cadangan.
   let stimulus = '';
   let stimulusWithSlot: QuizStimulus | null = null;
   for (const candidate of quiz.stimuli ?? []) {
@@ -251,13 +260,33 @@ export function collectSlotContext(quiz: QuizSpec, slot: string): { stimulus: st
     }
     if (stimulusWithSlot) break;
   }
+  // Cadangan: bacaan yang hanya menempel di soal (denormalisasi per soal) tetapi
+  // belum sampai tercatat di daftar stimulus.
+  let questionWithStimulus: QuizQuestion | null = null;
+  if (!stimulusWithSlot) {
+    for (const question of quiz.questions) {
+      if (!question.stimulusContent) continue;
+      for (const text of [question.stimulusTitle, question.stimulusContent]) {
+        if (textUsesSlot(text, slotName)) {
+          const cleaned = cleanContextText(text);
+          const heading = sanitizeMediaName(question.stimulusTitle)
+            ? `stimulus. ${cleanContextText(question.stimulusTitle)}`
+            : 'stimulus';
+          stimulus = cleaned ? `${heading}. ${cleaned}` : heading;
+          questionWithStimulus = question;
+          break;
+        }
+      }
+      if (questionWithStimulus) break;
+    }
+  }
 
   // Konteks soal terbaik: soal yang menyebut token langsung (teks → bagian lain),
   // kalau tidak ada, soal pertama yang memakai stimulus berisi token itu.
   let question = '';
   const byText = questionContexts.find((entry) => textUsesSlot(entry.primaryRaw, slotName));
   const byParts = byText ? null : questionContexts.find((entry) => entry.all.some((text) => textUsesSlot(text, slotName)));
-  const entry = byText ?? byParts;
+  const entry = byText ?? byParts ?? (questionWithStimulus ? { question: questionWithStimulus, ctx: questionContext(questionWithStimulus, false), primaryRaw: '', all: [], } : null);
   if (entry) {
     question = entry.ctx;
   } else if (stimulusWithSlot) {

@@ -2,13 +2,14 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
-import { QuizError, escapeHtml, gradeSubmission, mediaBaseFor, parseQuizJson, parseQuizSpec, renderQuizApp } from './quiz';
+import { QuizError, escapeHtml, gradeSubmission, mediaBaseFor, parseQuizJson, parseQuizSpec, renderPrintSheet, renderQuizApp } from './quiz';
 import type { QuizSpec } from './quiz';
 import { registerMediaRoutes, withMediaStats } from './media-routes';
 import { registerQuizEditorRoutes } from './quiz-editor';
 import { computeItemAnalysis, renderItemAnalysis } from './quiz-report';
 import { registerEssayGradingRoutes } from './quiz-essay';
 import { deleteAllMedia } from './media';
+import { registerGuideRoute, GEM_URL } from './guide';
 
 type Bindings = {
   STORAGE: KVNamespace;
@@ -37,6 +38,9 @@ registerQuizEditorRoutes(app);
 
 // Koreksi jawaban esai di /p/:slug/essay
 registerEssayGradingRoutes(app);
+
+// Panduan penggunaan di /panduan
+registerGuideRoute(app);
 
 // Helper: Bersihkan tag markdown dari output Gemini
 function cleanGeminiMarkdown(code: string): string {
@@ -148,6 +152,27 @@ function wrapReactComponent(reactCode: string, title: string): string {
 // Buka Aplikasi Berdasarkan Slug
 app.get('/p/:slug', async (c) => {
   const slug = c.req.param('slug');
+
+  // Mode cetak (Print to PDF) khusus kuis JSON: `?print=1` (+ `&kunci=1`).
+  // Aplikasi mode HTML/React tidak punya spec terstruktur — biarkan apa adanya.
+  if (c.req.query('print') === '1') {
+    const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
+    if (specRaw) {
+      try {
+        const spec = JSON.parse(specRaw) as QuizSpec;
+        return c.html(
+          renderPrintSheet(spec, slug, {
+            showKunci: c.req.query('kunci') === '1',
+            layout: c.req.query('layout') === '2col' ? '2col' : '1col',
+            auto: c.req.query('auto') === '1',
+          })
+        );
+      } catch {
+        // Spec tidak valid — jatuh ke penyajian halaman biasa di bawah.
+      }
+    }
+  }
+
   const html = await c.env.STORAGE.get(`html:${slug}`);
 
   if (!html) {
@@ -417,6 +442,11 @@ app.get('/', async (c) => {
   <title>Gemini App Hub & Deployer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .seg-cols { padding: 5px 9px; font-size: 11px; background: transparent; color: #94a3b8; border: none; cursor: pointer; transition: background .15s, color .15s; }
+    .seg-cols:hover { background: rgba(255,255,255,.08); color: #fff; }
+    .seg-on { background: #7c3aed; color: #fff !important; }
+  </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
   <nav class="bg-slate-800/80 border-b border-slate-700/60 p-4 sticky top-0 z-40 backdrop-blur">
@@ -427,7 +457,7 @@ app.get('/', async (c) => {
         </div>
         <h1 class="text-base font-bold text-white">Gemini Edge Deployer</h1>
       </div>
-      ${isAuth ? `<a href="/api/logout" class="text-xs bg-slate-700 hover:bg-rose-600 px-3 py-1.5 rounded-lg text-slate-200 transition"><i class="fa-solid fa-right-from-bracket mr-1"></i> Keluar</a>` : ''}
+      ${isAuth ? `<div class="flex items-center gap-2"><a href="${GEM_URL}" target="_blank" rel="noopener" class="text-xs bg-orange-600 hover:bg-orange-500 px-3 py-1.5 rounded-lg text-white font-semibold transition" title="Buka Gem Gemini pembuat soal"><i class="fa-brands fa-google mr-1"></i> Gem Gemini</a><a href="/panduan" class="text-xs bg-slate-700 hover:bg-orange-600 px-3 py-1.5 rounded-lg text-slate-200 transition" title="Panduan Penggunaan"><i class="fa-solid fa-book mr-1"></i> Panduan</a><a href="/api/logout" class="text-xs bg-slate-700 hover:bg-rose-600 px-3 py-1.5 rounded-lg text-slate-200 transition"><i class="fa-solid fa-right-from-bracket mr-1"></i> Keluar</a></div>` : ''}
     </div>
   </nav>
 
@@ -477,12 +507,12 @@ app.get('/', async (c) => {
   "title": "TKA Bahasa Inggris SMK - Dunia Kerja",
   "description": "Pilih jawaban yang paling tepat.",
   "passing_score": 70,
-  "stimuli": [
-    { "id": "s1", "title": "Company Operational Memo",
-      "content": "All technicians entering Zone B must wear high-visibility vests (supplied at entrance Gate 2) and keep a 2 meter clearance from any moving AGV path." }
-  ],
   "questions": [
-    { "type": "choice", "level": "L1", "stimulus": "s1",
+    { "type": "choice", "level": "L1",
+      "stimulus": {
+        "title": "Company Operational Memo",
+        "content": "All technicians entering Zone B must wear high-visibility vests (supplied at entrance Gate 2) and keep a 2 meter clearance from any moving AGV path."
+      },
       "question": "Where should technical staff obtain the high-visibility vests?",
       "options": ["HSE office", "Dispatch desk", "Gate 2", "Docking station", "Exit counter"],
       "answer": "C",
@@ -537,6 +567,9 @@ app.get('/', async (c) => {
                   ${p.media_missing ? `<p class="text-[11px] text-rose-400 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${p.media_missing} dari ${p.media_slots} gambar soal belum diunggah</p>` : ''}
                 </div>
                 <div class="flex items-center gap-2">
+                  ${p.type === 'json' ? `<button type="button" data-print-btn="${p.slug}" class="px-2.5 py-1.5 bg-violet-600/20 text-violet-400 hover:bg-violet-500 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5" title="Cetak / Simpan PDF">
+                    <i class="fa-solid fa-print"></i> Cetak
+                  </button>` : ''}
                   ${p.type === 'json' ? `<a href="/p/${p.slug}/edit" class="px-2.5 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5" title="Edit Soal"><i class="fa-solid fa-pen-to-square"></i> Edit</a>` : ''}
                   <a href="/p/${p.slug}/media" class="px-2.5 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5" title="Atur Gambar Soal">
                     <i class="fa-solid fa-image"></i> Gambar
@@ -561,6 +594,72 @@ app.get('/', async (c) => {
       </div>
     `}
   </main>
+  ${isAuth ? `
+  <!-- Popup Cetak / Simpan PDF -->
+  <div id="print-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-print text-violet-400"></i>Cetak / Simpan PDF</h3>
+        <button type="button" data-modal-close class="text-slate-400 hover:text-white" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <p class="text-xs font-medium text-slate-400 mb-2">Isi dokumen</p>
+          <label class="flex items-center gap-2 mb-2 cursor-pointer text-sm text-slate-200"><input type="radio" name="print-mode" value="soal" checked class="accent-violet-500">Naskah soal</label>
+          <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-200"><input type="radio" name="print-mode" value="kunci" class="accent-violet-500">Soal + kunci &amp; pembahasan</label>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-400 mb-2">Tata letak</p>
+          <div class="inline-flex rounded-lg overflow-hidden border border-slate-600/70">
+            <button type="button" data-layout="1col" class="seg-cols seg-on">1 Kolom</button>
+            <button type="button" data-layout="2col" class="seg-cols">2 Kolom</button>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-6">
+        <button type="button" data-modal-close class="flex-1 py-2 rounded-lg text-sm text-slate-300 bg-slate-700/60 hover:bg-slate-700 transition">Batal</button>
+        <button type="button" id="print-modal-go" class="flex-1 py-2 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-500 transition">Cetak / Simpan PDF</button>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var modal = document.getElementById('print-modal');
+    function setOpen(open) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      if (open) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+    function openPrint() {
+      if (!modal || !modal.dataset.slug) return;
+      var mode = modal.querySelector('input[name="print-mode"]:checked').value;
+      var layout = (modal.querySelector('[data-layout].seg-on') || {
+        getAttribute: function () { return '1col'; }
+      }).getAttribute('data-layout');
+      var q = '/p/' + modal.dataset.slug + '?print=1' + (mode === 'kunci' ? '&kunci=1' : '');
+      if (layout === '2col') q += '&layout=2col';
+      q += '&auto=1';
+      window.open(q, '_blank');
+    }
+    document.querySelectorAll('[data-print-btn]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        modal.dataset.slug = b.getAttribute('data-print-btn');
+        setOpen(true);
+      });
+    });
+    modal.querySelectorAll('[data-layout]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        modal.querySelectorAll('[data-layout]').forEach(function (x) { x.classList.toggle('seg-on', x === b); });
+      });
+    });
+    modal.addEventListener('click', function (e) { if (e.target === modal) setOpen(false); });
+    document.querySelectorAll('[data-modal-close]').forEach(function (b) { b.addEventListener('click', function () { setOpen(false); }); });
+    document.getElementById('print-modal-go').addEventListener('click', openPrint);
+  })();
+  </script>` : ''}
 </body>
 </html>`);
 });

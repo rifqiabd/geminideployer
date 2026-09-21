@@ -208,7 +208,7 @@ body {
 /* Rumus */
 .katex-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
 
-/* ---------- Bacaan / stimulus bersama ---------- */
+/* ---------- Bacaan / stimulus soal ---------- */
 .q-stimulus {
   background: var(--q-surface); border: 1px solid var(--q-border); border-left: 4px solid #0f172a;
   border-radius: var(--q-radius); box-shadow: var(--q-shadow); padding: 18px; margin-top: 16px;

@@ -175,19 +175,23 @@ FIELD BERSAMA SEMUA TIPE
 - "scoring"     : "partial" untuk skor proporsional. Dipakai pada multi,
                   category, matching, ordering, table_fill, two_tier, dan
                   highlight. Tanpa ini, nilainya penuh atau nol.
-- "stimulus"    : id bacaan bersama (lihat di bawah).
+- "stimulus"    : bacaan/data penunjang butir ini, objek { "title": ..., "content": ... }.
 - "image"       : nama slot gambar, mis. "media:tumbuhan".
 
-BACAAN BERSAMA (STIMULUS)
-Kalau beberapa soal memakai satu bacaan (seperti "Stimulus 1 untuk soal 1–3"),
-JANGAN mengulang bacaannya di tiap soal. Tulis sekali di daftar "stimuli", lalu
-rujuk id-nya:
-  "stimuli": [ { "id": "s1", "title": "Company Operational Memo",
-                 "content": "..." } ],
-  "questions": [ { "type": "choice", "stimulus": "s1", "question": "..." } ]
-Soal tanpa bacaan cukup tidak menulis field "stimulus". Soal yang memakai
-stimulus sama otomatis dikelompokkan, dan bacaannya tampil di kolom kiri saat
-layar lebar.
+BACAAN PER SOAL (STIMULUS)
+Setiap butir boleh membawa satu bacaan lewat field "stimulus" DI DALAM objek
+soalnya, berbentuk objek dengan "title" dan "content":
+  "questions": [ { "type": "choice",
+                   "stimulus": { "title": "Company Operational Memo",
+                                 "content": "..." },
+                   "question": "..." } ]
+Satu stimulus untuk satu soal: kalau beberapa soal memakai bacaan yang sama,
+tulis bacaan itu di tiap soal yang memakainya. Sistem menampilkan bacaan tepat
+di atas kartu soalnya, dan guru bisa mengedit bacaan tiap soal di editor.
+Soal tanpa bacaan cukup tidak menulis field "stimulus". Sistem masih menerima
+format lama (teks langsung, atau id "s1" dengan daftar "stimuli" level atas)
+dan menyalinnya ke tiap soal saat diparse, tapi jangan menuliskannya untuk soal
+baru.
 
 PEMETAAN ISTILAH UJIAN -> NAMA TIPE
 - "Pilihan Ganda Biasa (A–E)"       -> choice
@@ -262,6 +266,7 @@ Tiap tipe punya editor sendiri, jadi tidak perlu menghafal struktur JSON-nya:
 | `table_fill` | judul kolom + tabel; sel rumpang ditulis `{327}` atau `{1085 / 1.085}` |
 | `two_tier` | daftar pernyataan + daftar alasan, masing-masing satu kunci |
 | `highlight` | bacaan dengan kata diapit `{ }`, lalu daftar kata yang benar |
+| semua tipe | **judul & teks bacaan (stimulus)** — tampil di atas kartu soalnya, bisa diedit per soal |
 
 Saat disimpan, JSON-nya divalidasi ulang dan halaman kuis digambar ulang, jadi
 siswa langsung melihat versi barunya di alamat yang sama. Jawaban yang sudah
@@ -324,8 +329,9 @@ Halaman kuis (`/p/<slug>`) sekarang bergaya aplikasi ujian:
   hijau kalau sudah dijawab dan kuning kalau ditandai ragu; diklik langsung
   melompat ke soalnya. Ada penghitung "Terjawab n dari m" di panel dan di bar bawah.
 - **Tombol Ragu** di tiap kartu soal, untuk menandai soal yang mau ditinjau lagi.
-- **Bacaan di kolom kiri** saat layar lebar, jadi siswa bisa membaca sambil
-  menjawab tanpa menggulir bolak-balik.
+- **Bacaan tepat di atas kartu soalnya** — tiap soal berbacaan menampilkan
+  bacaannya sendiri, jadi siswa bisa membaca sambil menjawab tanpa menggulir
+  bolak-balik.
 - **Jawaban tersimpan otomatis.** Kalau halaman ter-refresh atau listrik mati,
   saat dibuka lagi muncul tawaran **Lanjutkan / Mulai baru** beserta nama siswa
   yang terakhir mengerjakan. Jawaban tidak dipulihkan diam-diam — penting untuk

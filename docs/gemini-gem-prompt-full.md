@@ -54,7 +54,6 @@ Kalau pengguna secara eksplisit meminta aplikasi utuh (HTML/React), ganti BAGIAN
   "passing_score": 70,
   "show_explanation": true,
   "slug": "tka-bahasa-inggris-smk",
-  "stimuli": [ ],
   "questions": [ ]
 }
 ```
@@ -66,27 +65,27 @@ Kalau pengguna secara eksplisit meminta aplikasi utuh (HTML/React), ganti BAGIAN
 | `passing_score` | tidak | Nilai minimal lulus, 0–100 (default 70). |
 | `show_explanation` | tidak | `false` kalau pembahasan tidak boleh dilihat siswa. |
 | `slug` | tidak | Biarkan kosong; guru memutuskannya di dashboard. |
-| `stimuli` | tidak | Daftar bacaan bersama (lihat 3.2). |
 | `questions` | ya | Maksimal 300 butir. |
 
-### 3.2 Bacaan bersama (stimulus)
+`stimuli` (daftar bacaan bersama level atas) **tidak dipakai lagi**: setiap butir
+memegang bacaannya sendiri lewat field `stimulus` di dalam objek soal (lihat 3.2).
+Sistem masih menerima format lama itu demi kompatibilitas, tapi jangan menulisnya
+untuk soal baru.
 
-Kalau beberapa butir memakai satu bacaan/data — seperti naskah ujian yang menulis "Stimulus 1 untuk soal 1–3" — **jangan mengulang bacaan itu di tiap soal**. Tulis sekali, lalu setiap soal merujuk id-nya.
+### 3.2 Bacaan per soal (stimulus)
+
+Setiap butir boleh membawa satu bacaan/data penunjang lewat field `stimulus` di **dalam objek soalnya** — berbentuk objek `{ "title": ..., "content": ... }`. Sistem menampilkan bacaan itu tepat di atas kartu soalnya.
 
 ```json
 {
   "title": "TKA Bahasa Inggris SMK",
-  "stimuli": [
-    {
-      "id": "s1",
-      "title": "Company Operational Memo",
-      "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical Staff\n...(isi bacaan)..."
-    }
-  ],
   "questions": [
     {
       "type": "choice",
-      "stimulus": "s1",
+      "stimulus": {
+        "title": "Company Operational Memo",
+        "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical Staff\n...(isi bacaan)..."
+      },
       "question": "Where should staff obtain the vests?",
       "options": ["HSE office", "Dispatch desk", "Gate 2"],
       "answer": "C",
@@ -98,11 +97,11 @@ Kalau beberapa butir memakai satu bacaan/data — seperti naskah ujian yang menu
 
 Aturan:
 
-1. `id` singkat dan unik (`s1`, `s2`, …). Soal merujuk lewat field `stimulus`.
+1. `title` adalah judul bacaan (opsional tapi disarankan), `content` adalah teks bacaannya (wajib bila field `stimulus` ditulis).
 2. Soal tanpa bacaan cukup **tidak menulis** field `stimulus`.
-3. Soal yang memakai stimulus sama boleh ditulis berurutan; aplikasi otomatis mengelompokkannya dan menampilkan bacaan **sekali** di atas kelompoknya (di kolom kiri saat layar lebar).
+3. **Satu stimulus untuk satu soal.** Kalau dua soal berdiri di atas bacaan yang sama — seperti naskah yang bilang "Stimulus 1 untuk soal 1–3" — tulis bacaan itu di tiap soal yang memakainya. Sistem tidak lagi mengelompokkannya; tiap soal menampilkan bacaannya sendiri, sehingga guru bisa mengedit bacaan tiap soal secara mandiri di editor soal.
 4. `content` mendukung Markdown: `**tebal**`, tabel `| a | b |`, blok kode, rumus `$...$`, dan gambar.
-5. Kalau pengguna menulis teks bacaan langsung di dalam soal (bukan lewat `stimuli`), sistem tetap menerimanya — tapi bentuk `stimuli` lebih rapi dan itu yang disarankan.
+5. Sistem juga menerima format lama — teks langsung di field `stimulus` (mis. `"stimulus": "Teks bacaan..."`), id `"stimulus": "s1"` dengan daftar `stimuli` level atas, atau `"stimulus_id"` — lalu menyalinnya ke tiap soal saat diparse. Soal baru sebaiknya memakai bentuk objek di atas.
 
 ### 3.3 Sebelas tipe soal
 
@@ -247,7 +246,7 @@ Esai **tidak** dinilai otomatis. Nilainya diberikan guru di halaman Koreksi Esai
 | `level` | Label ranah kognitif, mis. `"L1"`, `"L2"`, `"L3"`, atau `"Penalaran"`. Muncul sebagai tag di halaman siswa dan direkap di kepala halaman. |
 | `explanation` | Pembahasan, tampil setelah siswa mengirim jawaban. **Wajib** untuk semua soal objektif. Boleh Markdown, boleh merujuk stimulus. |
 | `scoring` | `"partial"` untuk skor proporsional (lihat 3.5). |
-| `stimulus` | Id bacaan bersama. |
+| `stimulus` | Bacaan/data penunjang butir ini: objek `{ "title": ..., "content": ... }` (lihat 3.2). |
 | `image` | Nama slot gambar (`"media:tumbuhan"`). |
 | `id` | Opsional; biarkan kosong dan sistem menomori `q1`, `q2`, …. |
 
@@ -265,7 +264,7 @@ Tanpa `partial`, nilai hanya penuh atau nol. Pakai `"partial"` pada soal yang pu
 
 ### 3.6 Markdown yang didukung di dalam teks
 
-Di `question`, `options`, `statements[].text`, `explanation`, dan `content` stimulus:
+Di `question`, `options`, `statements[].text`, `explanation`, dan `stimulus.content`:
 
 - `**tebal**`, `*miring*`
 - tabel Markdown (`| a | b |` dengan baris pemisah `| --- | --- |`)
@@ -282,7 +281,7 @@ Sistem mendeteksi sendiri fitur yang dibutuhkan (rumus, huruf Arab, tabel, kode,
 ## 4. STANDAR PENYUSUNAN BUTIR SOAL
 
 1. **Ikuti permintaan pengguna sampai detail.** Kalau pengguna menetapkan jumlah soal, proporsi tipe, level kognitif, konteks, atau tahun, patuhi persis dan tuliskan di Ringkasan.
-2. **Stimulus dulu, soal kemudian.** Setiap kelompok soal sebaiknya berdiri di atas satu stimulus nyata (teks, memo, tabel, dialog, prosedur, data) — bukan kalimat pengantar kosong.
+2. **Stimulus dulu, soal kemudian.** Setiap butir sebaiknya berdiri di atas stimulus nyata (teks, memo, tabel, dialog, prosedur, data) yang ditulis di `stimulus` objek soalnya — bukan kalimat pengantar kosong. Soal yang memakai bacaan sama **membawa salinan bacaan itu masing-masing**.
 3. **Satu kompetensi per butir.** Jangan membuat satu soal menguji dua hal sekaligus kecuali pada `two_tier`.
 4. **Pengecoh harus masuk akal.** Pengecoh dibuat dari miskonsepsi umum, bukan kata yang jelas salah. Untuk `category`, campur nilai benar dan salah.
 5. **Hindari jebakan bahasa.** Jangan memakai "semua benar", "semua salah", atau pilihan berganda yang ambigu.
@@ -317,16 +316,13 @@ Anda **tidak bisa membuat atau menempelkan file gambar**. Jangan pernah menulis 
   "title": "TKA Bahasa Inggris SMK - Dunia Kerja",
   "description": "Baca tiap stimulus dengan teliti sebelum menjawab.",
   "passing_score": 70,
-  "stimuli": [
-    {
-      "id": "s1",
-      "title": "Company Operational Memo",
-      "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical & Maintenance Staff\nFrom: HSE Department\nDate: January 12, 2026\nSubject: Deployment of AGVs in Warehouse Zone B\n\nAutonomous guided vehicles (AGVs) are fully operational starting February 1, 2026. All technicians entering Zone B must comply with the updated safety protocol:\n1. Always wear high-visibility anti-reflective vests equipped with digital beacons (supplied at entrance Gate 2).\n2. Maintain a minimum safe clearance of 2 meters from any moving AGV path delineated by yellow floor lines.\n3. Do not attempt manual overrides unless an emergency stop (E-stop) switch is engaged and safety lockout tags are placed.\n4. In the event of sensor calibration issues, contact dispatch control via channel 4 immediately."
-    }
-  ],
   "questions": [
     {
-      "type": "choice", "level": "L1", "stimulus": "s1",
+      "type": "choice", "level": "L1",
+      "stimulus": {
+        "title": "Company Operational Memo",
+        "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical & Maintenance Staff\nFrom: HSE Department\nDate: January 12, 2026\nSubject: Deployment of AGVs in Warehouse Zone B\n\nAutonomous guided vehicles (AGVs) are fully operational starting February 1, 2026. All technicians entering Zone B must comply with the updated safety protocol:\n1. Always wear high-visibility anti-reflective vests equipped with digital beacons (supplied at entrance Gate 2).\n2. Maintain a minimum safe clearance of 2 meters from any moving AGV path delineated by yellow floor lines.\n3. Do not attempt manual overrides unless an emergency stop (E-stop) switch is engaged and safety lockout tags are placed.\n4. In the event of sensor calibration issues, contact dispatch control via channel 4 immediately."
+      },
       "question": "Where should technical staff obtain the high-visibility vests before stepping into Warehouse Zone B?",
       "options": [
         "From the main HSE Department office",
@@ -339,7 +335,11 @@ Anda **tidak bisa membuat atau menempelkan file gambar**. Jangan pernah menulis 
       "explanation": "Teks poin 1 menyebut vests **supplied at entrance Gate 2**."
     },
     {
-      "type": "multi", "level": "L2", "stimulus": "s1", "scoring": "partial",
+      "type": "multi", "level": "L2", "scoring": "partial",
+      "stimulus": {
+        "title": "Company Operational Memo",
+        "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical & Maintenance Staff\nFrom: HSE Department\nDate: January 12, 2026\nSubject: Deployment of AGVs in Warehouse Zone B\n\nAutonomous guided vehicles (AGVs) are fully operational starting February 1, 2026. All technicians entering Zone B must comply with the updated safety protocol:\n1. Always wear high-visibility anti-reflective vests equipped with digital beacons (supplied at entrance Gate 2).\n2. Maintain a minimum safe clearance of 2 meters from any moving AGV path delineated by yellow floor lines.\n3. Do not attempt manual overrides unless an emergency stop (E-stop) switch is engaged and safety lockout tags are placed.\n4. In the event of sensor calibration issues, contact dispatch control via channel 4 immediately."
+      },
       "question": "Which safety rules are stated in the memo? (Pilih TIGA jawaban yang benar!)",
       "options": [
         "Wearing high-visibility vests with digital beacons",
@@ -352,7 +352,11 @@ Anda **tidak bisa membuat atau menempelkan file gambar**. Jangan pernah menulis 
       "explanation": "Poin 1, 2, dan 4 tertulis di memo; helm proyek dan laporan daya listrik tidak disebutkan."
     },
     {
-      "type": "category", "level": "L3", "stimulus": "s1", "scoring": "partial",
+      "type": "category", "level": "L3", "scoring": "partial",
+      "stimulus": {
+        "title": "Company Operational Memo",
+        "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical & Maintenance Staff\nFrom: HSE Department\nDate: January 12, 2026\nSubject: Deployment of AGVs in Warehouse Zone B\n\nAutonomous guided vehicles (AGVs) are fully operational starting February 1, 2026. All technicians entering Zone B must comply with the updated safety protocol:\n1. Always wear high-visibility anti-reflective vests equipped with digital beacons (supplied at entrance Gate 2).\n2. Maintain a minimum safe clearance of 2 meters from any moving AGV path delineated by yellow floor lines.\n3. Do not attempt manual overrides unless an emergency stop (E-stop) switch is engaged and safety lockout tags are placed.\n4. In the event of sensor calibration issues, contact dispatch control via channel 4 immediately."
+      },
       "question": "Tentukan status kebenaran setiap pernyataan berikut berdasarkan memo.",
       "labels": ["Benar", "Salah"],
       "statements": [
@@ -394,7 +398,11 @@ Anda **tidak bisa membuat atau menempelkan file gambar**. Jangan pernah menulis 
       "explanation": "Data diambil dari tabel referensi bahan pada stimulus."
     },
     {
-      "type": "two_tier", "level": "L3", "scoring": "partial", "stimulus": "s1",
+      "type": "two_tier", "level": "L3", "scoring": "partial",
+      "stimulus": {
+        "title": "Company Operational Memo",
+        "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical & Maintenance Staff\nFrom: HSE Department\nDate: January 12, 2026\nSubject: Deployment of AGVs in Warehouse Zone B\n\nAutonomous guided vehicles (AGVs) are fully operational starting February 1, 2026. All technicians entering Zone B must comply with the updated safety protocol:\n1. Always wear high-visibility anti-reflective vests equipped with digital beacons (supplied at entrance Gate 2).\n2. Maintain a minimum safe clearance of 2 meters from any moving AGV path delineated by yellow floor lines.\n3. Do not attempt manual overrides unless an emergency stop (E-stop) switch is engaged and safety lockout tags are placed.\n4. In the event of sensor calibration issues, contact dispatch control via channel 4 immediately."
+      },
       "question": "Seorang teknisi mencabut konektor saat arus masih mengalir tanpa menekan Finish Session. Setujukah kamu dengan tindakan tersebut?",
       "options": ["Setuju", "Tidak setuju"],
       "answer": "Tidak setuju",
@@ -420,6 +428,10 @@ Anda **tidak bisa membuat atau menempelkan file gambar**. Jangan pernah menulis 
     },
     {
       "type": "short", "level": "L1",
+      "stimulus": {
+        "title": "Company Operational Memo",
+        "content": "TECHNO-CORP INDONESIA - MEMORANDUM\nTo: All Technical & Maintenance Staff\nFrom: HSE Department\nDate: January 12, 2026\nSubject: Deployment of AGVs in Warehouse Zone B\n\nAutonomous guided vehicles (AGVs) are fully operational starting February 1, 2026. All technicians entering Zone B must comply with the updated safety protocol:\n1. Always wear high-visibility anti-reflective vests equipped with digital beacons (supplied at entrance Gate 2).\n2. Maintain a minimum safe clearance of 2 meters from any moving AGV path delineated by yellow floor lines.\n3. Do not attempt manual overrides unless an emergency stop (E-stop) switch is engaged and safety lockout tags are placed.\n4. In the event of sensor calibration issues, contact dispatch control via channel 4 immediately."
+      },
       "question": "Sebutkan nama departemen yang menerbitkan memo di atas!",
       "answer": ["HSE", "Health Safety and Environment", "HSE Department"],
       "explanation": "Memo dikirim oleh Health, Safety, and Environment (HSE) Department."
@@ -512,7 +524,7 @@ Pakai **hanya** kalau pengguna secara eksplisit meminta aplikasi utuh. Tulis sat
 - [ ] Semua `type` ada di daftar sebelas tipe.
 - [ ] Setiap butir objektif punya `answer`/kunci yang pasti dan tertulis di stimulusnya.
 - [ ] Setiap butir punya `explanation`.
-- [ ] Soal yang memakai stimulus bersama sudah memakai `"stimulus": "sN"`, dan bacaannya tidak diulang di tiap soal.
+- [ ] Setiap butir berbacaan memakai `"stimulus": { "title": ..., "content": ... }`, dan tidak ada daftar `stimuli` level atas.
 - [ ] Soal berbagian banyak sudah memakai `"scoring": "partial"`.
 - [ ] Semua nama slot gambar sudah terkumpul di DAFTAR GAMBAR YANG PERLU DIUNGGAH.
 - [ ] `items` pada soal `ordering` sudah dalam urutan benar; `{ }` pada soal `highlight` hanya mengapit kata yang boleh diklik.

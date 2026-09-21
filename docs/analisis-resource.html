@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analisis Kesiapan — Penggunaan Banyak Sekolah, Siswa &amp; Guru</title>
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --card:#ffffff;
+    --text:#0f172a;
+    --muted:#5b6678;
+    --border:#e3e7ee;
+    --border-strong:#cfd6e0;
+    --accent:#c2410c;
+    --accent-soft:#fff6ee;
+    --danger:#c02626;
+    --danger-soft:#fdf1f1;
+    --warn:#a16207;
+    --warn-soft:#fdf8ec;
+    --ok:#047857;
+    --ok-soft:#eefaf4;
+    --info:#1d4ed8;
+    --info-soft:#eff4ff;
+    --code-bg:#f2f4f7;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    font-size:15.5px;
+    line-height:1.68;
+    -webkit-font-smoothing:antialiased;
+  }
+  code,pre,.mono{
+    font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    font-size:0.875em;
+  }
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+
+  /* ---------- Layout ---------- */
+  .wrap{max-width:1220px;margin:0 auto;padding:0 22px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:38px;align-items:start;}
+  .toc{
+    position:sticky;top:24px;
+    margin-top:34px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px 14px;
+    font-size:13px;
+    align-self:start;
+  }
+  .toc h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px;font-weight:700;}
+  .toc ol{list-style:none;margin:0;padding:0;counter-reset:toc;}
+  .toc li{margin:0 0 2px;}
+  .toc a{display:block;padding:5px 8px;border-radius:8px;color:#3f4a5a;line-height:1.35;}
+  .toc a:hover{background:var(--accent-soft);color:var(--accent);text-decoration:none;}
+  .toc .sub{padding-left:8px;}
+  .toc .sub a{font-size:12.5px;color:var(--muted);padding:3px 8px;}
+
+  main{min-width:0;padding-bottom:80px;}
+
+  /* ---------- Header ---------- */
+  header.hero{
+    margin-top:34px;
+    background:linear-gradient(135deg,#1b2432 0%,#232f42 55%,#2f3d52 100%);
+    color:#fff;
+    border-radius:20px;
+    padding:34px 34px 30px;
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";position:absolute;right:-90px;top:-90px;width:320px;height:320px;border-radius:50%;
+    background:radial-gradient(circle at center,rgba(234,88,12,.42),transparent 65%);
+  }
+  header.hero .kicker{
+    display:inline-block;font-size:11px;letter-spacing:.11em;text-transform:uppercase;font-weight:700;
+    color:#fed7aa;background:rgba(234,88,12,.18);border:1px solid rgba(249,115,22,.35);
+    padding:4px 11px;border-radius:999px;margin-bottom:14px;
+  }
+  header.hero h1{margin:0 0 10px;font-size:29px;line-height:1.25;letter-spacing:-.01em;font-weight:750;}
+  header.hero p.lead{margin:0;color:#c8d2e0;max-width:66ch;font-size:15px;}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;position:relative;z-index:1;}
+  .hero-meta span{
+    font-size:12px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);
+    padding:5px 11px;border-radius:999px;color:#e5ebf3;
+  }
+
+  /* ---------- Sections ---------- */
+  section{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:26px 28px;
+    margin-top:22px;
+  }
+  section > h2{
+    margin:0 0 6px;font-size:21px;letter-spacing:-.01em;font-weight:730;
+    display:flex;align-items:baseline;gap:10px;
+  }
+  section > h2 .num{
+    font-size:12px;font-weight:800;color:var(--accent);
+    background:var(--accent-soft);border:1px solid #f2d5bd;border-radius:7px;padding:2px 8px;
+    letter-spacing:.04em;flex:none;
+  }
+  section > p.deck{margin:0 0 20px;color:var(--muted);font-size:14px;border-bottom:1px solid var(--border);padding-bottom:16px;}
+  h3{font-size:16.5px;margin:26px 0 8px;font-weight:700;letter-spacing:-.005em;}
+  h3:first-of-type{margin-top:6px;}
+  h4{font-size:14px;margin:20px 0 6px;font-weight:700;color:#26313f;}
+  p{margin:0 0 12px;}
+  ul,ol{margin:0 0 14px;padding-left:22px;}
+  li{margin-bottom:6px;}
+  li > ul,li > ol{margin-top:6px;}
+
+  /* ---------- Tables ---------- */
+  .table-scroll{overflow-x:auto;margin:0 0 18px;border:1px solid var(--border);border-radius:11px;}
+  table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:520px;}
+  thead th{
+    background:#f8fafc;text-align:left;padding:10px 13px;font-weight:700;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.06em;color:#475569;border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody td{padding:10px 13px;border-bottom:1px solid #eef1f6;vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:nth-child(even){background:#fcfdfe;}
+  td code{background:var(--code-bg);padding:1.5px 5px;border-radius:5px;white-space:nowrap;}
+
+  /* ---------- Badges ---------- */
+  .badge{
+    display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    padding:3px 8px;border-radius:6px;white-space:nowrap;
+  }
+  .b-crit{background:var(--danger-soft);color:var(--danger);border:1px solid #f3cdcd;}
+  .b-high{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bb;}
+  .b-med{background:var(--info-soft);color:var(--info);border:1px solid #d3e0fb;}
+  .b-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c9ecdc;}
+
+  /* ---------- Callouts ---------- */
+  .callout{
+    border-radius:11px;padding:14px 16px;margin:16px 0;font-size:14px;
+    border:1px solid var(--border);background:#fbfcfe;
+  }
+  .callout p:last-child{margin-bottom:0;}
+  .callout .ttl{font-weight:700;margin-bottom:5px;display:block;font-size:13.5px;}
+  .c-crit{background:var(--danger-soft);border-color:#f3cdcd;}
+  .c-crit .ttl{color:var(--danger);}
+  .c-warn{background:var(--warn-soft);border-color:#f0e0bb;}
+  .c-warn .ttl{color:var(--warn);}
+  .c-ok{background:var(--ok-soft);border-color:#c9ecdc;}
+  .c-ok .ttl{color:var(--ok);}
+  .c-info{background:var(--info-soft);border-color:#d3e0fb;}
+  .c-info .ttl{color:var(--info);}
+
+  /* ---------- Code ---------- */
+  pre{
+    background:#1b2432;color:#e2e8f0;border-radius:11px;padding:16px 18px;overflow-x:auto;
+    line-height:1.6;margin:0 0 16px;font-size:12.5px;
+  }
+  pre .cm{color:#8b9bb4;}
+  pre .hi{color:#fdba74;}
+  pre .st{color:#86efac;}
+  p > code,li > code{background:var(--code-bg);padding:2px 6px;border-radius:5px;border:1px solid #e6eaf1;}
+
+  /* ---------- Cards / grids ---------- */
+  .grid{display:grid;gap:14px;}
+  .grid.two{grid-template-columns:repeat(auto-fit,minmax(255px,1fr));}
+  .grid.three{grid-template-columns:repeat(auto-fit,minmax(215px,1fr));}
+  .card{
+    border:1px solid var(--border);border-radius:12px;padding:16px 17px;background:#fcfdfe;
+  }
+  .card h4{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:7px;}
+  .card p{font-size:13.6px;color:#3f4a5a;margin-bottom:0;}
+  .card ul{font-size:13.6px;color:#3f4a5a;margin-bottom:0;padding-left:19px;}
+  .prio-card{border-left:4px solid var(--danger);}
+  .prio-card .pnum{
+    display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border-radius:7px;
+    background:var(--danger);color:#fff;font-size:12px;font-weight:800;flex:none;
+  }
+
+  /* ---------- Roadmap ---------- */
+  .phase{
+    border:1px solid var(--border);border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;
+  }
+  .phase > .head{
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:13px 17px;background:#f8fafc;
+    border-bottom:1px solid var(--border);
+  }
+  .phase > .head .tag{
+    font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 9px;border-radius:6px;background:#e8edf4;color:#334155;
+  }
+  .phase > .head h4{margin:0;font-size:15px;flex:1;min-width:180px;}
+  .phase > .body{padding:15px 17px 6px;}
+  .phase ul{list-style:none;padding-left:0;margin-bottom:8px;}
+  .phase ul li{
+    position:relative;padding-left:26px;font-size:14px;margin-bottom:9px;color:#33404f;
+  }
+  .phase ul li::before{
+    content:"";position:absolute;left:2px;top:6px;width:13px;height:13px;border-radius:4px;
+    border:1.6px solid var(--border-strong);background:#fff;
+  }
+  .phase .outcome{
+    font-size:13px;color:#475569;background:#f8fafc;border-top:1px dashed var(--border);
+    margin:0 -17px;padding:11px 17px;border-radius:0 0 12px 12px;
+  }
+
+  /* ---------- Track split ---------- */
+  .track{border-radius:12px;padding:18px;border:1px solid var(--border);}
+  .track.a{background:var(--accent-soft);border-color:#f2d5bd;}
+  .track.b{background:var(--info-soft);border-color:#d3e0fb;}
+  .track h4{margin:0 0 4px;font-size:15px;}
+  .track .who{font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:600;}
+  .track ul{font-size:13.6px;padding-left:19px;margin-bottom:0;}
+
+  footer.doc{
+    margin-top:26px;text-align:center;color:var(--muted);font-size:12.5px;
+    padding:22px 0 10px;border-top:1px solid var(--border);
+  }
+
+  @media (max-width:960px){
+    .wrap{grid-template-columns:1fr;gap:0;}
+    .toc{position:static;margin-top:20px;order:2;}
+    main{order:1;}
+    header.hero{padding:26px 22px;}
+    header.hero h1{font-size:23px;}
+    section{padding:20px 18px;}
+  }
+  @media print{
+    body{background:#fff;font-size:11pt;}
+    .wrap{display:block;max-width:none;padding:0;}
+    .toc{display:none;}
+    section{break-inside:avoid;border:none;padding:0;margin-top:20px;}
+    header.hero{background:#1b2432 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    pre{background:#f2f4f7 !important;color:#0f172a !important;}
+    a{color:#0f172a;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= TOC ================= -->
+  <nav class="toc" aria-label="Daftar isi">
+    <h2>Daftar Isi</h2>
+    <ol>
+      <li><a href="#ringkasan">1. Ringkasan Eksekutif</a></li>
+      <li><a href="#arsitektur">2. Arsitektur Saat Ini</a></li>
+      <li><a href="#dimensi">3. Analisis Per Dimensi</a>
+        <div class="sub">
+          <a href="#d-tenant">3.1 Tenant &amp; Autentikasi</a>
+          <a href="#d-data">3.2 Model Data (D1)</a>
+          <a href="#d-kv">3.3 Penamaan &amp; Konten (KV)</a>
+          <a href="#d-siswa">3.4 Identitas Siswa</a>
+          <a href="#d-aman">3.5 Keamanan</a>
+          <a href="#d-media">3.6 Media</a>
+        </div>
+      </li>
+      <li><a href="#limit">4. Batasan Cloudflare</a></li>
+      <li><a href="#distribusi">5. Model Distribusi</a>
+        <div class="sub">
+          <a href="#track-a">5.1 Lintasan A — Instance Publik</a>
+          <a href="#track-b">5.2 Lintasan B — Deploy Sendiri</a>
+          <a href="#satu-basis">5.3 Satu Basis Kode</a>
+          <a href="#hukum">5.4 Hukum &amp; Operasional</a>
+          <a href="#layanan">5.5 Layanan Pihak Ketiga</a>
+        </div>
+      </li>
+      <li><a href="#roadmap">6. Roadmap</a></li>
+      <li><a href="#biaya">7. Biaya</a></li>
+      <li><a href="#prioritas">8. Prioritas Mendesak</a></li>
+      <li><a href="#peta">9. Peta Kode</a></li>
+      <li><a href="#terbuka">10. Keputusan yang Masih Terbuka</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <!-- ================= HERO ================= -->
+    <header class="hero">
+      <span class="kicker">Analisis Teknis</span>
+      <h1>Kesiapan Repo untuk Banyak Sekolah,<br>Banyak Siswa &amp; Guru</h1>
+      <p class="lead">
+        Penilaian menyeluruh atas <span class="mono">gemini-deployer</span> (Cloudflare Workers + Hono + KV + D1 + R2)
+        untuk dipakai lintas beberapa sekolah sekaligus, beserta roadmap bertahap menuju model distribusi
+        <strong>hybrid</strong> dengan pendaftaran mandiri.
+      </p>
+      <div class="hero-meta">
+        <span>Versi 2 &middot; 21 September 2026</span>
+        <span>Model: Hybrid + Self-service</span>
+        <span>Stack: Workers, KV, D1, R2</span>
+        <span>Status kode: single-tenant</span>
+      </div>
+    </header>
+
+    <!-- ================= 1. RINGKASAN ================= -->
+    <section id="ringkasan">
+      <h2><span class="num">01</span> Ringkasan Eksekutif</h2>
+      <p class="deck">
+        Produk intinya sudah kuat: penilaian dihitung di server, ada editor soal, analisis butir soal,
+        dan koreksi esai manual. Yang belum ada adalah <strong>lapisan tenant &amp; identitas</strong>.
+      </p>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Temuan</th><th>Dampak</th><th>Prioritas</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td>Sesi login = cookie statis berisi string literal <code>authenticated_user</code></td>
+              <td>Akses admin bisa dipalsukan siapa pun yang tahu nilainya</td>
+              <td><span class="badge b-crit">Kritis</span></td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Password admin hardcoded <code>admin123</code> dan tidak dibaca dari env</td>
+              <td>Semua sekolah berbagi satu kredensial</td>
+              <td><span class="badge b-crit">Kritis</span></td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td>Stored XSS di halaman rekap (<code>payload_json</code> + <code>user_id</code> tanpa escape)</td>
+              <td>Siswa bisa menjalankan skrip di browser guru</td>
+              <td><span class="badge b-crit">Kritis</span></td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td>Slug global dari judul &rarr; tabrakan antar guru/sekolah</td>
+              <td>Data kuis bisa tertimpa tanpa peringatan</td>
+              <td><span class="badge b-high">Tinggi</span></td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td>Query D1 tanpa <code>LIMIT</code>, analitik dihitung ulang tiap request</td>
+              <td>Lambat + mahal begitu ada ribuan kiriman</td>
+              <td><span class="badge b-high">Tinggi</span></td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td>Indeks aplikasi dibaca dari <code>KV list</code> + <code>get()</code> berurutan</td>
+              <td>Dashboard O(N), mentok ~1000 key, kena konsistensi eventual</td>
+              <td><span class="badge b-high">Tinggi</span></td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td>Identitas siswa dari input bebas, tanpa kelas/daftar hadir</td>
+              <td>Tidak bisa cegah spam/peniruan, tidak bisa rekap per kelas</td>
+              <td><span class="badge b-high">Tinggi</span></td>
+            </tr>
+            <tr>
+              <td>8</td>
+              <td>Tidak ada tenant &amp; tidak ada pendaftaran mandiri</td>
+              <td>Sekolah tidak bisa melayani dirinya sendiri</td>
+              <td><span class="badge b-high">Tinggi</span></td>
+            </tr>
+            <tr>
+              <td>9</td>
+              <td>Media jatuh ke KV kalau R2 tidak dipasang</td>
+              <td>KV bukan tempat binary: mahal &amp; cepat habis kuota</td>
+              <td><span class="badge b-med">Sedang</span></td>
+            </tr>
+            <tr>
+              <td>10</td>
+              <td><code>/api/save/:slug</code> terbuka (CORS global, tanpa rate limit)</td>
+              <td>Bisa dibanjiri untuk membakar kuota D1</td>
+              <td><span class="badge b-med">Sedang</span></td>
+            </tr>
+            <tr>
+              <td>11</td>
+              <td>Edit soal tanpa versi (last-write-wins) + KV eventual</td>
+              <td>Dua guru bisa saling menimpa; siswa lihat versi basi</td>
+              <td><span class="badge b-med">Sedang</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-crit">
+        <span class="ttl">Catatan penting soal berbagi ke banyak sekolah</span>
+        <p>
+          Begitu tautan disebar, setiap celah keamanan di atas menjadi celah milik <strong>semua orang sekaligus</strong>.
+          Satu siswa yang menemukan cara memalsukan sesi bisa masuk ke dashboard seluruh sekolah di instance publik.
+          Karena itu Tahap 0 pada roadmap bersifat wajib sebelum promosi apa pun dilakukan.
+        </p>
+      </div>
+
+      <h3>Tiga hal yang paling mendesak</h3>
+      <div class="grid three">
+        <div class="card prio-card">
+          <h4><span class="pnum">1</span> Sesi yang bisa dipalsukan</h4>
+          <p>Ini akar kepercayaan sistem. Selama cookie bisa dibuat sendiri oleh pengguna, semua kontrol
+          akses di atasnya tidak berarti.</p>
+        </div>
+        <div class="card prio-card">
+          <h4><span class="pnum">2</span> XSS di halaman rekap</h4>
+          <p>Guru adalah pengguna paling berharga, dan saat ini justru bisa diserang lewat input siswa.</p>
+        </div>
+        <div class="card prio-card">
+          <h4><span class="pnum">3</span> Indeks D1 + <code>LIMIT</code></h4>
+          <p>Kunci performa sekaligus biaya. Tanpa ini, biaya naik seiring bertambahnya data, bukan seiring pemakaian.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 2. ARSITEKTUR ================= -->
+    <section id="arsitektur">
+      <h2><span class="num">02</span> Arsitektur Saat Ini</h2>
+      <p class="deck">Satu Worker Hono, satu dashboard admin, satu tabel D1 untuk semua jawaban siswa.</p>
+
+      <pre><span class="cm">Cloudflare Worker (Hono) — src/index.ts</span>
+├─ <span class="hi">/</span>                        Dashboard admin (login 1 password)
+├─ <span class="hi">/p/:slug</span>                 Halaman kuis siswa (tanpa login)
+├─ <span class="hi">/p/:slug/edit</span>            Editor soal (mode JSON)
+├─ <span class="hi">/p/:slug/media</span>           Panel gambar soal + generate AI
+├─ <span class="hi">/p/:slug/data</span>            Rekap nilai + analisis butir soal
+├─ <span class="hi">/p/:slug/essay</span>           Koreksi jawaban esai
+├─ /api/deploy | delete | login | logout
+└─ <span class="hi">/api/save/:slug</span>          Penerimaan jawaban siswa (penilaian di server)
+
+<span class="cm">Penyimpanan</span>
+├─ <span class="st">KV  STORAGE</span>   html:&lt;slug&gt;, meta:&lt;slug&gt;, quiz:&lt;slug&gt;,
+│                quizsource:&lt;slug&gt;, media:&lt;slug&gt;:&lt;nama&gt;,
+│                imggencfg:&lt;slug&gt;, imggen:&lt;slug&gt;:&lt;menit&gt;
+├─ <span class="st">D1  DB</span>        app_records(id, app_slug, user_id, payload_json, created_at)
+└─ <span class="st">R2  MEDIA</span>     OPSIONAL — kalau tidak dipasang, media disimpan di KV</pre>
+
+      <h3>Peran yang ada hari ini</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Aktor</th><th>Cara masuk</th><th>Batasan</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Admin / guru</td>
+              <td>1 password bersama</td>
+              <td>Tidak ada pembeda antar sekolah maupun antar guru</td>
+            </tr>
+            <tr>
+              <td>Siswa</td>
+              <td>Tanpa login</td>
+              <td>Nama diisi bebas di form, boleh mengirim berkali-kali</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info">
+        <span class="ttl">Kesimpulan singkat</span>
+        <p>Arsitekturnya <strong>single-tenant, single-admin</strong>. Untuk satu guru atau satu sekolah hasilnya
+        sudah rapi dan layak pakai. Untuk banyak sekolah, yang dibutuhkan bukan fitur baru,
+        melainkan perubahan struktur data dan identitas.</p>
+      </div>
+    </section>
+
+    <!-- ================= 3. DIMENSI ================= -->
+    <section id="dimensi">
+      <h2><span class="num">03</span> Analisis Per Dimensi</h2>
+      <p class="deck">Enam area yang menentukan apakah repo ini bisa melayani banyak sekolah dengan aman.</p>
+
+      <!-- 3.1 -->
+      <h3 id="d-tenant">3.1 &nbsp;Tenant &amp; Autentikasi <span class="badge b-crit">Kritis</span></h3>
+      <ul>
+        <li>
+          <code>APP_PASSWORD = 'admin123'</code> masih berupa konstanta di <code>src/index.ts</code> dan
+          <strong>tidak dibaca dari <code>env</code></strong>, walau <code>.dev.vars.example</code> sudah
+          menyuruh mengisinya. Artinya semua sekolah pada deployment yang sama berbagi satu kata sandi.
+        </li>
+        <li>
+          <code>isAuthed()</code> di <code>src/auth.ts</code> hanya membandingkan cookie dengan konstanta
+          <code>authenticated_user</code>. Nilainya statis dan ada di repo publik, sehingga siapa pun yang
+          mengetahuinya bisa membuat cookie itu lewat JavaScript. Perlu ditegaskan: atribut
+          <code>httpOnly</code> hanya menghalangi JavaScript <em>membaca</em> cookie, bukan
+          <em>membuat</em> cookie dengan nama dan nilai yang sama.
+        </li>
+        <li>
+          Belum ada <code>school_id</code> di key KV maupun di tabel D1, sehingga <strong>tidak ada isolasi
+          data sama sekali</strong>. Di Lintasan A, satu query yang lupa difilter langsung berarti kebocoran
+          data antar sekolah.
+        </li>
+        <li>
+          Ada dua sumber kebenaran untuk autentikasi: sebagian rute memakai cek cookie langsung di
+          <code>src/index.ts</code>, sebagian lain memakai <code>isAuthed()</code>. Saat peran ditambahkan,
+          keduanya mudah menyimpang.
+        </li>
+      </ul>
+
+      <h4>Arah perbaikan</h4>
+      <pre><span class="cm">// src/auth.ts — sesi bertanda tangan, satu middleware untuk semua rute</span>
+export type Session = { userId: string; schoolId: string; role: 'guru' | 'admin_sekolah' };
+
+export async function readSession(c, secret) {
+  const token = getCookie(c, 'session');
+  if (!token) return null;
+  const [body, sig] = token.split('.');
+  if (!timingSafeEqual(sig, await hmac(secret, body))) return null;   <span class="cm">// tanda tangan</span>
+  const data = JSON.parse(atob(body));
+  if (data.exp &lt; Date.now()) return null;                            <span class="cm">// masa berlaku</span>
+  return data;
+}</pre>
+      <p>Password diambil dari <code>npx wrangler secret put APP_PASSWORD</code>, dan seluruh cek akses
+      dialihkan ke satu middleware yang juga mengisi <code>schoolId</code> ke konteks request.</p>
+
+      <!-- 3.2 -->
+      <h3 id="d-data">3.2 &nbsp;Model Data (D1) <span class="badge b-high">Tinggi</span></h3>
+      <p>Seluruh sistem saat ini berdiri di atas satu tabel:</p>
+      <pre><span class="cm">-- schema.sql (saat ini)</span>
+CREATE TABLE app_records (
+  id TEXT PRIMARY KEY,
+  app_slug TEXT NOT NULL,
+  user_id TEXT,
+  payload_json TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_records_slug ON app_records(app_slug);</pre>
+
+      <ul>
+        <li>Tidak ada <code>school_id</code>, <code>class_id</code>, <code>assessment_id</code> yang nyata,
+        <code>attempt_no</code>, maupun status percobaan.</li>
+        <li>Jawaban per soal menumpuk di dalam blob <code>payload_json</code>, sehingga analitik lintas
+        kelas atau lintas sekolah mustahil tanpa membaca dan mengurai seluruh blob.</li>
+        <li>Query rekap di <code>src/index.ts</code> dan <code>src/quiz-essay.ts</code> tidak memakai
+        <code>LIMIT</code>, padahal setiap baris di-<code>JSON.parse</code> di memori Worker.</li>
+        <li>Analisis butir soal (<code>src/quiz-report.ts</code>) dihitung ulang setiap halaman dibuka
+        dengan biaya O(seluruh kiriman). Semakin lama dipakai, semakin berat — inilah yang membuat biaya
+        tumbuh mengikuti <em>jumlah data</em>, bukan <em>jumlah pemakaian</em>.</li>
+      </ul>
+
+      <h4>Arah perbaikan</h4>
+      <pre><span class="cm">-- skema multi-tenant (ringkas)</span>
+CREATE TABLE schools  (id TEXT PRIMARY KEY, name TEXT, plan TEXT, created_at …);
+CREATE TABLE users    (id TEXT PRIMARY KEY, school_id TEXT, email TEXT UNIQUE,
+                       role TEXT, password_hash TEXT, …);
+CREATE TABLE classes  (id TEXT PRIMARY KEY, school_id TEXT, teacher_id TEXT, name TEXT);
+CREATE TABLE students (id TEXT PRIMARY KEY, school_id TEXT, class_id TEXT, name TEXT);
+CREATE TABLE assessments (id TEXT PRIMARY KEY, school_id TEXT, class_id TEXT,
+                          title TEXT, slug TEXT, created_at …);
+CREATE TABLE attempts (id TEXT PRIMARY KEY, school_id TEXT, assessment_id TEXT,
+                       student_id TEXT, attempt_no INT, score REAL, lulus INT,
+                       submitted_at …);
+CREATE TABLE attempt_answers (attempt_id TEXT, question_id TEXT, answers_json TEXT, …);
+<span class="cm">-- catatan: setiap query WAJIB disaring school_id dari sesi</span></pre>
+
+      <!-- 3.3 -->
+      <h3 id="d-kv">3.3 &nbsp;Penamaan &amp; Penyimpanan Konten (KV) <span class="badge b-high">Tinggi</span></h3>
+      <ul>
+        <li>
+          <code>sanitizeSlug(title)</code> menghasilkan namespace slug yang <strong>global</strong>. Dua guru
+          di sekolah berbeda dengan judul sama akan saling menimpa <code>html:</code>, <code>meta:</code>,
+          <code>quiz:</code>, dan <code>quizsource:</code>. Yang paling berbahaya adalah
+          <code>quizsource:</code> — ia adalah sumber kebenaran editor soal, jadi soal yang sudah
+          diperbaiki bisa hilang tanpa peringatan.
+        </li>
+        <li>
+          Dashboard membaca seluruh daftar aplikasi lewat <code>STORAGE.list({ prefix: 'meta:' })</code>,
+          lalu <code>get()</code> satu per satu ditambah <code>withMediaStats()</code> yang melakukan
+          list/get lagi. Ini pola N+1 operasi KV.
+        </li>
+        <li>
+          Editor soal menyimpan ke KV tanpa penanda versi. Dua guru yang mengedit bersamaan membuat yang
+          terakhir menulis menang, dan karena KV bersifat <em>eventual</em>, siswa bisa melihat HTML lama
+          sampai propagasi selesai.
+        </li>
+      </ul>
+
+      <div class="callout c-warn">
+        <span class="ttl">Pelajaran praktis</span>
+        <p>KV sangat cepat untuk dibaca dengan kunci yang sudah diketahui, tetapi buruk sebagai
+        <em>daftar/indeks</em>. Pindahkan daftar aplikasi ke D1 (satu query + pagination), dan biarkan KV
+        tetap menjadi tempat konten per kunci.</p>
+      </div>
+
+      <!-- 3.4 -->
+      <h3 id="d-siswa">3.4 &nbsp;Identitas Siswa <span class="badge b-high">Tinggi</span></h3>
+      <p>
+        Identitas siswa diambil apa adanya dari body request:
+        <code>userId = body.user || body.name || body.student_name || 'anonim'</code>
+        (<code>src/index.ts</code>), dan form siswa (<code>src/quiz-page.ts</code>) memang meminta nama
+        bebas dengan placeholder "Tulis nama lengkap dan kelas...".
+      </p>
+      <ul>
+        <li>Satu nama bisa dikirim berkali-kali tanpa pembatasan.</li>
+        <li>Siswa bisa mengaku sebagai nama temannya.</li>
+        <li>Dua siswa bernama sama tidak dapat dibedakan di rekap.</li>
+        <li>Kelas tidak pernah tercatat sebagai data, sehingga guru tidak bisa membandingkan hasil antar kelas.</li>
+      </ul>
+      <p>
+        Untuk konteks sekolah, yang dibutuhkan bukan login siswa penuh, melainkan <strong>kode kelas</strong>
+        ditambah pemilihan nama dari <em>daftar hadir</em> yang diunggah guru, lalu pencatatan
+        <code>attempt_no</code> untuk mengatur berapa kali percobaan diizinkan.
+      </p>
+
+      <!-- 3.5 -->
+      <h3 id="d-aman">3.5 &nbsp;Keamanan</h3>
+
+      <h4>a. Sesi dapat dipalsukan <span class="badge b-crit">Kritis</span></h4>
+      <p>Lihat 3.1. Tidak ada tanda tangan, tidak ada masa berlaku yang mengikat ke pengguna tertentu.</p>
+
+      <h4>b. Stored XSS di halaman rekap <span class="badge b-crit">Kritis</span></h4>
+      <p>
+        Tabel rekap menempelkan <code>JSON.stringify(payload, null, 2)</code> dan <code>user_id</code> mentah
+        ke dalam HTML. Nama siswa bebas teks, dan jawaban esai juga. Akibatnya siswa dapat menanam
+        <code>&lt;script&gt;</code> yang berjalan di browser guru saat membuka Log Data. Helper
+        <code>escapeHtml()</code> sudah tersedia di repo, jadi yang kurang hanya penerapan yang konsisten.
+      </p>
+
+      <h4>c. Endpoint publik tanpa proteksi <span class="badge b-med">Sedang</span></h4>
+      <p>
+        <code>/api/save/:slug</code> memakai <code>cors()</code> global dan tidak memiliki rate limit atau
+        captcha. Penilaian memang aman karena dihitung di server, tetapi tabel D1 bisa dibanjiri permintaan.
+      </p>
+
+      <h4>d. Yang sudah baik dan perlu dipertahankan <span class="badge b-ok">Bagus</span></h4>
+      <ul>
+        <li>Penilaian dan perhitungan skor dilakukan di server, tidak bisa dipalsukan dari browser.</li>
+        <li>Tipe file unggahan ditentukan dari <em>magic bytes</em>, bukan dari Content-Type kiriman browser.</li>
+        <li>SVG ditolak (mencegah XSS lewat SVG yang disajikan dari domain yang sama).</li>
+        <li>Ada batas ukuran file dan konversi WebP di sisi perangkat guru untuk menghemat kuota.</li>
+        <li>Rate limit generate AI (6 gambar/menit) dengan pola KV counter — pola ini bisa dipakai ulang
+        untuk <code>/api/save</code> dan pendaftaran sekolah.</li>
+      </ul>
+
+      <!-- 3.6 -->
+      <h3 id="d-media">3.6 &nbsp;Media <span class="badge b-med">Sedang</span></h3>
+      <ul>
+        <li>
+          <code>putMedia</code> otomatis jatuh ke KV bila binding R2 tidak dipasang. Untuk satu sekolah ini
+          masih berjalan; untuk banyak sekolah, ini jalur biaya yang paling cepat membengkak. KV bukan
+          penyimpanan binary: batas nilai sekitar 25 MiB, ditagih per operasi, dan ada batas 1 tulis per
+          detik per kunci.
+        </li>
+        <li>
+          Konversi WebP dan pengecilan di perangkat guru sudah tepat dan menghemat kuota secara signifikan.
+          Pertahankan, lalu tambahkan varian ukuran (thumbnail) untuk sekolah dengan koneksi lemah.
+        </li>
+        <li>
+          Kunci media <code>&lt;slug&gt;/&lt;nama&gt;</code> mewarisi masalah slug global yang sama:
+          perlu diberi prefix <code>school_id/assessment_id/slot</code>.
+        </li>
+      </ul>
+    </section>
+
+    <!-- ================= 4. LIMIT ================= -->
+    <section id="limit">
+      <h2><span class="num">04</span> Batasan Cloudflare</h2>
+      <p class="deck">Patokan biaya &amp; performa yang menentukan bentuk arsitektur. Verifikasi ulang angka ini
+      di dokumentasi Cloudflare sebelum dipakai untuk keputusan anggaran.</p>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Layanan</th><th>Batas yang perlu diperhatikan</th><th>Implikasi</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Workers (gratis)</td>
+              <td>~100k request/hari, CPU 10 ms per request</td>
+              <td>Render rekap besar akan menabrak batas CPU; paket Paid (~$5/bln) praktis wajib begitu beberapa sekolah aktif</td>
+            </tr>
+            <tr>
+              <td>Workers (paid)</td>
+              <td>CPU hingga 30 detik, kuota request jauh lebih besar</td>
+              <td>Memberi ruang untuk rekap, tetapi tetap jangan O(seluruh histori)</td>
+            </tr>
+            <tr>
+              <td>KV</td>
+              <td>~1k tulis/hari &amp; 100k baca/hari (gratis); value ~25 MiB; 1 tulis/detik/kunci</td>
+              <td>Setiap kiriman siswa = tulis D1 + baca KV; media di KV cepat menghabiskan kuota</td>
+            </tr>
+            <tr>
+              <td>KV (konsistensi)</td>
+              <td>Eventual — list dan get bisa telat beberapa detik</td>
+              <td>Jangan memakai KV list sebagai indeks utama</td>
+            </tr>
+            <tr>
+              <td>D1</td>
+              <td>~5 GB, ~5 juta baris dibaca/hari, ~100k baris ditulis/hari (gratis)</td>
+              <td>Bottleneck ada di <strong>baris dibaca</strong>, karena rekap membaca semua baris</td>
+            </tr>
+            <tr>
+              <td>R2</td>
+              <td>Penyimpanan objek murah, tanpa biaya keluar</td>
+              <td>Wajib untuk media pada skala banyak sekolah</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info">
+        <span class="ttl">Inti masalahnya</span>
+        <p>Bottleneck-nya bukan kapasitas penyimpanan, melainkan <strong>jumlah baris yang dibaca</strong>
+        dan <strong>jumlah tulis KV</strong>. Keduanya berakar pada pola akses data saat ini, bukan pada
+        pilihan layanan.</p>
+      </div>
+    </section>
+
+    <!-- ================= 5. DISTRIBUSI ================= -->
+    <section id="distribusi">
+      <h2><span class="num">05</span> Model Distribusi: Hybrid + Pendaftaran Mandiri</h2>
+      <p class="deck">Repo ini akan dipakai dua arah sekaligus, dengan satu basis kode.</p>
+
+      <div class="grid two">
+        <div class="track a">
+          <h4>Lintasan A — Instance publik</h4>
+          <p class="who">Sekolah mendaftar sendiri &middot; biaya ditanggung pengelola</p>
+          <ul>
+            <li>Halaman depan publik + pendaftaran sekolah (nama, email admin, verifikasi, Turnstile).</li>
+            <li>Sekolah = tenant; admin sekolah mengundang guru lewat tautan undangan.</li>
+            <li>Siswa masuk memakai kode kelas, lalu memilih namanya dari daftar hadir.</li>
+            <li>Kuota per sekolah yang <em>terlihat</em> oleh guru (asesmen, kiriman/bulan, MB media, AI).</li>
+            <li>Panel super-admin: daftar sekolah, pemakaian, aktif/nonaktif, hapus data.</li>
+            <li>Tes isolasi tenant otomatis — penjaga paling penting di lintasan ini.</li>
+          </ul>
+        </div>
+        <div class="track b">
+          <h4>Lintasan B — Deploy sendiri</h4>
+          <p class="who">Sekolah punya akun &amp; data sendiri &middot; biaya ditanggung sekolah</p>
+          <ul>
+            <li>Tombol <strong>Deploy to Cloudflare</strong> + wizard <code>/setup</code> saat pertama dibuka.</li>
+            <li>Wizard membuat admin sekolah pertama dan menyiapkan skema.</li>
+            <li>Berjalan penuh tanpa layanan pihak ketiga — tidak wajib email atau OAuth.</li>
+            <li>Dokumen "deploy dalam 5 menit" + checklist secret.</li>
+            <li>Panduan guru (<code>docs/panduan-pakai.md</code>) bisa dipakai apa adanya.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 5.3 -->
+      <h3 id="satu-basis">5.3 &nbsp;Satu basis kode, bukan dua</h3>
+      <p>
+        Kunci desainnya: <strong>bangun skema multi-tenant lebih dulu, lalu instance mandiri hanyalah
+        deployment dengan satu tenant di dalamnya.</strong> Dengan begitu tidak ada dua basis kode yang
+        harus dirawat paralel.
+      </p>
+      <ul>
+        <li>Tabel inti selalu membawa <code>school_id</code>.</li>
+        <li>Middleware tenant mengambil <code>school_id</code> dari sesi; di deployment mandiri nilainya
+        selalu satu sekolah yang sama.</li>
+        <li>Tidak ada fitur yang "hanya ada di instance publik" kecuali pendaftaran publik, kuota, dan panel
+        super-admin — dan itu dipasang sebagai lapisan opsional yang dimatikan di mode mandiri.</li>
+      </ul>
+
+      <!-- 5.4 -->
+      <h3 id="hukum">5.4 &nbsp;Konsekuensi hukum &amp; operasional (khusus Lintasan A)</h3>
+      <div class="callout c-warn">
+        <span class="ttl">Bukan nasihat hukum</span>
+        <p>Di Lintasan A kamu menyimpan <strong>data anak-anak dari banyak sekolah</strong>. Ini daftar hal
+        yang wajib dibahas bersama pihak yang paham regulasi sebelum dibuka ke publik.</p>
+      </div>
+      <div class="grid two">
+        <div class="card">
+          <h4>Dasar &amp; dokumen</h4>
+          <ul>
+            <li>Sekolah adalah <em>pengendali data</em>, kamu <em>pemroses</em> — siapkan perjanjian pemrosesan data ringkas yang disetujui saat pendaftaran.</li>
+            <li>Kebijakan privasi + syarat layanan, ditulis dengan bahasa sederhana untuk guru.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Minimisasi &amp; retensi</h4>
+          <ul>
+            <li>Jangan meminta NISN, alamat, atau kategori data khusus. Nama + kelas sudah cukup.</li>
+            <li>Hapus otomatis setelah jangka waktu tertentu (mis. 12 bulan), dengan opsi lebih cepat.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Hak subjek data</h4>
+          <ul>
+            <li>Ekspor dan hapus data per siswa, per kelas, per sekolah — sebagai fitur, bukan permintaan manual.</li>
+            <li>Catatan pemrosesan dan prosedur notifikasi insiden (tenggat notifikasi diatur regulasi).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Operasional</h4>
+          <ul>
+            <li>Moderasi konten: mekanisme lapor &amp; take-down untuk foto dan hasil AI, plus kebijakan konten.</li>
+            <li>Kanal dukungan (email/WhatsApp) + FAQ. Tanpa ini, jumlah sekolah akan tumbuh lebih cepat daripada kemampuan melayani.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 5.5 -->
+      <h3 id="layanan">5.5 &nbsp;Layanan pihak ketiga yang dibutuhkan</h3>
+      <p>Dua kebutuhan yang paling cepat muncul, dengan opsi yang sudah ditelusuri lewat indeks layanan:</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Kebutuhan</th><th>Opsi yang ditelusuri</th><th>Catatan</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Login &amp; verifikasi guru/sekolah</td>
+              <td><strong>Magic Auth</strong> — magic link, berjalan di edge sehingga cocok untuk Workers</td>
+              <td>Alternatif: sesi sendiri di D1 + kode OTP via email. Lebih murah dan lebih mudah dikontrol,
+              tetapi kamu menanggung sendiri alur keamanannya.</td>
+            </tr>
+            <tr>
+              <td>Email transaksional (verifikasi, undangan, reset)</td>
+              <td><strong>Knock</strong> — orkestrasi notifikasi lewat REST, aman di edge</td>
+              <td>Alternatif: <strong>AWS SES</strong> lebih murah pada volume besar, tetapi menuntut
+              pengelolaan reputasi pengirim sendiri.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Pertimbangan tambahan untuk Fase lanjutan: <strong>login Google Workspace sekolah</strong> — banyak
+        sekolah sudah memiliki akun <code>@sekolah.sch.id</code>, sehingga guru tidak perlu membuat kata sandi baru.
+      </p>
+    </section>
+
+    <!-- ================= 6. ROADMAP ================= -->
+    <section id="roadmap">
+      <h2><span class="num">06</span> Roadmap</h2>
+      <p class="deck">
+        Tahap 0 dan 1 bersifat serial dan wajib. Setelah itu Lintasan B dan A boleh berjalan paralel —
+        Lintasan B disarankan lebih dulu karena lebih cepat memberi manfaat dan risikonya jauh lebih kecil.
+      </p>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Tahap 0</span>
+          <h4>Wajib sebelum disebar ke siapa pun</h4>
+          <span class="badge b-crit">Prioritas tertinggi</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Pindahkan kata sandi ke secret: <code>npx wrangler secret put APP_PASSWORD</code>, lalu baca dari <code>env</code>.</li>
+            <li>Ganti cookie statis dengan sesi bertanda tangan (HMAC/<code>jose</code>) berisi <code>{ userId, schoolId, role }</code> + masa berlaku; satukan semua cek ke satu middleware.</li>
+            <li>Terapkan <code>escapeHtml()</code> pada seluruh keluaran admin, terutama tabel rekap dan detail payload.</li>
+            <li>Rate limit per IP di <code>/api/save/:slug</code>, memakai pola KV counter yang sudah ada di fitur generate gambar.</li>
+          </ul>
+          <p class="outcome"><strong>Hasil:</strong> tidak ada celah yang ikut tersebar saat tautan mulai dibagikan.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Tahap 1</span>
+          <h4>Fondasi bersama — satu basis kode</h4>
+          <span class="badge b-high">Serial</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Skema multi-tenant: <code>schools → users(role) → classes → students → assessments → attempts → attempt_answers</code>, semua baris membawa <code>school_id</code>.</li>
+            <li>Middleware tenant: setiap query disaring <code>school_id</code> dari sesi — tidak boleh bergantung pada slug di URL.</li>
+            <li>Pisahkan identitas dan URL: UUID untuk kunci KV (<code>quiz:&lt;school&gt;/&lt;id&gt;</code>), slug hanya untuk alamat yang enak dibaca, dengan pemeriksaan keunikan sebelum simpan.</li>
+            <li>Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination.</li>
+            <li>Tambahkan <code>LIMIT</code> di semua query rekap; pindahkan perhitungan analitik butir soal ke saat submit (atau Queue → pembaruan terbatas) dan simpan hasilnya.</li>
+            <li>R2 untuk media dengan kunci <code>school_id/assessment_id/slot</code>.</li>
+          </ul>
+          <p class="outcome"><strong>Hasil:</strong> deployment mandiri sudah aman dipakai satu sekolah — Lintasan B siap dirilis.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Tahap 2</span>
+          <h4>Lintasan B rilis — deploy sendiri</h4>
+          <span class="badge b-med">Risiko rendah</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Wizard <code>/setup</code> pertama kali: buat admin sekolah + siapkan skema.</li>
+            <li>Tombol Deploy to Cloudflare + dokumentasi "5 menit" + checklist secret.</li>
+            <li>Mode mandiri berjalan penuh tanpa layanan pihak ketiga.</li>
+          </ul>
+          <p class="outcome"><strong>Hasil:</strong> sekolah pilot bisa memakai dan memiliki datanya sendiri, tanpa kamu memikul data anak mereka.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Tahap 3</span>
+          <h4>Lintasan A rilis — instance publik</h4>
+          <span class="badge b-high">Butuh keputusan hukum</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Halaman depan publik + pendaftaran sekolah (verifikasi email + Turnstile).</li>
+            <li>Peran <code>admin_sekolah</code> / <code>guru</code>, undangan guru, kode kelas, daftar hadir siswa, pengaturan jumlah percobaan.</li>
+            <li>Kuota per sekolah + panel super-admin (daftar sekolah, pemakaian, aktif/nonaktif, hapus data).</li>
+            <li>Tes isolasi tenant yang dijalankan otomatis di CI.</li>
+            <li>Analitik pemakaian per sekolah sebagai dasar kuota (Analytics Engine + tabel counter).</li>
+            <li>Dokumen kepatuhan: kebijakan privasi, syarat layanan, perjanjian pemrosesan data, kebijakan konten, prosedur insiden.</li>
+          </ul>
+          <p class="outcome"><strong>Hasil:</strong> sekolah dapat melayani dirinya sendiri, dan kuota terlindungi dari penyalahgunaan satu pihak.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Tahap 4</span>
+          <h4>Skala &amp; kepatuhan berkelanjutan</h4>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Pagination di semua daftar; arsip rekap lama ke R2 (NDJSON) setelah periode retensi.</li>
+            <li>Tenant per subdomain (<code>sekolah-a.domainmu.id</code>) memakai custom hostname, <code>school_id</code> di-resolve dari hostname.</li>
+            <li>Varian ukuran gambar (thumbnail) + cache lebih agresif di tepi.</li>
+            <li>Self-service: ekspor &amp; hapus data per siswa / kelas / sekolah.</li>
+            <li>Observability: Workers Logs + peringatan saat pemakaian mendekati batas.</li>
+          </ul>
+          <p class="outcome"><strong>Hasil:</strong> biaya tetap datar meski data terus tumbuh.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 7. BIAYA ================= -->
+    <section id="biaya">
+      <h2><span class="num">07</span> Perkiraan Biaya</h2>
+      <p class="deck">Angka kasar untuk perencanaan, bukan penawaran.</p>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Skenario</th><th>Beban biaya</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Lintasan B</strong><br><span style="color:var(--muted);font-size:12.5px">sekolah mandiri</span></td>
+              <td>Ditanggung sekolah: Workers Paid ~$5/bln + D1 + R2 sesuai pemakaian. Umumnya tetap di kisaran satuan dolar
+              untuk satu sekolah.</td>
+            </tr>
+            <tr>
+              <td><strong>Lintasan A</strong><br><span style="color:var(--muted);font-size:12.5px">instance publik</span></td>
+              <td>Satu akun menanggung semua sekolah. Puluhan hingga ~100 sekolah aktif dengan puluhan ribu kiriman per bulan
+              umumnya masih di bawah belasan dolar per bulan <em>setelah</em> Tahap 1 — karena baru media R2 + analitik saat
+              submit yang membuat biaya tetap datar.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-warn">
+        <span class="ttl">Risiko biaya terbesar</span>
+        <p>
+          Di Lintasan A, risiko terbesar bukan pada software atau jumlah sekolah, melainkan pada
+          <strong>satu sekolah yang menghabiskan kuota bersama</strong> — terutama generate gambar AI dan
+          media. Karena itu kuota per sekolah adalah <em>fitur inti</em>, bukan pelengkap yang dikerjakan belakangan.
+        </p>
+      </div>
+    </section>
+
+    <!-- ================= 8. PRIORITAS ================= -->
+    <section id="prioritas">
+      <h2><span class="num">08</span> Prioritas Mendesak</h2>
+      <p class="deck">Kalau hanya boleh mengerjakan tiga hal lebih dulu, kerjakan ini.</p>
+      <div class="grid three">
+        <div class="card prio-card">
+          <h4><span class="pnum">1</span> Sesi bertanda tangan</h4>
+          <p>Cookie statis yang bisa dipalsukan adalah akar kepercayaan sistem. Semua kontrol akses lain
+          bergantung pada ini.</p>
+        </div>
+        <div class="card prio-card">
+          <h4><span class="pnum">2</span> Escape keluaran admin</h4>
+          <p>Menutup stored XSS di halaman rekap, tempat siswa bisa menyerang guru. Perbaikannya kecil:
+          pakai <code>escapeHtml()</code> yang sudah ada.</p>
+        </div>
+        <div class="card prio-card">
+          <h4><span class="pnum">3</span> Indeks D1 + LIMIT</h4>
+          <p>Membuat halaman rekap tetap cepat dan biaya berhenti tumbuh mengikuti jumlah data.</p>
+        </div>
+      </div>
+      <p style="margin-top:16px">
+        Ketiganya masuk Tahap 0–1 dan relevan untuk kedua lintasan. Setelah itu, pekerjaan tenant &amp;
+        peran jauh lebih aman untuk dimulai.
+      </p>
+    </section>
+
+    <!-- ================= 9. PETA KODE ================= -->
+    <section id="peta">
+      <h2><span class="num">09</span> Peta Kode</h2>
+      <p class="deck">Titik perubahan yang akan tersentuh selama roadmap dikerjakan.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Area</th><th>Berkas</th><th>Catatan</th></tr></thead>
+          <tbody>
+            <tr><td>Auth &amp; password</td><td><code>src/index.ts</code>, <code>src/auth.ts</code></td><td>Konstanta password, cek cookie ganda</td></tr>
+            <tr><td>Indeks aplikasi &amp; rekap</td><td><code>src/index.ts</code></td><td>KV list N+1, <code>SELECT *</code> tanpa LIMIT, XSS di tabel</td></tr>
+            <tr><td>Koreksi esai</td><td><code>src/quiz-essay.ts</code></td><td><code>SELECT *</code> tanpa LIMIT</td></tr>
+            <tr><td>Analisis butir soal</td><td><code>src/quiz-report.ts</code></td><td>Dihitung ulang setiap request</td></tr>
+            <tr><td>Editor soal</td><td><code>src/quiz-editor.ts</code></td><td>Tulis KV tanpa penanda versi</td></tr>
+            <tr><td>Media</td><td><code>src/media.ts</code>, <code>src/media-routes.ts</code></td><td>Fallback KV; pola rate limit yang bisa dipakai ulang</td></tr>
+            <tr><td>Skema data</td><td><code>schema.sql</code></td><td>Satu tabel, tanpa tenant</td></tr>
+            <tr><td>Konfigurasi deploy</td><td><code>wrangler.jsonc</code></td><td>R2 masih opsional; secret belum dipakai untuk password</td></tr>
+            <tr><td>Alur siswa</td><td><code>src/quiz-page.ts</code></td><td>Nama siswa dari input bebas</td></tr>
+            <tr><td>Panduan guru</td><td><code>docs/panduan-pakai.md</code></td><td>Sudah lengkap; bisa jadi basis materi dukungan</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= 10. TERBUKA ================= -->
+    <section id="terbuka">
+      <h2><span class="num">10</span> Keputusan yang Masih Terbuka</h2>
+      <p class="deck">Pertanyaan yang sebaiknya dijawab sebelum pekerjaan teknis besar dimulai.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Pertanyaan</th><th>Mengapa penting</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Siapa yang menanggung biaya Cloudflare di Lintasan A?</td>
+              <td>Menentukan apakah perlu billing per sekolah, batas kuota keras, atau sekadar batas lunak.</td>
+            </tr>
+            <tr>
+              <td>Apakah sekolah perlu bisa membawa pulang datanya?</td>
+              <td>Menentukan prioritas fitur ekspor dan seberapa besar kepindahan dari Lintasan A ke B harus didukung.</td>
+            </tr>
+            <tr>
+              <td>Siswa: kode kelas + daftar hadir, atau login penuh?</td>
+              <td>Kode kelas jauh lebih murah, lebih cepat dipakai, dan lebih ramah untuk sekolah dasar.</td>
+            </tr>
+            <tr>
+              <td>Siapa yang bertanggung jawab atas hukum data anak di Lintasan A?</td>
+              <td>Ini penentu apakah Lintasan A bisa dibuka sebelum dokumen kepatuhan siap.</td>
+            </tr>
+            <tr>
+              <td>Berapa lama data siswa disimpan?</td>
+              <td>Menentukan jadwal hapus otomatis dan kebutuhan arsip ke R2.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="doc">
+      Analisis kesiapan <span class="mono">gemini-deployer</span> &middot; versi 2 &middot; 21 September 2026<br>
+      Dokumen pendamping: <span class="mono">docs/analisis-resource.md</span> &middot; <span class="mono">docs/panduan-pakai.md</span>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

@@ -121,6 +121,10 @@ export type QuizQuestion = {
   level: string;
   /** Id stimulus yang dipakai soal ini ('' kalau berdiri sendiri). */
   stimulusId: string;
+  /** Judul bacaan/stimulus milik soal ini sendiri (denormalisasi dari stimulusId). */
+  stimulusTitle: string;
+  /** Konten bacaan/stimulus milik soal ini sendiri (denormalisasi dari stimulusId). */
+  stimulusContent: string;
   /** Khusus `matching`: teks kolom kanan (sudah diacak saat parsing). */
   rights: string[];
   /** Khusus `table_fill`: sel rumpang berurutan baris demi baris. */

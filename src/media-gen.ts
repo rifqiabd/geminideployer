@@ -35,13 +35,16 @@ export function mediaGenConfig(env: { IMGGEN_API_URL?: string; IMGGEN_API_KEY?: 
 
 /**
  * Prompt yang diketik guru dibungkus instruksi supaya hasilnya cocok dipakai
- * sebagai gambar pendukung soal: jelas, bersih, tanpa watermark/teks acak.
+ * sebagai gambar pendukung soal: menarik dan enak dilihat, tapi tetap jelas,
+ * bersih, tanpa watermark/teks acak, dan tidak terlalu sederhana/datar.
  */
 export function buildImagePrompt(topic: string): string {
   const clean = topic.replace(/\s+/g, ' ').trim().slice(0, 400);
   return (
-    `Buat satu gambar ilustrasi edukatif yang jernih dan informatif untuk soal sekolah. ` +
-    `Gaya: ilustrasi/diagram yang mudah dibaca siswa, komposisi rapi, pencahayaan jelas. ` +
+    `Buat satu gambar ilustrasi edukatif yang menarik, detail, dan enak dilihat untuk soal sekolah. ` +
+    `Gaya: ilustrasi digital yang hidup dan berwarna — komposisi dinamis tapi rapi, fokus jelas pada ` +
+    `objek utama, pencahayaan hangat, bayangan dan tekstur halus. Jangan datar, polos, atau terlalu ` +
+    `sederhana; hasilnya harus tetap mudah dipahami siswa. ` +
     `Tanpa watermark, tanpa tanda tangan, tanpa teks kalimat panjang. ` +
     `Topik: ${clean || 'ilustrasi edukatif umum'}.`
   );
@@ -51,12 +54,15 @@ export function buildImagePrompt(topic: string): string {
  * Prompt mandiri untuk ditempel guru di gemini.google.com (akun Gemini sendiri).
  * Berbeda dari buildImagePrompt: Gemini lebih andal menggambar teks, jadi label
  * pendek (1-3 kata) pada diagram boleh dipakai — sisanya tetap tanpa watermark.
+ * Sama-sama menuntut hasil yang menarik dan enak dilihat, tidak terlalu sederhana.
  */
 export function buildGeminiPrompt(topic: string): string {
   const clean = topic.replace(/\s+/g, ' ').trim().slice(0, 1600);
   return (
-    `Buat satu gambar ilustrasi edukatif yang jernih dan informatif untuk soal sekolah. ` +
-    `Gaya: ilustrasi/diagram sederhana yang mudah dipahami siswa, komposisi rapi, warna jelas. ` +
+    `Buat satu gambar ilustrasi edukatif yang menarik, detail, dan nyaman dipandang untuk soal sekolah. ` +
+    `Gaya: ilustrasi digital yang hidup dan berwarna — komposisi dinamis namun seimbang, fokus jelas, ` +
+    `pencahayaan natural, bayangan lembut, tekstur halus. Hasil akhir harus enak dilihat, tidak datar ` +
+    `atau terlalu sederhana, tapi tetap rapi dan mudah dipahami siswa. ` +
     `Teks pada gambar hanya boleh untuk label penting (paling banyak 3 kata), jangan kalimat panjang. ` +
     `Tanpa watermark dan tanpa tanda tangan. ` +
     `Topik: ${clean || 'ilustrasi edukatif umum'}.`
