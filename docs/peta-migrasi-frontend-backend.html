@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peta Migrasi — Pemisahan Frontend &amp; Backend</title>
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --card:#ffffff;
+    --text:#0f172a;
+    --muted:#5b6678;
+    --border:#e3e7ee;
+    --border-strong:#cfd6e0;
+    --accent:#c2410c;
+    --accent-soft:#fff6ee;
+    --danger:#c02626;
+    --danger-soft:#fdf1f1;
+    --warn:#a16207;
+    --warn-soft:#fdf8ec;
+    --ok:#047857;
+    --ok-soft:#eefaf4;
+    --info:#1d4ed8;
+    --info-soft:#eff4ff;
+    --code-bg:#f2f4f7;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    font-size:15.5px;
+    line-height:1.68;
+    -webkit-font-smoothing:antialiased;
+  }
+  code,pre,.mono{
+    font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    font-size:0.875em;
+  }
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+
+  /* ---------- Layout ---------- */
+  .wrap{max-width:1220px;margin:0 auto;padding:0 22px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:38px;align-items:start;}
+  .toc{
+    position:sticky;top:24px;
+    margin-top:34px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px 14px;
+    font-size:13px;
+    align-self:start;
+  }
+  .toc h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px;font-weight:700;}
+  .toc ol{list-style:none;margin:0;padding:0;counter-reset:toc;}
+  .toc li{margin:0 0 2px;}
+  .toc a{display:block;padding:5px 8px;border-radius:8px;color:#3f4a5a;line-height:1.35;}
+  .toc a:hover{background:var(--accent-soft);color:var(--accent);text-decoration:none;}
+  .toc .sub{padding-left:8px;}
+  .toc .sub a{font-size:12.5px;color:var(--muted);padding:3px 8px;}
+
+  main{min-width:0;padding-bottom:80px;}
+
+  /* ---------- Header ---------- */
+  header.hero{
+    margin-top:34px;
+    background:linear-gradient(135deg,#1b2432 0%,#232f42 55%,#2f3d52 100%);
+    color:#fff;
+    border-radius:20px;
+    padding:34px 34px 30px;
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";position:absolute;right:-90px;top:-90px;width:320px;height:320px;border-radius:50%;
+    background:radial-gradient(circle at center,rgba(234,88,12,.42),transparent 65%);
+  }
+  header.hero .kicker{
+    display:inline-block;font-size:11px;letter-spacing:.11em;text-transform:uppercase;font-weight:700;
+    color:#fed7aa;background:rgba(234,88,12,.18);border:1px solid rgba(249,115,22,.35);
+    padding:4px 11px;border-radius:999px;margin-bottom:14px;
+  }
+  header.hero h1{margin:0 0 10px;font-size:29px;line-height:1.25;letter-spacing:-.01em;font-weight:750;}
+  header.hero p.lead{margin:0;color:#c8d2e0;max-width:66ch;font-size:15px;}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;position:relative;z-index:1;}
+  .hero-meta span{
+    font-size:12px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);
+    padding:5px 11px;border-radius:999px;color:#e5ebf3;
+  }
+
+  /* ---------- Sections ---------- */
+  section{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:26px 28px;
+    margin-top:22px;
+  }
+  section > h2{
+    margin:0 0 6px;font-size:21px;letter-spacing:-.01em;font-weight:730;
+    display:flex;align-items:baseline;gap:10px;
+  }
+  section > h2 .num{
+    font-size:12px;font-weight:800;color:var(--accent);
+    background:var(--accent-soft);border:1px solid #f2d5bd;border-radius:7px;padding:2px 8px;
+    letter-spacing:.04em;flex:none;
+  }
+  section > p.deck{margin:0 0 20px;color:var(--muted);font-size:14px;border-bottom:1px solid var(--border);padding-bottom:16px;}
+  h3{font-size:16.5px;margin:26px 0 8px;font-weight:700;letter-spacing:-.005em;}
+  h3:first-of-type{margin-top:6px;}
+  h4{font-size:14px;margin:20px 0 6px;font-weight:700;color:#26313f;}
+  p{margin:0 0 12px;}
+  ul,ol{margin:0 0 14px;padding-left:22px;}
+  li{margin-bottom:6px;}
+  li > ul,li > ol{margin-top:6px;}
+
+  /* ---------- Tables ---------- */
+  .table-scroll{overflow-x:auto;margin:0 0 18px;border:1px solid var(--border);border-radius:11px;}
+  table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:520px;}
+  thead th{
+    background:#f8fafc;text-align:left;padding:10px 13px;font-weight:700;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.06em;color:#475569;border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody td{padding:10px 13px;border-bottom:1px solid #eef1f6;vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:nth-child(even){background:#fcfdfe;}
+  td code{background:var(--code-bg);padding:1.5px 5px;border-radius:5px;white-space:nowrap;}
+
+  /* ---------- Badges ---------- */
+  .badge{
+    display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    padding:3px 8px;border-radius:6px;white-space:nowrap;
+  }
+  .b-crit{background:var(--danger-soft);color:var(--danger);border:1px solid #f3cdcd;}
+  .b-high{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bb;}
+  .b-med{background:var(--info-soft);color:var(--info);border:1px solid #d3e0fb;}
+  .b-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c9ecdc;}
+  .b-plain{background:#eef1f5;color:#475569;border:1px solid #dde3ea;}
+
+  /* ---------- Callouts ---------- */
+  .callout{
+    border-radius:11px;padding:14px 16px;margin:16px 0;font-size:14px;
+    border:1px solid var(--border);background:#fbfcfe;
+  }
+  .callout p:last-child{margin-bottom:0;}
+  .callout .ttl{font-weight:700;margin-bottom:5px;display:block;font-size:13.5px;}
+  .c-crit{background:var(--danger-soft);border-color:#f3cdcd;}
+  .c-crit .ttl{color:var(--danger);}
+  .c-warn{background:var(--warn-soft);border-color:#f0e0bb;}
+  .c-warn .ttl{color:var(--warn);}
+  .c-ok{background:var(--ok-soft);border-color:#c9ecdc;}
+  .c-ok .ttl{color:var(--ok);}
+  .c-info{background:var(--info-soft);border-color:#d3e0fb;}
+  .c-info .ttl{color:var(--info);}
+
+  /* ---------- Code ---------- */
+  pre{
+    background:#1b2432;color:#e2e8f0;border-radius:11px;padding:16px 18px;overflow-x:auto;
+    line-height:1.6;margin:0 0 16px;font-size:12.5px;
+  }
+  pre .cm{color:#8b9bb4;}
+  pre .hi{color:#fdba74;}
+  pre .st{color:#86efac;}
+  p > code,li > code{background:var(--code-bg);padding:2px 6px;border-radius:5px;border:1px solid #e6eaf1;}
+
+  /* ---------- Cards / grids ---------- */
+  .grid{display:grid;gap:14px;}
+  .grid.two{grid-template-columns:repeat(auto-fit,minmax(255px,1fr));}
+  .grid.three{grid-template-columns:repeat(auto-fit,minmax(215px,1fr));}
+  .card{
+    border:1px solid var(--border);border-radius:12px;padding:16px 17px;background:#fcfdfe;
+  }
+  .card h4{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:7px;}
+  .card p{font-size:13.6px;color:#3f4a5a;margin-bottom:0;}
+  .card ul{font-size:13.6px;color:#3f4a5a;margin-bottom:0;padding-left:19px;}
+  .prio-card{border-left:4px solid var(--danger);}
+  .prio-card .pnum{
+    display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border-radius:7px;
+    background:var(--danger);color:#fff;font-size:12px;font-weight:800;flex:none;
+  }
+
+  /* ---------- Roadmap ---------- */
+  .phase{
+    border:1px solid var(--border);border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;
+  }
+  .phase > .head{
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:13px 17px;background:#f8fafc;
+    border-bottom:1px solid var(--border);
+  }
+  .phase > .head .tag{
+    font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 9px;border-radius:6px;background:#e8edf4;color:#334155;
+  }
+  .phase > .head h4{margin:0;font-size:15px;flex:1;min-width:180px;}
+  .phase > .body{padding:15px 17px 6px;}
+  .phase ul{list-style:none;padding-left:0;margin-bottom:8px;}
+  .phase ul li{
+    position:relative;padding-left:26px;font-size:14px;margin-bottom:9px;color:#33404f;
+  }
+  .phase ul li::before{
+    content:"";position:absolute;left:2px;top:6px;width:13px;height:13px;border-radius:4px;
+    border:1.6px solid var(--border-strong);background:#fff;
+  }
+  .phase ul li .est{
+    font-size:11px;font-weight:700;color:var(--muted);background:#f1f4f8;border:1px solid #e3e8ee;
+    border-radius:5px;padding:1px 6px;margin-left:5px;white-space:nowrap;
+  }
+  .phase .outcome{
+    font-size:13px;color:#475569;background:#f8fafc;border-top:1px dashed var(--border);
+    margin:0 -17px;padding:11px 17px;border-radius:0 0 12px 12px;
+  }
+
+  /* ---------- Track split ---------- */
+  .track{border-radius:12px;padding:18px;border:1px solid var(--border);}
+  .track.a{background:var(--ok-soft);border-color:#c9ecdc;}
+  .track.b{background:var(--warn-soft);border-color:#f0e0bb;}
+  .track h4{margin:0 0 4px;font-size:15px;}
+  .track .who{font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:600;}
+  .track ul{font-size:13.6px;padding-left:19px;margin-bottom:0;}
+
+  .lbl{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px;}
+
+  footer.doc{
+    margin-top:26px;text-align:center;color:var(--muted);font-size:12.5px;
+    padding:22px 0 10px;border-top:1px solid var(--border);
+  }
+
+  @media (max-width:960px){
+    .wrap{grid-template-columns:1fr;gap:0;}
+    .toc{position:static;margin-top:20px;order:2;}
+    main{order:1;}
+    header.hero{padding:26px 22px;}
+    header.hero h1{font-size:23px;}
+    section{padding:20px 18px;}
+  }
+  @media print{
+    body{background:#fff;font-size:11pt;}
+    .wrap{display:block;max-width:none;padding:0;}
+    .toc{display:none;}
+    section{break-inside:avoid;border:none;padding:0;margin-top:20px;}
+    header.hero{background:#1b2432 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    pre{background:#f2f4f7 !important;color:#0f172a !important;}
+    a{color:#0f172a;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= TOC ================= -->
+  <nav class="toc" aria-label="Daftar isi">
+    <h2>Daftar Isi</h2>
+    <ol>
+      <li><a href="#ringkasan">1. Ringkasan Eksekutif</a></li>
+      <li><a href="#kini">2. Arsitektur Saat Ini</a></li>
+      <li><a href="#peta">3. Peta Endpoint &amp; Jalur Migrasi</a>
+        <div class="sub">
+          <a href="#sudah-api">3.1 Sudah Berbentuk API</a>
+          <a href="#perlu-ubah">3.2 Masih SSR</a>
+          <a href="#kontrak">3.3 Kontrak Data yang Baru</a>
+        </div>
+      </li>
+      <li><a href="#pilihan">4. Pilihan Arsitektur A vs B</a></li>
+      <li><a href="#auth">5. Auth Lintas-Origin</a></li>
+      <li><a href="#khusus">6. Alur yang Tidak Boleh Dipindah</a></li>
+      <li><a href="#roadmap">7. Roadmap Bertahap</a></li>
+      <li><a href="#risiko">8. Risiko &amp; Regresi</a></li>
+      <li><a href="#kode">9. Peta Kode</a></li>
+      <li><a href="#rekomendasi">10. Rekomendasi</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <!-- ================= HERO ================= -->
+    <header class="hero">
+      <span class="kicker">Peta Migrasi Teknis</span>
+      <h1>Pemisahan Frontend &amp; Backend<br>pada <span class="mono">gemini-deployer</span></h1>
+      <p class="lead">
+        Rencana bertahap memecah Worker monolitik (Hono + SSR + KV/D1/R2) menjadi lapisan
+        <strong>API</strong> dan lapisan <strong>antarmuka</strong> yang terpisah, lengkap dengan
+        pemetaan setiap endpoint, urutan pengerjaan, serta bagian yang sebaiknya <em>tidak</em> disentuh.
+      </p>
+      <div class="hero-meta">
+        <span>Versi 1 &middot; 22 September 2026</span>
+        <span>Basis: 21 rute terdaftar</span>
+        <span>Stack: Workers, Hono, KV, D1, R2</span>
+        <span>Status: belum ada perubahan kode</span>
+      </div>
+    </header>
+
+    <!-- ================= 1. RINGKASAN ================= -->
+    <section id="ringkasan">
+      <h2><span class="num">01</span> Ringkasan Eksekutif</h2>
+      <p class="deck">Kesimpulan lebih dulu, detail menyusul.</p>
+
+      <div class="callout c-ok">
+        <span class="ttl">Aplikasi ini sudah setengah terpisah</span>
+        <p>Semua interaksi dinamis sudah lewat <code>/api/*</code> berformat JSON, dan aset statis sudah
+        disajikan dari <code>public/</code>. Yang belum terpisah hanyalah <strong>rendering halaman</strong>,
+        yang masih dirakit di server sebagai string HTML. Jadi pekerjaan ini bukan "membangun API dari nol",
+        melainkan <em>memindahkan lapisan tampilan</em>.</p>
+      </div>
+
+      <div class="callout c-warn">
+        <span class="ttl">Pemisahan penuh lintas domain berbiaya tinggi</span>
+        <p>Memindahkan frontend ke Cloudflare Pages atau domain lain menuntut rombak autentikasi (cookie
+        statis tidak sah lintas situs) <em>plus</em> penulisan ulang sekitar 3.500 baris generator HTML
+        menjadi komponen. Manfaatnya kecil dibanding risikonya pada aplikasi yang nilai utamanya justru ada
+        di halaman cetak dan laporan guru.</p>
+      </div>
+
+      <div class="callout c-info">
+        <span class="ttl">Rekomendasi</span>
+        <p>Tempuh jalur bertahap: bekukan kontrak API lebih dulu, pisahkan <strong>panel admin</strong>
+        (dashboard, editor, rekap, media, koreksi esai) menjadi SPA yang memanggil API, lalu
+        <strong>biarkan halaman siswa dan lembar cetak tetap SSR</strong>. Pemisahan domain penuh ditunda
+        sampai ada kebutuhan deploy/CDN yang nyata.</p>
+      </div>
+
+      <div class="grid three" style="margin-top:18px">
+        <div class="card">
+          <h4>Skenario A &mdash; same-origin</h4>
+          <p>SPA disajikan Worker yang sama. Tanpa CORS, tanpa ubah cookie, URL tetap <code>/p/...</code>.
+          <span class="badge b-ok">disarankan</span></p>
+        </div>
+        <div class="card">
+          <h4>Skenario B &mdash; cross-origin</h4>
+          <p>Frontend di Pages/domain lain, API di Worker. Perlu token/header auth &amp; CORS ketat.
+          <span class="badge b-high">tunda</span></p>
+        </div>
+        <div class="card">
+          <h4>Yang tak berubah</h4>
+          <p>Lapisan data tetap di backend: KV <code>STORAGE</code>, D1 <code>DB</code>, R2 opsional,
+          dan proxy generate gambar.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 2. ARSITEKTUR ================= -->
+    <section id="kini">
+      <h2><span class="num">02</span> Arsitektur Saat Ini</h2>
+      <p class="deck">Satu Worker melayani HTML, JSON, dan biner sekaligus.</p>
+
+      <p>Berkas <code>src/index.ts</code> membuat instance Hono, memasang middleware auth, lalu
+      mendaftarkan rute dari modul-modul terpisah: <code>registerMediaRoutes</code>,
+      <code>registerQuizEditorRoutes</code>, <code>registerEssayGradingRoutes</code>,
+      <code>registerGuideRoute</code>. Konfigurasi <code>wrangler.jsonc</code> memakai assets binding
+      <code>./public</code> sehingga apa pun di <code>public/</code> ikut disajikan sebagai berkas statis.</p>
+
+      <pre><span class="cm"># Batas yang sudah ada hari ini</span>
+
+  Browser
+    │
+    ├── <span class="st">/p/:slug</span>, <span class="st">/</span>, <span class="st">/p/:slug/data</span>   &larr; <span class="hi">SSR: HTML dirakit di server</span>
+    │        (quiz-page.ts, quiz-report.ts, quiz-editor.ts, quiz-essay.ts, guide.ts)
+    │
+    ├── <span class="st">/api/*</span>                          &larr; <span class="hi">sudah JSON</span>
+    │        (login, deploy, delete, submit, quiz/save, quiz/essay, media/*)
+    │
+    └── <span class="st">/media/:slug/:name</span>               &larr; <span class="hi">biner dari R2 atau KV</span>
+
+  Data layer (tetap di backend)
+    KV STORAGE  ·  D1 DB  ·  R2 MEDIA (opsional)  ·  proxy IMGGEN</pre>
+
+      <div class="callout c-ok">
+        <span class="ttl">Temuan penting untuk keamanan</span>
+        <p><code>quiz-page.ts</code> hanya menanam <em>metadata</em> kuis (slug, judul, KKM) ke konfigurasi
+        klien. Kunci jawaban dan pembahasan tidak pernah dikirim ke browser &mdash; penilaian dilakukan di
+        server dari spesifikasi di KV. Artinya memindahkan tampilan ke klien <strong>tidak</strong>
+        melemahkan anti-kecurangan, asalkan endpoint baru juga tidak mengekspor kunci.</p>
+      </div>
+    </section>
+
+    <!-- ================= 3. PETA ENDPOINT ================= -->
+    <section id="peta">
+      <h2><span class="num">03</span> Peta Endpoint &amp; Jalur Migrasi</h2>
+      <p class="deck">Setiap rute yang terdaftar, bentuk sekarang, targetnya, dan fase pengerjaannya.</p>
+
+      <p>Kolom <strong>Fase</strong> merujuk pada roadmap di bagian 7. F0 berarti tidak perlu diubah sama
+      sekali; fase bernomor berarti rute tersebut disentuh pada tahap itu.</p>
+
+      <h3 id="sudah-api">3.1 Sudah Berbentuk API &mdash; jadikan backend murni</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Rute</th><th>Berkas</th><th>Perilaku kini</th><th>Target</th><th>Fase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>POST /api/login</code></td><td><code>src/index.ts</code></td>
+              <td>Set cookie sesi</td><td>Tetap; tambah token bila Skenario B</td>
+              <td><span class="badge b-plain">F0</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /api/logout</code></td><td><code>src/index.ts</code></td>
+              <td>Hapus cookie lalu redirect</td><td>Redirect tetap (navigasi penuh)</td>
+              <td><span class="badge b-plain">F0</span></td>
+            </tr>
+            <tr>
+              <td><code>POST /api/deploy</code></td><td><code>src/index.ts</code></td>
+              <td>Terima teks kuis dari editor</td><td>Tetap; validasi ketat &amp; respons seragam</td>
+              <td><span class="badge b-med">F1</span></td>
+            </tr>
+            <tr>
+              <td><code>POST /api/delete</code></td><td><code>src/index.ts</code></td>
+              <td>Hapus kuis + media</td><td>Tetap</td>
+              <td><span class="badge b-plain">F0</span></td>
+            </tr>
+            <tr>
+              <td><code>POST /api/submit/:slug</code><br><code>POST /api/save/:slug</code></td>
+              <td><code>src/index.ts</code></td>
+              <td><code>saveRecordHandler</code> menerima jawaban siswa</td>
+              <td>Tetap kunci &mdash; jangan pernah kirim kunci ke klien</td>
+              <td><span class="badge b-med">F1</span></td>
+            </tr>
+            <tr>
+              <td><code>POST /api/quiz/:slug/save</code></td><td><code>src/quiz-editor.ts</code></td>
+              <td>Simpan spesifikasi soal ke KV</td><td>Tetap; tambah penanda versi</td>
+              <td><span class="badge b-med">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>POST /api/quiz/:slug/essay</code></td><td><code>src/quiz-essay.ts</code></td>
+              <td>Simpan penilaian esai guru</td><td>Tetap</td>
+              <td><span class="badge b-med">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>POST /api/media/:slug</code><br><code>POST /api/media/:slug/delete</code></td>
+              <td><code>src/media-routes.ts</code></td>
+              <td>Unggah/hapus gambar (multipart)</td><td>Tetap; batas ukuran tetap di server</td>
+              <td><span class="badge b-med">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>POST /api/media/:slug/generate</code></td><td><code>src/media-routes.ts</code></td>
+              <td>Panggil proxy IMGGEN</td><td>Tetap &mdash; rahasia tidak boleh ke klien</td>
+              <td><span class="badge b-plain">F0</span></td>
+            </tr>
+            <tr>
+              <td><code>GET/POST /api/media/:slug/gen-config</code></td><td><code>src/media-routes.ts</code></td>
+              <td>Simpan preferensi model &amp; prompt</td><td>Tetap</td>
+              <td><span class="badge b-plain">F0</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /media/:slug/:name</code></td><td><code>src/media-routes.ts</code></td>
+              <td>Keluarkan biner gambar</td><td>Tetap di backend (publik, aman)</td>
+              <td><span class="badge b-plain">F0</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="perlu-ubah">3.2 Masih SSR &mdash; perlu keputusan</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Rute</th><th>Berkas</th><th>Sifat</th><th>Rencana</th><th>Fase</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GET /</code></td><td><code>src/index.ts</code></td>
+              <td>Dashboard daftar kuis</td>
+              <td>Jadikan SPA admin + API daftar kuis</td>
+              <td><span class="badge b-high">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /p/:slug/edit</code></td><td><code>src/quiz-editor.ts</code></td>
+              <td>Editor soal (sudah didominasi JS klien)</td>
+              <td>Kandidat termudah jadi SPA</td>
+              <td><span class="badge b-med">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /p/:slug/data</code></td><td><code>src/index.ts</code></td>
+              <td>Rekap nilai + analisis butir</td>
+              <td>SPA admin + API rekap (dengan paginasi)</td>
+              <td><span class="badge b-high">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /p/:slug/media</code></td><td><code>src/media-routes.ts</code></td>
+              <td>Panel gambar + skrip inline</td>
+              <td>SPA admin + API media</td>
+              <td><span class="badge b-med">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /p/:slug/essay</code></td><td><code>src/quiz-essay.ts</code></td>
+              <td>Antarmuka koreksi esai</td>
+              <td>SPA admin + API esai</td>
+              <td><span class="badge b-med">F2</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /p/:slug</code></td><td><code>src/quiz-page.ts</code></td>
+              <td>Halaman siswa menjawab kuis</td>
+              <td><strong>Pertahankan SSR</strong> &mdash; cepat, tanpa bundle</td>
+              <td><span class="badge b-ok">F3</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /p/:slug?print=1</code></td><td><code>src/quiz-page.ts</code></td>
+              <td>Lembar cetak (<code>renderPrintSheet</code>)</td>
+              <td><strong>Pertahankan SSR</strong> &mdash; ini dokumen untuk dicetak</td>
+              <td><span class="badge b-ok">F3</span></td>
+            </tr>
+            <tr>
+              <td><code>GET /panduan</code></td><td><code>src/guide.ts</code></td>
+              <td>Halaman panduan guru</td>
+              <td>Pertahankan SSR, atau jadikan halaman statis</td>
+              <td><span class="badge b-plain">F3</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="kontrak">3.3 Kontrak Data yang Baru Dibutuhkan</h3>
+      <p>Bila panel admin dijadikan SPA, tiga endpoint tumpang tindih ini perlu bentuk JSON eksplisit,
+      bukan HTML:</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Endpoint baru</th><th>Menggantikan</th><th>Isi</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>GET /api/apps</code></td><td><code>GET /</code></td>
+              <td>Daftar kuis + statistik media (memakai <code>withMediaStats</code> yang sudah ada)</td>
+            </tr>
+            <tr>
+              <td><code>GET /api/quiz/:slug</code></td><td><code>GET /p/:slug/edit</code></td>
+              <td>Spesifikasi soal untuk editor (<code>quizToAuthoringSource</code>)</td>
+            </tr>
+            <tr>
+              <td><code>GET /api/quiz/:slug/report</code></td><td><code>GET /p/:slug/data</code></td>
+              <td>Rekap nilai + <code>computeItemAnalysis</code>, <strong>wajib paginasi</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout c-warn">
+        <span class="ttl">Jangan tambahkan</span>
+        <p>Endpoint "play" yang mengirim kunci jawaban ke klien demi kenyamanan SPA. Halaman siswa
+        sengaja mempertahankan penilaian di server; itu pertahanan intinya.</p>
+      </div>
+    </section>
+
+    <!-- ================= 4. PILIHAN ================= -->
+    <section id="pilihan">
+      <h2><span class="num">04</span> Pilihan Arsitektur A vs B</h2>
+      <p class="deck">Dua bentuk pemisahan, dengan konsekuensi yang sangat berbeda.</p>
+
+      <div class="grid two">
+        <div class="track a">
+          <h4>Skenario A &mdash; Frontend SPA, Worker yang sama</h4>
+          <div class="who">same-origin &middot; risiko rendah</div>
+          <ul>
+            <li>Worker menyajikan aset SPA <em>dan</em> <code>/api/*</code>.</li>
+            <li>URL tetap <code>/p/...</code> &mdash; tautan guru tidak rusak.</li>
+            <li>Cookie <code>SameSite=Lax</code> tetap sah, tidak ada CORS.</li>
+            <li>Struktur kode terpisah tanpa biaya operasional tambahan.</li>
+          </ul>
+        </div>
+        <div class="track b">
+          <h4>Skenario B &mdash; Frontend di Pages/domain lain</h4>
+          <div class="who">cross-origin &middot; risiko tinggi</div>
+          <ul>
+            <li>Perlu CORS dengan kredensial + origin eksplisit (bukan <code>*</code>).</li>
+            <li>Cookie lintas situs butuh <code>SameSite=None; Secure</code>, atau ganti ke token.</li>
+            <li>Cookie sesi sekarang berupa string statis &mdash; tidak layak jadi bearer token.</li>
+            <li>Menambah titik gagal: dua deploy, dua pipeline, dua set environment.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Matriks keputusan</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Aspek</th><th>Skenario A</th><th>Skenario B</th></tr></thead>
+          <tbody>
+            <tr><td>Perubahan auth</td><td>Tidak ada</td><td>Rombak (CORS + cookie/token)</td></tr>
+            <tr><td>Deploy terpisah</td><td>Tidak</td><td>Ya &mdash; Pages + Worker</td></tr>
+            <tr><td>Risiko regresi</td><td>Sedang</td><td>Tinggi</td></tr>
+            <tr><td>Manfaat utama</td><td>Kode lebih rapi, iterasi lebih cepat</td><td>Skala/CDN terpisah</td></tr>
+            <tr><td>Cocok untuk</td><td>Sekolah &amp; tim kecil</td><td>Multi-tenant besar</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Rujuk <span class="mono">docs/analisis-resource.html</span> untuk konteks model distribusi:
+      bila arahnya multi-sekolah, Skenario B baru punya alasan kuat.</p>
+    </section>
+
+    <!-- ================= 5. AUTH ================= -->
+    <section id="auth">
+      <h2><span class="num">05</span> Auth Lintas-Origin</h2>
+      <p class="deck">Bagian yang paling mudah diremehkan.</p>
+
+      <p>Saat ini <code>src/auth.ts</code> memakai konstanta <code>AUTH_SESSION = 'authenticated_user'</code>
+      sebagai nilai cookie &mdash; cookie httpOnly, Secure, SameSite=Lax. Selama semuanya satu origin
+      (Skenario A), skema ini tetap bekerja apa adanya. Yang berubah hanya bila frontend pindah domain.</p>
+
+      <pre><span class="cm">// Skema cookie sekarang (sederhana, cukup untuk same-origin)</span>
+auth_session=<span class="hi">authenticated_user</span>; HttpOnly; Secure; SameSite=Lax
+
+<span class="cm">// Bila cross-origin: Lax tidak akan terkirim pada permintaan lintas situs.</span>
+<span class="cm">// Dua jalan keluar:</span>
+<span class="cm">//   1) SameSite=None; Secure  +  CORS credentials: true, origin eksplisit</span>
+<span class="cm">//   2) Ganti ke token bertanda tangan di header Authorization (disarankan)</span></pre>
+
+      <div class="callout c-crit">
+        <span class="ttl">Jangan gabungkan cookie statis dengan model tenant</span>
+        <p>Nilai cookie yang bisa dipalsukan adalah kelemahan yang sudah tercatat di
+        <span class="mono">docs/analisis-resource.html</span>. Sebelum beralih ke Skenario B, perbaiki
+        dulu sesi bertanda tangan; CORS saja tidak memperbaiki kelemahan ini.</p>
+      </div>
+
+      <p>Kerangka CORS yang diperlukan untuk Skenario B:</p>
+      <pre><span class="cm">// Origin harus eksplisit; "*" dilarang saat memakai kredensial</span>
+Access-Control-Allow-Origin: https://&lt;domain-frontend&gt;
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization</pre>
+    </section>
+
+    <!-- ================= 6. ALUR KHUSUS ================= -->
+    <section id="khusus">
+      <h2><span class="num">06</span> Alur yang Tidak Boleh Dipindah</h2>
+      <p class="deck">Memindahkan ini ke klien justru merusak fungsinya.</p>
+
+      <div class="grid three">
+        <div class="card">
+          <h4>Lembar cetak</h4>
+          <p><code>renderPrintSheet</code> menghasilkan dokumen HTML yang tujuannya dicetak, bukan
+          dioperasikan. SPA menambah kompleksitas tanpa manfaat apa pun di sini.</p>
+        </div>
+        <div class="card">
+          <h4>Penilaian jawaban</h4>
+          <p><code>quiz-grade.ts</code> mengevaluasi jawaban di server. Skor dan kunci tidak boleh
+          melewati batas browser.</p>
+        </div>
+        <div class="card">
+          <h4>Penandaan media</h4>
+          <p>Token <code>media:&lt;slot&gt;</code> diselesaikan di server menjadi <code>/media/...</code>
+          dan perlu tahu slot mana yang benar-benar ada. Logika ini tetap di backend.</p>
+        </div>
+      </div>
+
+      <h3>Catatan pada komponen yang sudah interaktif</h3>
+      <ul>
+        <li><code>public/vendor/quiz-editor.js</code> sudah berkomunikasi ke
+        <code>/api/quiz/:slug/save</code> &mdash; bagian ini paling siap dipindah.</li>
+        <li><code>public/vendor/quiz-essay.js</code> sudah memanggil <code>/api/quiz/:slug/essay</code>.</li>
+        <li>Panel media masih memuat skrip inline yang langsung memanggil <code>/api/media/*</code>
+        (unggah, hapus, generate, gen-config) &mdash; perlu diekstrak menjadi modul sebelum jadi SPA.</li>
+        <li>Halaman siswa (<code>quiz-page.ts</code>) sudah punya skrip klien sendiri untuk pengiriman
+        jawaban &mdash; tidak perlu diubah.</li>
+      </ul>
+    </section>
+
+    <!-- ================= 7. ROADMAP ================= -->
+    <section id="roadmap">
+      <h2><span class="num">07</span> Roadmap Bertahap</h2>
+      <p class="deck">Tiap fase berdiri sendiri; berhenti kapan saja tanpa meninggalkan sistem setengah jadi.</p>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 0</span>
+          <h4>Bekukan kontrak API</h4>
+          <span class="badge b-ok">tanpa ubah perilaku</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Dokumentasikan bentuk respons tiap <code>/api/*</code> yang sudah ada. <span class="est">0,5 hari</span></li>
+            <li>Samakan format galat (satu bentuk JSON untuk semua kegagalan). <span class="est">0,5 hari</span></li>
+            <li>Petakan setiap pemanggilan <code>fetch()</code> di <code>public/vendor/*</code> ke rutenya. <span class="est">0,5 hari</span></li>
+          </ul>
+        </div>
+        <div class="outcome">Hasil: batas API terdokumentasi, tidak ada kode perilaku yang berubah.</div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 1</span>
+          <h4>Siapkan kerangka frontend (Skenario A)</h4>
+          <span class="badge b-med">rendah</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Tambahkan <em>shell</em> SPA di <code>public/</code> yang menyajikan panel admin. <span class="est">0,5 hari</span></li>
+            <li>Ekstrak skrip inline panel media menjadi modul di <code>public/vendor/</code>. <span class="est">1 hari</span></li>
+            <li>Tambahkan tiga endpoint JSON di bagian 3.3. <span class="est">1 hari</span></li>
+          </ul>
+        </div>
+        <div class="outcome">Hasil: semua data admin sudah bisa diambil sebagai JSON, halaman lama masih jalan.</div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 2</span>
+          <h4>Pindahkan panel admin ke SPA</h4>
+          <span class="badge b-high">pekerjaan utama</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Editor soal: port <code>quiz-editor.ts</code> ke komponen. Mulai dari sini karena paling siap. <span class="est">2&ndash;3 hari</span></li>
+            <li>Dashboard: daftar kuis, statistik media, aksi deploy/hapus. <span class="est">1&ndash;2 hari</span></li>
+            <li>Rekap data: tabel nilai + analisis butir, dengan paginasi. <span class="est">2 hari</span></li>
+            <li>Panel media &amp; koreksi esai. <span class="est">2 hari</span></li>
+            <li>Arahkan ulang rute SSR admin lama ke shell SPA. <span class="est">0,5 hari</span></li>
+          </ul>
+        </div>
+        <div class="outcome">Hasil: dashboard, editor, rekap, media, dan esai dilayani satu SPA.</div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 3</span>
+          <h4>Putuskan nasib halaman siswa &amp; cetak</h4>
+          <span class="badge b-ok">disarankan: biarkan SSR</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Uji ulang alur siswa dan cetak pasca-Fase 2 (jangan ada regresi). <span class="est">1 hari</span></li>
+            <li>Bila tetap SSR: tandai jelas sebagai lapisan terpisah di kode. <span class="est">0,5 hari</span></li>
+            <li>Bila ingin dijadikan SPA: perkirakan 4&ndash;6 hari ekstra, manfaat kecil.</li>
+          </ul>
+        </div>
+        <div class="outcome">Hasil: batas frontend/backend final dan terdokumentasi.</div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 4</span>
+          <h4>Opsional: pindah ke domain terpisah (Skenario B)</h4>
+          <span class="badge b-crit">hanya bila perlu</span>
+        </div>
+        <div class="body">
+          <ul>
+            <li>Perbaiki sesi menjadi bertanda tangan lebih dulu. <span class="est">1&ndash;2 hari</span></li>
+            <li>Pasang CORS dengan origin eksplisit + kredensial. <span class="est">0,5 hari</span></li>
+            <li>Pindahkan aset SPA ke Pages, atur dua pipeline deploy. <span class="est">1 hari</span></li>
+            <li>Uji ulang seluruh alur lintas-origin, termasuk unggah media. <span class="est">1 hari</span></li>
+          </ul>
+        </div>
+        <div class="outcome">Hasil: frontend dan backend benar-benar terdeploy terpisah.</div>
+      </div>
+
+      <div class="callout c-info">
+        <span class="ttl">Perkiraan total</span>
+        <p>Fase 0&ndash;3 (Skenario A, siswa &amp; cetak tetap SSR): sekitar <strong>12&ndash;17 hari kerja</strong>.
+        Menambah Fase 4: sekitar <strong>4&ndash;6 hari lagi</strong>. Memaksa siswa &amp; cetak jadi SPA
+        menambah <strong>4&ndash;6 hari</strong> dengan manfaat paling tipis.</p>
+      </div>
+    </section>
+
+    <!-- ================= 8. RISIKO ================= -->
+    <section id="risiko">
+      <h2><span class="num">08</span> Risiko &amp; Regresi</h2>
+      <p class="deck">Bagian yang paling mungkin rusak saat render dipindah.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Risiko</th><th>Pemicu</th><th>Dampak</th><th>Mitigasi</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Rich text &amp; rumus rusak</td>
+              <td><code>quiz-rich.ts</code> dan KaTeX dirakit di server</td>
+              <td>Soal tampil salah</td>
+              <td>Port <code>inlineRich</code>/<code>renderRichText</code> apa adanya; uji dengan soal matematika</td>
+            </tr>
+            <tr>
+              <td>Navigasi kuis longsor</td>
+              <td>Urutan soal &amp; pengacakan dari <code>seededOrder</code></td>
+              <td>Siswa dapat urutan berbeda</td>
+              <td>Jangan pindahkan logika pengacakan ke klien</td>
+            </tr>
+            <tr>
+              <td>Cetak berantakan</td>
+              <td>CSS khusus print di halaman siswa</td>
+              <td>Lembar ujian tidak layak cetak</td>
+              <td>Biarkan SSR; uji cetak setiap fase</td>
+            </tr>
+            <tr>
+              <td>Sesi hilang lintas-origin</td>
+              <td>Cookie <code>SameSite=Lax</code></td>
+              <td>Guru terkunci di luar</td>
+              <td>Hanya berlaku di Skenario B; perbaiki auth lebih dulu</td>
+            </tr>
+            <tr>
+              <td>Unggah media gagal</td>
+              <td>Multipart + CORS <em>preflight</em></td>
+              <td>Gambar tidak masuk</td>
+              <td>Uji unggah lintas-origin secara khusus, termasuk batas ukuran</td>
+            </tr>
+            <tr>
+              <td>Rekap lambat</td>
+              <td>Analisis butir dihitung ulang tiap permintaan</td>
+              <td>SPA terasa berat</td>
+              <td>Paginasi + pertimbangkan cache hasil analisis</td>
+            </tr>
+            <tr>
+              <td>Rahasia bocor</td>
+              <td>Terbawa ke bundel depan</td>
+              <td>Kunci IMGGEN terekspos</td>
+              <td>Semua panggilan pihak ketiga tetap di Worker</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= 9. PETA KODE ================= -->
+    <section id="kode">
+      <h2><span class="num">09</span> Peta Kode</h2>
+      <p class="deck">Ukuran relatif lapisan tampilan yang akan disentuh.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Berkas</th><th>Peran</th><th>Nasib</th></tr></thead>
+          <tbody>
+            <tr><td><code>src/index.ts</code></td><td>Rute inti, dashboard, submit, deploy</td><td>Pisahkan dashboard; sisanya tetap backend</td></tr>
+            <tr><td><code>src/quiz-page.ts</code></td><td>&plusmn;1.180 baris: render kuis + lembar cetak</td><td>Pertahankan SSR</td></tr>
+            <tr><td><code>src/quiz-editor.ts</code></td><td>Halaman editor soal</td><td>Jadikan SPA (prioritas pertama)</td></tr>
+            <tr><td><code>src/quiz-report.ts</code></td><td>Analisis butir &amp; tabel rekap</td><td>SPA admin + skema JSON</td></tr>
+            <tr><td><code>src/quiz-essay.ts</code></td><td>Halaman koreksi esai</td><td>SPA admin</td></tr>
+            <tr><td><code>src/media-routes.ts</code></td><td>Halaman panel media + skrip inline</td><td>Ekstrak skrip, lalu SPA</td></tr>
+            <tr><td><code>src/guide.ts</code></td><td>Halaman panduan</td><td>Biarkan SSR / halaman statis</td></tr>
+            <tr><td><code>src/auth.ts</code></td><td>Sesi cookie &amp; <code>safeSlug</code></td><td>Hanya berubah bila Skenario B</td></tr>
+            <tr><td><code>src/quiz-grade.ts</code>, <code>quiz-parse.ts</code>, <code>quiz-rich.ts</code></td><td>Penilaian, parsing, render teks kaya</td><td>Murni backend &mdash; jangan dipindah</td></tr>
+            <tr><td><code>public/vendor/*</code></td><td>JS/CSS halaman</td><td>Jadi basis komponen SPA</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================= 10. REKOMENDASI ================= -->
+    <section id="rekomendasi">
+      <h2><span class="num">10</span> Rekomendasi</h2>
+      <p class="deck">Bila hanya boleh menempuh satu jalan, ambil ini.</p>
+      <div class="grid three">
+        <div class="card prio-card">
+          <h4><span class="pnum">1</span> Skenario A, bukan B</h4>
+          <p>Pisahkan lapisan di dalam Worker yang sama. Dapat sebagian besar manfaat tanpa mengorbankan
+          keamanan sesi atau kestabilan deploy.</p>
+        </div>
+        <div class="card prio-card">
+          <h4><span class="pnum">2</span> Admin dulu, siswa belakangan</h4>
+          <p>Panel admin sudah interaktif dan pemakainya sedikit. Halaman siswa justru paling sensitif
+          dan paling diuntungkan oleh kecepatan SSR.</p>
+        </div>
+        <div class="card prio-card">
+          <h4><span class="pnum">3</span> Perbaiki auth sebelum domain terpisah</h4>
+          <p>Sesi statis adalah utang yang harus dibayar sebelum menambah permukaan baru dari CORS.</p>
+        </div>
+      </div>
+
+      <h3>Keputusan yang masih terbuka</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Pertanyaan</th><th>Mengapa penting</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Apakah frontend memang perlu domain/CDN sendiri?</td>
+              <td>Tanpa jawaban "ya", Skenario B tidak punya alasan sama sekali.</td>
+            </tr>
+            <tr>
+              <td>Kerangka SPA: React, Vue, atau tetap vanilla?</td>
+              <td>Menentukan besar pekerjaan porting dan apakah perlu langkah build.</td>
+            </tr>
+            <tr>
+              <td>Apakah <code>public/vendor/*</code> yang ada mau dipertahankan?</td>
+              <td>Bila ya, migrasi bisa dilakukan bertahap, komponen demi komponen.</td>
+            </tr>
+            <tr>
+              <td>Apakah rekap nilai perlu paginasi server?</td>
+              <td>Menentukan bentuk endpoint laporan sebelum SPA ditulis.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="doc">
+      Peta migrasi frontend &amp; backend <span class="mono">gemini-deployer</span> &middot; versi 1 &middot; 22 September 2026<br>
+      Dokumen pendamping: <span class="mono">docs/analisis-resource.html</span> &middot; <span class="mono">docs/panduan-pakai.md</span>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

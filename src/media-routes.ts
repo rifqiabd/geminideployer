@@ -349,8 +349,8 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
       .map((name) => {
         const saved = uploaded.get(name);
         const badge = saved
-          ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Sudah ada</span>`
-          : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">Belum diunggah</span>`;
+          ? `<span class="m-badge ok">Sudah ada</span>`
+          : `<span class="m-badge missing">Belum diunggah</span>`;
         const info = saved ? `${(saved.size / 1024).toFixed(0)} KB` : 'Siswa saat ini melihat kotak "Gambar belum diunggah".';
         // Prompt AI diisi otomatis dari konteks soal (boleh diedit guru); prompt
         // Gemini memakai varian lengkap: stimulus + konteks soal.
@@ -358,38 +358,40 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
         const geminiPrompt = buildGeminiPrompt(slotGeminiContexts.get(name) ?? context);
         const geminiUrl = 'https://gemini.google.com/app?q=' + encodeURIComponent(geminiPrompt);
         return `
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col gap-3">
-          <img data-preview="${escapeHtml(name)}" src="/media/${slug}/${escapeHtml(name)}" alt="" class="w-full h-32 object-cover rounded-lg border border-slate-700 bg-slate-900">
-          <div class="flex items-center justify-between gap-2">
-            <p class="font-mono text-xs text-amber-300 truncate" title="media:${escapeHtml(name)}">media:${escapeHtml(name)}</p>
-            ${badge}
-          </div>
-          <p class="text-[11px] text-slate-500 -mt-1">${escapeHtml(info)}</p>
-          <div class="flex items-center gap-2">
-            <label class="flex-1 text-center px-3 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-semibold cursor-pointer transition">
-              <i class="fa-solid fa-camera mr-1"></i> Pilih / Potret Foto
-              <input type="file" accept="image/*" class="hidden js-file" data-name="${escapeHtml(name)}">
-            </label>
+        <div class="m-slot">
+          <img data-preview="${escapeHtml(name)}" src="/media/${slug}/${escapeHtml(name)}" alt="" class="m-slot-img">
+          <div class="m-slot-body">
+            <div class="m-slot-head">
+              <p class="m-slot-token" title="media:${escapeHtml(name)}">media:${escapeHtml(name)}</p>
+              ${badge}
+            </div>
+            <p class="m-slot-info">${escapeHtml(info)}</p>
+            <div class="m-slot-actions">
+              <label class="m-btn m-btn-primary m-file">
+                <i class="fa-solid fa-camera"></i> Pilih / Potret Foto
+                <input type="file" accept="image/*" class="hidden js-file" data-name="${escapeHtml(name)}">
+              </label>
+              ${
+                genEnabled
+                  ? `<button type="button" class="m-btn m-btn-ai js-gen-toggle" data-name="${escapeHtml(name)}" title="Buat gambar dengan AI"><i class="fa-solid fa-wand-magic-sparkles"></i> AI</button>`
+                  : ''
+              }
+              ${saved ? `<button class="m-btn m-btn-del js-delete" data-name="${escapeHtml(name)}" title="Hapus"><i class="fa-solid fa-trash"></i></button>` : ''}
+            </div>
             ${
               genEnabled
-                ? `<button type="button" class="js-gen-toggle px-3 py-2 bg-violet-600/20 text-violet-300 hover:bg-violet-600 hover:text-white rounded-lg text-xs font-semibold transition" data-name="${escapeHtml(name)}" title="Buat gambar dengan AI"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI</button>`
-                : ''
-            }
-            ${saved ? `<button class="js-delete px-3 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white rounded-lg text-xs transition" data-name="${escapeHtml(name)}" title="Hapus"><i class="fa-solid fa-trash"></i></button>` : ''}
-          </div>
-          ${
-            genEnabled
-              ? `<div class="js-gen-form hidden flex-col gap-2" data-name="${escapeHtml(name)}">
-            <textarea class="js-gen-prompt w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 outline-none focus:border-violet-500" rows="2" placeholder="Prompt terisi otomatis dari konteks soal; boleh diedit dulu...">${escapeHtml(context)}</textarea>
-            <div class="flex items-center gap-2">
-              <button type="button" class="js-gen-go flex-1 px-3 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-xs font-semibold text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Buat Gambar (10\u201330 detik)</button>
-              <button type="button" class="js-copy-prompt px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-200 transition" title="Salin prompt untuk membuat gambar ini di gemini.google.com (pakai akun Gemini kamu), lalu unggah hasilnya lewat Pilih / Potret." data-prompt="${escapeHtml(geminiPrompt)}"><i class="fa-brands fa-google mr-1"></i> Salin prompt Gemini</button>
-              <button type="button" class="js-gemini-open px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-semibold text-white transition" title="Buka gemini.google.com di tab baru dan kirim prompt ini langsung tanpa salin-tempel." data-gemini-url="${escapeHtml(geminiUrl)}" data-prompt="${escapeHtml(geminiPrompt)}"><i class="fa-brands fa-google mr-1"></i> Buka di Gemini</button>
+                ? `<div class="js-gen-form hidden" data-name="${escapeHtml(name)}">
+            <textarea class="js-gen-prompt m-gen-prompt" rows="2" placeholder="Prompt terisi otomatis dari konteks soal; boleh diedit dulu...">${escapeHtml(context)}</textarea>
+            <div class="m-gen-actions">
+              <button type="button" class="m-btn m-btn-ai m-gen-go js-gen-go"><i class="fa-solid fa-wand-magic-sparkles"></i> Buat Gambar (10\u201330 detik)</button>
+              <button type="button" class="m-btn js-copy-prompt" title="Salin prompt untuk membuat gambar ini di gemini.google.com (pakai akun Gemini kamu), lalu unggah hasilnya lewat Pilih / Potret." data-prompt="${escapeHtml(geminiPrompt)}"><i class="fa-brands fa-google"></i> Salin prompt Gemini</button>
+              <button type="button" class="m-btn m-btn-google js-gemini-open" title="Buka gemini.google.com di tab baru dan kirim prompt ini langsung tanpa salin-tempel." data-gemini-url="${escapeHtml(geminiUrl)}" data-prompt="${escapeHtml(geminiPrompt)}"><i class="fa-brands fa-google"></i> Buka di Gemini</button>
             </div>
           </div>`
-              : ''
-          }
-          <p class="text-[11px] text-slate-400 hidden" data-status="${escapeHtml(name)}"></p>
+                : ''
+            }
+            <p class="m-status hidden" data-status="${escapeHtml(name)}"></p>
+          </div>
         </div>`;
       })
       .join('');
@@ -398,19 +400,19 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
       ? items
           .map(
             (item) => `
-        <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-          <img src="/media/${slug}/${escapeHtml(item.name)}" alt="" class="w-full h-28 object-cover bg-slate-900">
-          <div class="p-2.5 space-y-1.5">
-            <p class="font-mono text-[11px] text-slate-300 truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</p>
-            <div class="flex items-center gap-1.5">
-              <button class="js-copy flex-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-[11px]" data-url="/media/${slug}/${escapeHtml(item.name)}"><i class="fa-solid fa-link mr-1"></i>Salin URL</button>
-              <button class="js-delete px-2 py-1.5 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white rounded-lg text-[11px]" data-name="${escapeHtml(item.name)}"><i class="fa-solid fa-trash"></i></button>
+        <div class="m-gallery-item">
+          <img src="/media/${slug}/${escapeHtml(item.name)}" alt="" class="m-gallery-img">
+          <div class="m-gallery-body">
+            <p class="m-gallery-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</p>
+            <div class="m-gallery-actions">
+              <button class="m-btn m-btn-small js-copy flex-1" data-url="/media/${slug}/${escapeHtml(item.name)}"><i class="fa-solid fa-link"></i>Salin URL</button>
+              <button class="m-btn m-btn-small m-btn-del js-delete" data-name="${escapeHtml(item.name)}"><i class="fa-solid fa-trash"></i></button>
             </div>
           </div>
         </div>`
           )
           .join('')
-      : `<div class="col-span-full p-8 text-center text-slate-500 text-xs bg-slate-800/40 border border-slate-800 rounded-xl">Belum ada gambar tersimpan untuk aplikasi ini.</div>`;
+      : `<div class="m-empty">Belum ada gambar tersimpan untuk aplikasi ini.</div>`;
 
     return c.html(`<!DOCTYPE html>
 <html lang="id">
@@ -418,57 +420,234 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gambar Soal - /p/${slug}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
+  <style>
+    @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
+    @font-face{font-family:'Geist Mono';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geistmono-variable.woff2') format('woff2')}
+    :root{
+      --bg:#ffffff;--surface:#f9f9f9;--surface-2:#f0f0f0;
+      --border:#e5e5e5;--text:#171717;--text-secondary:#737373;--text-faint:#a3a3a3;
+      --accent:#7c3aed;--accent-hover:#6d28d9;--accent-soft:rgba(124,58,237,.08);
+      --danger:#ef4444;--danger-soft:rgba(239,68,68,.08);--ok:#16a34a;--ok-soft:rgba(22,163,74,.1);--warn:#d97706;--warn-soft:rgba(217,119,6,.1);
+      --radius:14px;--radius-sm:10px;--shadow:0 1px 3px rgba(0,0,0,.06);--shadow-lg:0 8px 32px rgba(0,0,0,.1);
+    }
+    @media(prefers-color-scheme:dark){
+      :root{
+        --bg:#212121;--surface:#303030;--surface-2:#3a3a3a;
+        --border:#424242;--text:#ececec;--text-secondary:#9e9e9e;--text-faint:#6b6b6b;
+        --accent:#8b5cf6;--accent-hover:#a78bfa;--accent-soft:rgba(139,92,246,.12);
+        --danger:#f87171;--danger-soft:rgba(248,113,113,.12);--ok:#4ade80;--ok-soft:rgba(74,222,128,.12);--warn:#fbbf24;--warn-soft:rgba(251,191,36,.12);
+        --shadow:0 1px 3px rgba(0,0,0,.25);--shadow-lg:0 8px 32px rgba(0,0,0,.4);
+      }
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;padding-bottom:32px}
+    a{color:inherit;text-decoration:none}
+    button{font-family:inherit;cursor:pointer}
+    input,textarea,select,button{font-family:inherit;color:var(--text)}
+    .hidden{display:none!important}
+    .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+    .topbar-inner{max-width:960px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .topbar-left{min-width:0;display:flex;align-items:center;gap:12px}
+    .brand{width:34px;height:34px;flex:none;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
+    .back{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);padding:5px 10px;border-radius:8px;transition:background .15s,color .15s}
+    .back:hover{background:var(--surface-2);color:var(--text)}
+    .topbar h1{font-size:14px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar .sub{font-size:11px;font-family:'Geist Mono',ui-monospace,monospace;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar-actions{display:flex;align-items:center;gap:8px;flex:none}
+    .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s;white-space:nowrap}
+    .btn:hover{background:var(--surface-2)}
+    .btn-accent{background:var(--accent);border-color:transparent;color:#fff}
+    .btn-accent:hover{background:var(--accent-hover)}
+    main{max-width:960px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+    .card-title{font-size:14px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+    .card-title .ico{color:var(--accent)}
+    .card-text{font-size:12.5px;color:var(--text-secondary);line-height:1.6;margin:0}
+    .card-text code{font-family:'Geist Mono',ui-monospace,monospace;font-size:11.5px;color:var(--accent);background:var(--accent-soft);padding:1px 5px;border-radius:5px}
+    .card h2{margin:0 0 8px}
+    .info-card .card-title{color:var(--text)}
+    .info-card.webp{border-color:color-mix(in srgb,var(--ok) 30%,transparent);background:var(--ok-soft)}
+    .info-card.webp .card-title{color:var(--ok)}
+    .info-card.webp .card-text{color:var(--text-secondary)}
+    .ai-panel{border-color:color-mix(in srgb,var(--accent) 32%,transparent);background:var(--accent-soft)}
+    .ai-panel .card-text{color:var(--text-secondary)}
+    .ai-panel .card-text b{color:var(--text)}
+    .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .section-head h2{font-size:14px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px}
+    .section-head h2 .ico{color:var(--accent)}
+    .count{font-size:12px;font-weight:400}
+    .count.ok{color:var(--ok)}
+    .count.missing{color:var(--danger)}
+    .grid-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:12px}
+    .m-slot{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+    .m-slot-img{width:100%;height:130px;object-fit:cover;background:var(--surface-2);border-bottom:1px solid var(--border)}
+    .m-slot-body{display:flex;flex-direction:column;gap:8px;padding:12px}
+    .m-slot-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .m-slot-token{margin:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:2px 8px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .m-badge{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+    .m-badge.ok{color:var(--ok);background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+    .m-badge.missing{color:var(--danger);background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+    .m-slot-info{margin:0;font-size:11px;color:var(--text-faint)}
+    .m-slot-actions{display:flex;align-items:center;gap:8px}
+    .m-btn{display:inline-flex;align-items:center;gap:6px;justify-content:center;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s,color .15s;white-space:nowrap}
+    .m-btn:hover{background:var(--surface-2)}
+    .m-btn-primary{flex:1;background:var(--accent);border-color:transparent;color:#fff}
+    .m-btn-primary:hover{background:var(--accent-hover)}
+    .m-btn-ai{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent);color:var(--accent)}
+    .m-btn-ai:hover{background:var(--accent);color:#fff}
+    .m-btn-google{background:#1d4ed8;border-color:transparent;color:#fff}
+    .m-btn-google:hover{background:#1e40af}
+    .m-btn-del{background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 30%,transparent);color:var(--danger)}
+    .m-btn-del:hover{background:var(--danger);color:#fff}
+    .m-btn-small{padding:5px 9px;font-size:11px}
+    .m-file{cursor:pointer}
+    .m-file input[type=file]{display:none}
+    .js-gen-form{display:flex;flex-direction:column;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px}
+    .m-gen-prompt{width:100%;resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;outline:none;transition:border-color .15s}
+    .m-gen-prompt:focus{border-color:var(--accent)}
+    .m-gen-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .m-gen-actions .m-gen-go{flex:1}
+    .m-status{font-size:11px;color:var(--text-secondary);margin:0}
+    .grid-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:8px}
+    .m-gallery-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;box-shadow:var(--shadow)}
+    .m-gallery-img{width:100%;height:110px;object-fit:cover;background:var(--surface-2);border-bottom:1px solid var(--border)}
+    .m-gallery-body{padding:8px 10px;display:flex;flex-direction:column;gap:8px}
+    .m-gallery-name{margin:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .m-gallery-actions{display:flex;align-items:center;gap:6px}
+    .m-empty{grid-column:1/-1;padding:28px;text-align:center;font-size:12px;color:var(--text-faint);background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius)}
+    .extra-card{display:flex;flex-direction:column;gap:14px}
+    @media(min-width:640px){.extra-card{flex-direction:row;align-items:flex-end}}
+    .field{flex:1}
+    .field label{display:block;font-size:12px;font-weight:500;margin-bottom:6px;color:var(--text-secondary)}
+    .field input[type=text],.field input[type=password],.field input[type=file]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);outline:none;transition:border-color .15s}
+    .field input:focus{border-color:var(--accent)}
+    .byok-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:10px;padding-top:12px;border-top:1px solid color-mix(in srgb,var(--accent) 20%,transparent)}
+    .byok-row select{background:var(--bg);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:8px;padding:6px 10px;font-size:12px;outline:none}
+    .byok-toggle{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer}
+    .byok-toggle input{accent-color:var(--accent)}
+    #gen-byok{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    #gen-byok .m-status{color:var(--text-secondary)}
+    @media(max-width:640px){.topbar-actions .btn{font-size:0}.topbar-actions .btn i{margin:0;font-size:13px}}
+  </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-6 font-sans">
-  <div class="max-w-5xl mx-auto space-y-6">
-    <div class="flex items-start justify-between gap-4 border-b border-slate-800 pb-4">
-      <div>
-        <a href="/" class="text-xs text-blue-400 hover:underline flex items-center gap-1 mb-1">
-          <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
-        </a>
-        <h1 class="text-xl font-bold text-white">Gambar Soal: ${escapeHtml(meta.title ?? slug)}</h1>
-        <p class="text-xs text-slate-400 font-mono mt-0.5">/p/${slug} &bull; penyimpanan ${storageLabel} &bull; maks ${MAX_MEDIA_BYTES / 1024 / 1024} MB per gambar</p>
-      </div>
-      <div class="flex items-center gap-2">
-        ${isJsonQuiz ? `<a href="/p/${slug}/edit" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold whitespace-nowrap"><i class="fa-solid fa-pen-to-square mr-1"></i> Edit Soal</a>` : ''}
-        <a href="/p/${slug}" target="_blank" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-semibold whitespace-nowrap">
-          <i class="fa-solid fa-eye mr-1"></i> Lihat Kuis
-        </a>
-      </div>
-    </div>
+<body>
 
-    <div class="bg-slate-800/60 border border-slate-700 rounded-xl p-4 text-xs text-slate-300 leading-relaxed">
-      <p class="font-semibold text-slate-100 mb-1"><i class="fa-solid fa-circle-info text-orange-400 mr-1"></i> Cara kerja</p>
-      Soal bergambar ditulis dengan token <code class="font-mono text-amber-300">media:nama-slot</code>. Selama fotonya belum diunggah, siswa melihat kotak
-      &ldquo;Gambar belum diunggah&rdquo;. Setelah diunggah di sini, gambarnya langsung muncul tanpa perlu publish ulang
-      (kalau belum kelihatan, muat ulang halaman dengan Ctrl+Shift+R supaya salinan lama di browser dibuang).
-      Kalau soalmu tidak memakai token, kamu tetap bisa mengunggah gambar di bagian bawah lalu menyalin URL-nya
-      (berguna untuk mode HTML/React yang gambarnya di-hardcode).
+  <nav class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-left">
+        <a class="brand" href="/" title="Kembali ke Dashboard">SQ</a>
+        <div class="min-w-0">
+          <a href="/" class="back"><i class="fa-solid fa-arrow-left"></i>Dashboard</a>
+          <h1>Gambar Soal: ${escapeHtml(meta.title ?? slug)}</h1>
+          <div class="sub">/p/${slug} &bull; penyimpanan ${storageLabel} &bull; maks ${MAX_MEDIA_BYTES / 1024 / 1024} MB per gambar</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        ${isJsonQuiz ? `<a href="/p/${slug}/edit" class="btn"><i class="fa-solid fa-pen-to-square"></i>Edit Soal</a>` : ''}
+        <a href="/p/${slug}" target="_blank" class="btn btn-accent"><i class="fa-solid fa-eye"></i>Lihat Kuis</a>
+      </div>
     </div>
-    <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-xs text-emerald-100 leading-relaxed">
-      <p class="font-semibold mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Foto otomatis jadi WebP</p>
-      Sebelum dikirim, foto diperkecil (sisi terpanjang maks 1600 px) dan dikonversi ke WebP langsung di perangkatmu,
-      jadi kuota tersimpan lebih hemat dan halaman kuis lebih cepat dibuka. Gambar GIF dibiarkan apa adanya supaya
-      animasinya tidak hilang, dan kalau browser tidak mendukung konversi, file aslinya tetap terkirim.
+  </nav>
+
+  <main>
+    <div class="card info-card">
+      <h2 class="card-title"><i class="fa-solid fa-circle-info ico"></i> Cara kerja</h2>
+      <p class="card-text">
+        Soal bergambar ditulis dengan token <code>media:nama-slot</code>. Selama fotonya belum diunggah, siswa melihat kotak
+        &ldquo;Gambar belum diunggah&rdquo;. Setelah diunggah di sini, gambarnya langsung muncul tanpa perlu publish ulang
+        (kalau belum kelihatan, muat ulang halaman dengan Ctrl+Shift+R supaya salinan lama di browser dibuang).
+        Kalau soalmu tidak memakai token, kamu tetap bisa mengunggah gambar di bagian bawah lalu menyalin URL-nya
+        (berguna untuk mode HTML/React yang gambarnya di-hardcode).
+      </p>
+    </div>
+    <div class="card info-card webp">
+      <h2 class="card-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Foto otomatis jadi WebP</h2>
+      <p class="card-text">
+        Sebelum dikirim, foto diperkecil (sisi terpanjang maks 1600 px) dan dikonversi ke WebP langsung di perangkatmu,
+        jadi kuota tersimpan lebih hemat dan halaman kuis lebih cepat dibuka. Gambar GIF dibiarkan apa adanya supaya
+        animasinya tidak hilang, dan kalau browser tidak mendukung konversi, file aslinya tetap terkirim.
+      </p>
     </div>
 
     ${
       specRaw
         ? `<div>
-      <h2 class="text-sm font-bold text-white mb-1 flex items-center gap-2">
-        <i class="fa-solid fa-image text-orange-400"></i> Slot gambar dari soal
-        <span class="text-xs font-normal ${missing.length ? 'text-rose-400' : 'text-emerald-400'}">${slots.length - missing.length}/${slots.length} terisi</span>
-      </h2>
+      <div class="section-head">
+        <h2><i class="fa-solid fa-image ico"></i> Slot gambar dari soal
+          <span class="count ${missing.length ? 'missing' : 'ok'}">${slots.length - missing.length}/${slots.length} terisi</span>
+        </h2>
+      </div>
       ${
         slots.length
-          ? `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">${slotCards}</div>`
-          : `<p class="text-xs text-slate-500 mt-2">Soal ini belum memakai token <code class="font-mono text-amber-300">media:...</code>. Suruh Gem menambahkan gambar dengan format <code class="font-mono">"image": "media:nama-slot"</code> atau <code class="font-mono">![keterangan](media:nama-slot)</code>.</p>`
+          ? `<div class="grid-slots">${slotCards}</div>`
+          : `<p class="card-text">Soal ini belum memakai token <code>media:...</code>. Suruh Gem menambahkan gambar dengan format <code>"image": "media:nama-slot"</code> atau <code>![keterangan](media:nama-slot)</code>.</p>`
       }
     </div>`
         : ''
     }
+
+    <div class="card ai-panel">
+      <h2 class="card-title"><i class="fa-solid fa-wand-magic-sparkles ico"></i> Buat gambar dengan AI</h2>
+      <p class="card-text">
+        ${
+          genEnabled
+            ? `Klik <b>AI</b> pada kartu slot: kotak prompnya sudah <b>terisi otomatis dari konteks soal</b> (boleh diedit),
+        lalu tunggu 10\u201330 detik. Hasilnya langsung tersimpan ke slot \u2014 tidak perlu unggah manual. Batas ${genLimit} gambar/menit.
+        Mau hasil yang lebih apik? Klik <b>Salin prompt Gemini</b>, tempel di <b>gemini.google.com</b> dengan akun Gemini
+        kamu sendiri, unduh gambarnya, lalu unggah lewat <b>Pilih / Potret Foto</b>.`
+            : `Belum ada API gambar terpasang, jadi tombol <b>AI</b> belum tampil di kartu slot. Kamu bisa <b>Pakai API gambar sendiri (BYOK)</b> di bawah ini (kunci disimpan khusus untuk aplikasi ini), atau minta admin mengatur <code>IMGGEN_API_URL</code> &amp; <code>IMGGEN_API_KEY</code>.`
+        }
+      </p>
+      <div class="byok-row">
+        <label class="byok-toggle">
+          <span>Model:</span>
+          <select id="gen-model">
+            <option value="">Model bawaan</option>
+            ${modelOptions}
+          </select>
+        </label>
+        <label class="byok-toggle">
+          <input type="checkbox" id="gen-byok-toggle">
+          <span>Pakai API gambar sendiri (BYOK)</span>
+        </label>
+      </div>
+      <div id="gen-byok" class="hidden">
+        <input id="gen-url" type="text" placeholder="Alamat API (https://...), misal proxy free-image-generation-api">
+        <input id="gen-key" type="password" placeholder="API key untuk API tersebut...">
+        <p class="card-text">Format API sama seperti bawaan: kirim <code>prompt</code> (dan opsional <code>model</code>) ke alamat di atas dengan header <code>Authorization: Bearer &lt;key&gt;</code>, dan terima gambar mentahnya. Kunci disimpan di KV aplikasi dan hanya bisa dilihat by admin.</p>
+        <div class="m-gen-actions">
+          <button type="button" id="gen-save" class="m-btn m-btn-ai flex-1">Simpan pengaturan</button>
+          <button type="button" id="gen-reset" class="m-btn">Pakai bawaan (hapus BYOK)</button>
+          <span id="gen-byok-status" class="m-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-head"><h2><i class="fa-solid fa-cloud-arrow-up ico"></i> Unggah gambar tambahan</h2></div>
+      <div class="card extra-card">
+        <div class="field">
+          <label for="extra-name">Nama gambar (tanpa spasi)</label>
+          <input id="extra-name" type="text" placeholder="misal: peta-indonesia">
+        </div>
+        <div class="field">
+          <label for="extra-file">File foto (JPG/PNG/WebP)</label>
+          <input id="extra-file" type="file" accept="image/*">
+        </div>
+        <button id="extra-upload" class="btn btn-accent" style="align-self:stretch">Unggah</button>
+      </div>
+      <p id="extra-status" class="m-status" style="margin-top:8px"></p>
+    </div>
+
+    <div>
+      <div class="section-head"><h2><i class="fa-solid fa-photo-film ico"></i> Gambar tersimpan (${items.length})</h2></div>
+      <div class="grid-gallery">${gallery}</div>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
 
     <div class="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4 text-xs text-violet-100 leading-relaxed">
       <p class="font-semibold mb-1"><i class="fa-solid fa-wand-magic-sparkles text-violet-400 mr-1"></i> Buat gambar dengan AI</p>
@@ -833,13 +1012,27 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
 function errorCard(backHref: string, title: string, message: string): string {
   return `<!DOCTYPE html>
 <html lang="id">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(title)}</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-slate-900 text-slate-100 min-h-screen grid place-items-center p-6 font-sans">
-  <div class="max-w-lg w-full bg-slate-800 border border-slate-700 rounded-2xl p-6">
-    <h1 class="text-base font-bold text-rose-400 mb-2">${escapeHtml(title)}</h1>
-    <p class="text-sm text-slate-300">${escapeHtml(message)}</p>
-    <a href="${escapeHtml(backHref)}" class="inline-block mt-5 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-semibold">Kembali ke Dashboard</a>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
+    :root{--bg:#ffffff;--surface:#f9f9f9;--border:#e5e5e5;--text:#171717;--text-secondary:#737373;--accent:#7c3aed;--danger:#ef4444}
+    @media(prefers-color-scheme:dark){:root{--bg:#212121;--surface:#303030;--border:#424242;--text:#ececec;--text-secondary:#9e9e9e;--accent:#8b5cf6;--danger:#f87171}}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+    .card{max-width:480px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
+    h1{font-size:15px;font-weight:600;color:var(--danger);margin:0 0 8px}
+    p{font-size:13px;color:var(--text-secondary);line-height:1.55;margin:0}
+    a{display:inline-flex;align-items:center;gap:6px;margin-top:18px;padding:8px 16px;background:var(--accent);color:#fff;border-radius:8px;font-size:12.5px;font-weight:500;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(message)}</p>
+    <a href="${escapeHtml(backHref)}">&larr; Kembali ke Dashboard</a>
   </div>
 </body></html>`;
 }

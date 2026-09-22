@@ -22,10 +22,14 @@ type Bindings = {
   // "Generate AI" untuk membuat gambar slot langsung dari prompt.
   IMGGEN_API_URL?: string;
   IMGGEN_API_KEY?: string;
+  // Opsional: master password login dashboard. Kalau kosong, fallback
+  // FALLBACK_PASSWORD di bawah. Wajib diganti sebelum produksi!
+  APP_PASSWORD?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
-const APP_PASSWORD = 'admin123'; // Ganti password sebelum deploy!
+// Master password login dashboard (fallback kalau env APP_PASSWORD kosong).
+const FALLBACK_PASSWORD = 'admin123';
 
 // Aktifkan CORS agar endpoint save aman diakses
 app.use('/api/*', cors());
@@ -270,6 +274,8 @@ app.get('/p/:slug/data', async (c) => {
   }
 
   const slug = c.req.param('slug');
+  const metaRaw = await c.env.STORAGE.get(`meta:${slug}`);
+  const meta = metaRaw ? (JSON.parse(metaRaw) as { title?: string }) : { title: slug };
   const { results } = await c.env.DB.prepare(`
     SELECT * FROM app_records WHERE app_slug = ? ORDER BY created_at DESC
   `).bind(slug).all();
@@ -298,16 +304,16 @@ app.get('/p/:slug/data', async (c) => {
   const quizHasEssay = quizSpec ? quizSpec.questions.some((question) => question.type === 'essay') : false;
   const essayCallout = quizSpec
     ? essayQueue > 0
-      ? `<a href="/p/${slug}/essay" class="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 hover:border-amber-400 rounded-2xl p-4 transition">
-      <i class="fa-solid fa-pen-to-square text-amber-400 text-lg"></i>
-      <div class="flex-1">
-        <p class="text-sm font-semibold text-amber-200">${essayQueue} kiriman punya jawaban esai yang belum dikoreksi</p>
-        <p class="text-[11px] text-amber-200/70">Nilai akhir baru dihitung setelah semua esai di satu kiriman selesai dinilai.</p>
+      ? `<a href="/p/${slug}/essay" class="callout warn">
+      <i class="fa-solid fa-pen-to-square ico"></i>
+      <div class="body">
+        <p class="main">${essayQueue} kiriman punya jawaban esai yang belum dikoreksi</p>
+        <p class="sub">Nilai akhir baru dihitung setelah semua esai di satu kiriman selesai dinilai.</p>
       </div>
-      <span class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-lg text-xs font-bold whitespace-nowrap">Koreksi Sekarang</span>
+      <span class="go">Koreksi Sekarang</span>
     </a>`
       : quizHasEssay
-        ? `<a href="/p/${slug}/essay" class="inline-block text-xs text-slate-400 hover:text-slate-200">Koreksi jawaban esai &rarr;</a>`
+        ? `<a href="/p/${slug}/essay" class="inline-link">Koreksi jawaban esai &rarr;</a>`
         : ''
     : '';
 
@@ -332,68 +338,190 @@ app.get('/p/:slug/data', async (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rekap Data - /p/${slug}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
+    @font-face{font-family:'Geist Mono';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geistmono-variable.woff2') format('woff2')}
+    :root{
+      --bg:#ffffff;--surface:#f9f9f9;--surface-2:#f0f0f0;
+      --border:#e5e5e5;--text:#171717;--text-secondary:#737373;--text-faint:#a3a3a3;
+      --accent:#7c3aed;--accent-hover:#6d28d9;--accent-soft:rgba(124,58,237,.08);
+      --danger:#ef4444;--danger-soft:rgba(239,68,68,.08);--ok:#16a34a;--ok-soft:rgba(22,163,74,.1);--warn:#d97706;--warn-soft:rgba(217,119,6,.1);
+      --radius:14px;--radius-sm:10px;--shadow:0 1px 3px rgba(0,0,0,.06);--shadow-lg:0 8px 32px rgba(0,0,0,.1);
+    }
+    @media(prefers-color-scheme:dark){
+      :root{
+        --bg:#212121;--surface:#303030;--surface-2:#3a3a3a;
+        --border:#424242;--text:#ececec;--text-secondary:#9e9e9e;--text-faint:#6b6b6b;
+        --accent:#8b5cf6;--accent-hover:#a78bfa;--accent-soft:rgba(139,92,246,.12);
+        --danger:#f87171;--danger-soft:rgba(248,113,113,.12);--ok:#4ade80;--ok-soft:rgba(74,222,128,.12);--warn:#fbbf24;--warn-soft:rgba(251,191,36,.12);
+        --shadow:0 1px 3px rgba(0,0,0,.25);--shadow-lg:0 8px 32px rgba(0,0,0,.4);
+      }
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;padding-bottom:32px}
+    a{color:inherit;text-decoration:none}
+    button{font-family:inherit;cursor:pointer}
+    .hidden{display:none!important}
+    .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+    .topbar-inner{max-width:960px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .topbar-left{min-width:0;display:flex;align-items:center;gap:12px}
+    .brand{width:34px;height:34px;flex:none;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
+    .back{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);padding:5px 10px;border-radius:8px;transition:background .15s,color .15s}
+    .back:hover{background:var(--surface-2);color:var(--text)}
+    .topbar h1{font-size:14px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar .sub{font-size:11px;font-family:'Geist Mono',ui-monospace,monospace;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar-actions{display:flex;align-items:center;gap:8px;flex:none}
+    .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s;white-space:nowrap}
+    .btn:hover{background:var(--surface-2)}
+    .btn-accent{background:var(--accent);border-color:transparent;color:#fff}
+    .btn-accent:hover{background:var(--accent-hover)}
+    main{max-width:960px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+    .callout{display:flex;align-items:center;gap:12px;border-radius:var(--radius-sm);padding:12px 14px;font-size:12px}
+    .callout .ico{font-size:16px;flex:none}
+    .callout .body{flex:1;min-width:0}
+    .callout .main{font-weight:600;margin:0}
+    .callout .sub{margin:2px 0 0;opacity:.75}
+    .callout .go{flex:none;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap;transition:opacity .15s}
+    .callout.warn{background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);color:var(--warn)}
+    .callout.warn .go{background:var(--warn)}
+    .callout.warn:hover .go{opacity:.85}
+    .inline-link{display:inline-block;font-size:12.5px;color:var(--accent)}
+    .inline-link:hover{text-decoration:underline}
+
+    /* ===== Analisis butir soal (dihasilkan quiz-report.ts) ===== */
+    .r-section{display:flex;flex-direction:column;gap:14px}
+    .r-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .r-title{font-size:14px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px}
+    .r-sub{font-size:12px;color:var(--text-secondary);margin:2px 0 0}
+    .r-empty{padding:28px;text-align:center;font-size:12px;color:var(--text-faint);background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius)}
+    .r-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+    .tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+    .tile-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:var(--text-faint);margin:0}
+    .tile-value{font-size:20px;font-weight:700;margin:4px 0 0}
+    .tile-hint{font-size:11px;color:var(--text-faint);margin:4px 0 0}
+    .tone-ok{color:var(--ok)!important}
+    .tone-warn{color:var(--warn)!important}
+    .tone-bad{color:var(--danger)!important}
+    .tone-muted{color:var(--text-secondary)!important}
+    .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+    .table-scroll{overflow-x:auto}
+    .r-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px}
+    .r-head-row{background:var(--surface-2);text-align:left}
+    .r-head-row th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:var(--text-secondary);padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+    .r-head-row .right,.r-num{text-align:right}
+    .r-body tr{border-bottom:1px solid var(--border)}
+    .r-body tr:last-child{border-bottom:none}
+    .r-body tr:hover{background:var(--surface-2)}
+    .r-cell{padding:11px 14px;vertical-align:top;font-size:12.5px}
+    .r-no{font-family:'Geist Mono',ui-monospace,monospace;color:var(--text-faint);white-space:nowrap}
+    .r-nowrap{white-space:nowrap}
+    .r-id{font-weight:600}
+    .r-q{font-weight:500;line-height:1.5}
+    .r-mono{font-family:'Geist Mono',ui-monospace,monospace;font-size:12px}
+    .r-pct{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+    .bar{flex:none;width:88px;height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+    .bar-fill{height:100%;border-radius:999px}
+    .fill-ok{background:var(--ok)}
+    .fill-warn{background:var(--warn)}
+    .fill-bad{background:var(--danger)}
+    .fill-key{background:var(--accent)}
+    .r-details{margin-top:6px}
+    .r-summary{cursor:pointer;font-size:12px;color:var(--accent)}
+    .r-summary:hover{text-decoration:underline}
+    .opt-box{margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+    .opt-cap{font-size:10.5px;color:var(--text-faint);margin:0 0 6px}
+    .opt-row{display:flex;align-items:center;gap:8px;font-size:11px;padding:2px 0}
+    .opt-letter{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--text-secondary);font-weight:600;font-size:10.5px}
+    .opt-letter.key{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+    .opt-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary)}
+    .opt-text.key{color:var(--ok)}
+    .opt-count{flex:none;text-align:right;color:var(--text-secondary)}
+    .r-foot{padding:12px 14px;background:var(--surface-2);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+    .r-footnote{font-size:11px;color:var(--text-faint);margin:0}
+    .r-note{font-size:11px;min-width:160px}
+    .r-json{margin:8px 0 0;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--text-secondary);overflow-x:auto;white-space:pre-wrap;word-break:break-word;line-height:1.6;max-width:480px}
+    .empty-state{padding:40px 20px;text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);display:flex;flex-direction:column;align-items:center;gap:6px}
+    .empty-ico{width:44px;height:44px;border-radius:12px;background:var(--surface-2);color:var(--accent);display:grid;place-items:center;font-size:16px}
+    .empty-main{font-weight:600;margin:6px 0 0;font-size:13px}
+    .empty-sub{margin:0;font-size:12px;color:var(--text-faint)}
+
+    @media(max-width:640px){.topbar-actions .btn{font-size:0}.topbar-actions .btn i{margin:0;font-size:13px}}
+  </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-6 font-sans">
-  <div class="max-w-6xl mx-auto space-y-6">
-    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-      <div>
-        <a href="/" class="text-xs text-blue-400 hover:underline flex items-center gap-1 mb-1">
-          <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
-        </a>
-        <h1 class="text-xl font-bold text-white">Rekap Log Data: <span class="text-amber-400 font-mono">/p/${slug}</span></h1>
-        <p class="text-xs text-slate-400">Total entri masuk: ${results.length} rekaman</p>
+<body>
+
+  <nav class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-left">
+        <a class="brand" href="/" title="Kembali ke Dashboard">SQ</a>
+        <div class="min-w-0">
+          <a href="/" class="back"><i class="fa-solid fa-arrow-left"></i>Dashboard</a>
+          <h1>Log Data: ${escapeHtml(meta.title ?? slug)}</h1>
+          <div class="sub">/p/${slug} &bull; ${results.length} rekaman</div>
+        </div>
       </div>
-      <a href="/p/${slug}" target="_blank" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-semibold">
-        Buka Aplikasi
-      </a>
+      <div class="topbar-actions">
+        <a href="/p/${slug}" target="_blank" class="btn btn-accent"><i class="fa-solid fa-eye"></i>Buka Aplikasi</a>
+      </div>
     </div>
+  </nav>
 
+  <main>
     ${essayCallout}
-
     ${analysisHtml}
 
     ${results.length === 0 ? `
-      <div class="bg-slate-800/50 p-12 rounded-2xl border border-slate-800 text-center text-slate-400 text-sm">
-        Belum ada data atau respons yang masuk untuk aplikasi ini.
+      <div class="empty-state">
+        <div class="empty-ico"><i class="fa-solid fa-inbox"></i></div>
+        <p class="empty-main">Belum ada data yang masuk</p>
+        <p class="empty-sub">Jawaban dan respons siswa akan tampil di sini setelah mereka mengirim formulir.</p>
       </div>
     ` : `
-      <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-900/80 text-slate-300 border-b border-slate-700 uppercase font-semibold">
-              <tr>
-                <th class="p-3.5">Waktu</th>
-                <th class="p-3.5">Identitas Pengguna</th>
-                <th class="p-3.5">Ringkasan / Skor</th>
-                <th class="p-3.5">Detail Payload</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-700">
-              ${results.map((r: any) => {
-                const payload = JSON.parse(r.payload_json);
-                const summary = payload.summary ? JSON.stringify(payload.summary) : (payload.score !== undefined ? `Skor: ${payload.score}` : '-');
-                return `
-                  <tr class="hover:bg-slate-750/50 transition">
-                    <td class="p-3.5 text-slate-400 whitespace-nowrap">${r.created_at}</td>
-                    <td class="p-3.5 font-medium text-white">${r.user_id}</td>
-                    <td class="p-3.5 font-mono text-emerald-400">${summary}</td>
-                    <td class="p-3.5">
-                      <details class="cursor-pointer">
-                        <summary class="text-blue-400 hover:text-blue-300">Lihat JSON</summary>
-                        <pre class="mt-2 p-2.5 bg-slate-950 rounded-lg text-[11px] text-slate-300 overflow-x-auto max-w-md font-mono">${JSON.stringify(payload, null, 2)}</pre>
+      <section class="r-section">
+        <div class="r-head">
+          <div>
+            <h2 class="r-title">Riwayat Kiriman</h2>
+            <p class="r-sub">${results.length} rekaman terakhir, terbaru di bawah.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table class="r-table">
+              <thead class="r-head-row">
+                <tr>
+                  <th>Waktu</th>
+                  <th>Identitas Pengguna</th>
+                  <th>Ringkasan / Skor</th>
+                  <th>Detail Payload</th>
+                </tr>
+              </thead>
+              <tbody class="r-body">
+                ${results.map((r: any) => {
+                  const payload = JSON.parse(r.payload_json);
+                  const summary = payload.summary ? JSON.stringify(payload.summary) : (payload.score !== undefined ? `Skor: ${payload.score}` : '-');
+                  return `
+                  <tr class="r-row">
+                    <td class="r-cell r-nowrap tone-muted">${escapeHtml(r.created_at)}</td>
+                    <td class="r-cell r-id">${escapeHtml(r.user_id)}</td>
+                    <td class="r-cell r-num tone-ok">${escapeHtml(summary)}</td>
+                    <td class="r-cell">
+                      <details class="r-details">
+                        <summary class="r-summary">Lihat JSON</summary>
+                        <pre class="r-json">${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
                       </details>
                     </td>
                   </tr>
                 `;
-              }).join('')}
-            </tbody>
-          </table>
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </section>
     `}
-  </div>
+  </main>
 </body>
 </html>`);
 });
@@ -403,7 +531,8 @@ app.get('/p/:slug/data', async (c) => {
 // ==========================================
 app.post('/api/login', async (c) => {
   const body = await c.req.parseBody();
-  if (body.password === APP_PASSWORD) {
+  const expected = c.env.APP_PASSWORD || FALLBACK_PASSWORD;
+  if (body.password === expected) {
     setCookie(c, 'auth_session', 'authenticated_user', {
       path: '/',
       httpOnly: true,
@@ -413,7 +542,7 @@ app.post('/api/login', async (c) => {
     });
     return c.redirect('/');
   }
-  return c.text('Password salah!', 401);
+  return c.html(errorPage('Password salah', 'Master password yang dimasukkan tidak cocok. Coba lagi dari halaman depan.'), 401);
 });
 
 app.get('/api/logout', (c) => {
@@ -434,231 +563,644 @@ app.get('/', async (c) => {
     projects.reverse();
   }
 
-  return c.html(`<!DOCTYPE html>
+  function relTime(iso: string): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const today = new Date();
+    const dayDiff = Math.floor((Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) - Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+    if (dayDiff <= 0) return 'Hari ini';
+    if (dayDiff === 1) return 'Kemarin';
+    if (dayDiff < 7) return dayDiff + ' hari lalu';
+    return iso.substring(0, 10);
+  }
+
+  const appData: Record<string, any> = {};
+  if (isAuth) {
+    for (const p of projects) {
+      let preview = '';
+      if (p.type === 'json') {
+        preview = (await c.env.STORAGE.get(`quizsource:${p.slug}`)) || '';
+      } else {
+        const html = await c.env.STORAGE.get(`html:${p.slug}`);
+        preview = html ? html.slice(0, 1500) : '';
+      }
+      appData[p.slug] = {
+        title: p.title,
+        type: p.type,
+        slug: p.slug,
+        date: relTime(p.created_at),
+        size: p.size,
+        mediaMissing: p.media_missing || 0,
+        mediaTotal: p.media_slots || 0,
+        preview,
+      };
+    }
+  }
+  const appDataJson = JSON.stringify(appData).replace(/</g, '\\u003c');
+
+return c.html(`<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gemini App Hub & Deployer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <title>Gemini Edge Deployer - SMK Thibbil Qulub Assimbani</title>
   <style>
-    .seg-cols { padding: 5px 9px; font-size: 11px; background: transparent; color: #94a3b8; border: none; cursor: pointer; transition: background .15s, color .15s; }
-    .seg-cols:hover { background: rgba(255,255,255,.08); color: #fff; }
-    .seg-on { background: #7c3aed; color: #fff !important; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-text-size-adjust:100%}
+    @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
+    @font-face{font-family:'Geist Mono';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geistmono-variable.woff2') format('woff2')}
+    :root{
+      --bg:#ffffff;--surface:#f9f9f9;--surface-2:#f0f0f0;--sidebar-bg:#f9f9f9;
+      --border:#e5e5e5;--text:#171717;--text-secondary:#737373;--text-faint:#a3a3a3;
+      --accent:#7c3aed;--accent-hover:#6d28d9;--accent-soft:rgba(124,58,237,.08);
+      --danger:#ef4444;--danger-soft:rgba(239,68,68,.08);--warn:#d97706;
+      --radius:14px;--radius-sm:10px;--sidebar-width:260px;
+      --shadow:0 2px 8px rgba(0,0,0,.06);--shadow-lg:0 8px 32px rgba(0,0,0,.1);
+    }
+    @media(prefers-color-scheme:dark){
+      :root{
+        --bg:#212121;--surface:#303030;--surface-2:#3a3a3a;--sidebar-bg:#171717;
+        --border:#424242;--text:#ececec;--text-secondary:#9e9e9e;--text-faint:#6b6b6b;
+        --accent:#8b5cf6;--accent-hover:#a78bfa;--accent-soft:rgba(139,92,246,.12);
+        --danger:#f87171;--danger-soft:rgba(248,113,113,.12);--warn:#fbbf24;
+        --shadow:0 2px 8px rgba(0,0,0,.2);--shadow-lg:0 8px 32px rgba(0,0,0,.4);
+      }
+    }
+    body{margin:0;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow:hidden;height:100vh}
+    a{color:inherit;text-decoration:none}
+    button{font-family:inherit}
+    .app-layout{display:flex;height:100vh;overflow:hidden}
+
+    /* ========== SIDEBAR ========== */
+    .sidebar{width:var(--sidebar-width);flex-shrink:0;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:transform .25s ease;z-index:50}
+    .sidebar-header{padding:12px;display:flex;align-items:center;gap:8px}
+    .sidebar-brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:background .15s}
+    .sidebar-brand:hover{background:var(--surface-2)}
+    .sidebar-logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:13px}
+    .sidebar-title{font-size:14px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sidebar-toggle{width:32px;height:32px;border:none;background:none;color:var(--text-secondary);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex:none}
+    .sidebar-toggle:hover{background:var(--surface-2);color:var(--text)}
+
+    .sidebar-new{padding:0 12px 8px}
+    .btn-new-deploy{width:100%;display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s}
+    .btn-new-deploy:hover{background:var(--surface-2);border-color:var(--text-faint)}
+    .btn-new-deploy svg{flex:none;color:var(--text-secondary)}
+
+    .sidebar-search{padding:0 12px 10px}
+    .search-box{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);transition:border-color .15s,box-shadow .15s}
+    .search-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+    .search-box svg{flex:none;color:var(--text-faint);width:14px;height:14px}
+    .search-box input{flex:1;border:none;outline:none;background:none;color:var(--text);font-size:13px;font-family:inherit;min-width:0}
+    .search-box input::placeholder{color:var(--text-faint)}
+
+    .sidebar-divider{height:1px;background:var(--border);margin:0 12px}
+    .sidebar-label{font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;padding:10px 22px 6px}
+
+    .sidebar-list{flex:1;overflow-y:auto;padding:0 8px}
+    .sidebar-list::-webkit-scrollbar{width:4px}
+    .sidebar-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+    .sidebar-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;transition:background .15s;position:relative}
+    .sidebar-item:hover{background:var(--surface-2)}
+    .sidebar-item.active{background:var(--accent-soft);color:var(--accent)}
+    .sidebar-item-icon{color:var(--text-secondary);flex:none;display:flex}
+    .sidebar-item.active .sidebar-item-icon{color:var(--accent)}
+    .sidebar-item-text{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sidebar-item-time{font-size:11px;color:var(--text-faint);flex:none;white-space:nowrap}
+    .sidebar-item-actions{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:none;gap:2px}
+    .sidebar-item:hover .sidebar-item-actions{display:flex}
+    .sidebar-item:hover .sidebar-item-time{display:none}
+    .sidebar-item-btn{width:26px;height:26px;border:none;background:var(--surface);color:var(--text-secondary);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
+    .sidebar-item-btn:hover{background:var(--surface-2);color:var(--text)}
+    .sidebar-item-btn.danger:hover{color:var(--danger)}
+
+    .sidebar-footer{padding:12px;border-top:1px solid var(--border)}
+    .sidebar-footer-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:none;background:none;color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:inherit;transition:background .15s,color .15s}
+    .sidebar-footer-btn:hover{background:var(--surface-2);color:var(--text)}
+
+    .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:45}
+
+    /* ========== MAIN ========== */
+    .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    .main-topbar{display:flex;padding:10px 16px;align-items:center;gap:12px;border-bottom:1px solid var(--border);flex:none}
+    .hamburger{width:36px;height:36px;border:none;background:none;color:var(--text);border-radius:8px;cursor:pointer;display:none;align-items:center;justify-content:center}
+    .hamburger:hover{background:var(--surface-2)}
+    .topbar-brand{display:flex;align-items:center;gap:10px;min-width:0}
+    .topbar-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px;font-weight:700}
+    .topbar-brand-text{display:flex;flex-direction:column;min-width:0}
+    .topbar-title{font-size:14px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar-sub{font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+    .btn-ghost{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:500;padding:6px 12px;cursor:pointer;white-space:nowrap;font-family:inherit;background:var(--surface);color:var(--text);transition:background .15s,border-color .15s}
+    .btn-ghost:hover{background:var(--surface-2);border-color:var(--text-faint)}
+    .btn-primary{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:8px;font-size:13px;font-weight:500;padding:6px 14px;cursor:pointer;white-space:nowrap;font-family:inherit;background:var(--accent);color:#fff;transition:background .15s}
+    .btn-primary:hover{background:var(--accent-hover)}
+
+    .main-content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
+
+    /* ========== EMPTY STATE ========== */
+    .empty-state{text-align:center;max-width:680px;width:100%}
+    .empty-greeting{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px;color:var(--text)}
+    .empty-sub{font-size:14px;color:var(--text-secondary);margin-bottom:24px}
+
+    /* ========== DEPLOY CHAT BOX (docked) ========== */
+    .chat-box{text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;transition:border-color .15s,box-shadow .15s}
+    .chat-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+    .chat-head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+    .chat-head-icon{width:32px;height:32px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none}
+    .chat-title{font-size:15px;font-weight:600;letter-spacing:-.01em}
+    .chat-sub{font-size:12px;color:var(--text-secondary);margin-top:1px}
+
+    .form-row{margin-bottom:14px}
+    .form-row:last-child{margin-bottom:0}
+    .form-label{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:5px}
+    .form-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .15s}
+    .form-input:focus{border-color:var(--accent)}
+    .form-input.code{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;min-height:120px;resize:vertical}
+
+    .type-pills{display:flex;gap:6px;flex-wrap:wrap}
+    .type-pill{padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
+    .type-pill:hover{border-color:var(--text-faint);color:var(--text)}
+    .type-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+    .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+    .btn-cancel{padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-secondary);font-size:13px;cursor:pointer;font-family:inherit;transition:background .15s}
+    .btn-cancel:hover{background:var(--surface-2)}
+    .btn-deploy{padding:8px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s}
+    .btn-deploy:hover{background:var(--accent-hover)}
+
+    /* ========== APP DETAIL VIEW ========== */
+    .detail-view{display:none;width:100%;max-width:640px}
+    .detail-view.active{display:block}
+    .detail-header{margin-bottom:24px}
+    .detail-title{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+    .detail-meta{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap}
+    .detail-meta-item{display:flex;align-items:center;gap:5px}
+    .detail-meta-item svg{flex:none;color:var(--text-faint)}
+    .detail-chip{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:2px 8px}
+    .detail-warn{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);border-radius:var(--radius-sm);font-size:12px;color:var(--warn);margin-bottom:20px}
+    .detail-warn svg{flex:none}
+    .detail-actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:24px}
+    .detail-action{display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s,color .15s;text-decoration:none}
+    .detail-action:hover{background:var(--surface-2);border-color:var(--text-faint);color:var(--text)}
+    .detail-action-icon{width:40px;height:40px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background .15s,color .15s}
+    .detail-action:hover .detail-action-icon{background:var(--accent-soft);color:var(--accent)}
+    .detail-action.danger{color:var(--danger)}
+    .detail-action.danger:hover{background:var(--danger-soft);border-color:rgba(239,68,68,.3);color:var(--danger)}
+    .detail-action.danger:hover .detail-action-icon{background:var(--danger-soft);color:var(--danger)}
+    .detail-actions form{margin:0;display:contents}
+
+    .detail-section-label{font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+    .detail-preview{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    .detail-preview-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+    .detail-preview-title{font-size:12px;font-weight:600;color:var(--text-secondary)}
+    .detail-preview-toggle{font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;font-family:inherit;font-weight:500}
+    .detail-preview-toggle:hover{text-decoration:underline}
+    .detail-preview-code{padding:14px;overflow-x:auto;max-height:300px;overflow-y:auto;font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.65;color:var(--text-secondary);white-space:pre}
+    .detail-preview-code::-webkit-scrollbar{width:4px;height:4px}
+    .detail-preview-code::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+    .detail-back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;background:none;border:none;font-family:inherit;margin-bottom:16px;padding:6px 10px;border-radius:8px;transition:background .15s,color .15s}
+    .detail-back:hover{background:var(--surface-2);color:var(--text)}
+
+    /* ========== AUTH ========== */
+    .auth-wrap{max-width:360px;width:100%;text-align:center}
+    .auth-icon{width:42px;height:42px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+    .auth-title{font-size:17px;font-weight:600;letter-spacing:-.01em}
+    .auth-sub{font-size:12.5px;color:var(--text-secondary);margin-top:4px;margin-bottom:18px}
+    .auth-form{text-align:left}
+    .auth-form .field{margin-bottom:14px}
+    .auth-form .field>label{display:block;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+    .auth-form .btn-deploy{width:100%;padding:10px 14px;margin-top:4px}
+
+    /* ========== PRINT MODAL ========== */
+    .modal{position:fixed;inset:0;z-index:100;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px}
+    .modal-card{width:100%;max-width:400px;background:var(--bg);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);padding:22px}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .modal-title{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+    .modal-close{background:none;border:none;color:var(--text-faint);cursor:pointer;padding:5px;border-radius:7px;display:flex}
+    .modal-close:hover{color:var(--text);background:var(--surface-2)}
+    .opt-group{margin-bottom:16px}
+    .opt-cap{font-size:11.5px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+    .opt-label{display:flex;align-items:center;gap:9px;font-size:13.5px;margin:9px 0;cursor:pointer;color:var(--text-secondary)}
+    .opt-label input{width:15px;height:15px;margin:0;accent-color:var(--accent)}
+    .modal-actions{display:flex;gap:10px;margin-top:20px}
+    .modal-actions .btn{flex:1;justify-content:center}
+    .seg{display:inline-flex;align-items:center;gap:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px}
+    .seg-cols{background:transparent;border:none;border-radius:7px;padding:6px 14px;font-size:12.5px;font-weight:500;color:var(--text-secondary);cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
+    .seg-cols:hover{color:var(--text)}
+    .seg-on{background:var(--bg);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.09)}
+    .hidden{display:none!important}
+    .flex{display:flex}
+
+    /* ========== RESPONSIVE ========== */
+    @media(max-width:1023px){
+      .sidebar{position:fixed;top:0;left:0;height:100%;transform:translateX(-100%)}
+      .sidebar.open{transform:translateX(0)}
+      .sidebar-overlay.open{display:block}
+      .app-layout{flex-direction:column}
+      .hamburger{display:flex}
+    }
+    @media(max-width:480px){
+      .empty-greeting{font-size:22px}
+      .detail-actions{grid-template-columns:repeat(2,1fr)}
+      .topbar-sub{display:none}
+    }
+    @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
-  <nav class="bg-slate-800/80 border-b border-slate-700/60 p-4 sticky top-0 z-40 backdrop-blur">
-    <div class="max-w-6xl mx-auto flex justify-between items-center">
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white">
-          <i class="fa-solid fa-cloud-bolt"></i>
+<body>
+  ${!isAuth ? `
+  <div class="app-layout">
+    <div class="main" style="align-items:center;justify-content:center;padding:24px">
+      <div class="auth-wrap">
+        <div class="auth-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <h1 class="text-base font-bold text-white">Gemini Edge Deployer</h1>
-      </div>
-      ${isAuth ? `<div class="flex items-center gap-2"><a href="${GEM_URL}" target="_blank" rel="noopener" class="text-xs bg-orange-600 hover:bg-orange-500 px-3 py-1.5 rounded-lg text-white font-semibold transition" title="Buka Gem Gemini pembuat soal"><i class="fa-brands fa-google mr-1"></i> Gem Gemini</a><a href="/panduan" class="text-xs bg-slate-700 hover:bg-orange-600 px-3 py-1.5 rounded-lg text-slate-200 transition" title="Panduan Penggunaan"><i class="fa-solid fa-book mr-1"></i> Panduan</a><a href="/api/logout" class="text-xs bg-slate-700 hover:bg-rose-600 px-3 py-1.5 rounded-lg text-slate-200 transition"><i class="fa-solid fa-right-from-bracket mr-1"></i> Keluar</a></div>` : ''}
-    </div>
-  </nav>
-
-  <main class="max-w-6xl mx-auto p-6 w-full flex-grow">
-    ${!isAuth ? `
-      <div class="max-w-sm mx-auto my-16 bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl">
-        <h2 class="text-lg font-bold mb-4 text-center text-white">Login Diperlukan</h2>
-        <form method="POST" action="/api/login" class="space-y-4">
-          <input type="password" name="password" required placeholder="Master Password" class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm outline-none focus:border-orange-500">
-          <button type="submit" class="w-full py-2.5 bg-orange-600 hover:bg-orange-500 rounded-xl text-sm font-semibold text-white shadow-lg transition">Masuk</button>
+        <h2 class="auth-title">Login Diperlukan</h2>
+        <p class="auth-sub">Masukkan master password untuk mengelola aplikasi.</p>
+        <form method="POST" action="/api/login" class="auth-form">
+          <div class="field">
+            <label for="master-pw">Master Password</label>
+            <input id="master-pw" class="form-input" type="password" name="password" required placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn-deploy">Masuk</button>
         </form>
       </div>
-    ` : `
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <!-- Panel Form Deploy -->
-        <div class="lg:col-span-5 bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg h-fit">
-          <h3 class="text-sm font-bold mb-4 text-orange-400 flex items-center gap-2">
-            <i class="fa-solid fa-code"></i> Deploy Output Gemini Baru
-          </h3>
-          <form method="POST" action="/api/deploy" class="space-y-4">
-            <div>
-              <label class="block text-xs mb-1.5 text-slate-300 font-medium">Judul Aplikasi <span class="text-slate-500">(jadi alamat /p/...)</span></label>
-              <input type="text" name="title" placeholder="Contoh: Kuis Akidah Akhlak Kelas 1" class="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm outline-none focus:border-orange-500">
-            </div>
-            <div class="grid grid-cols-3 gap-2.5">
-              <label class="border border-slate-700 p-2.5 rounded-xl flex flex-col items-center gap-1.5 bg-slate-900/40 cursor-pointer text-center">
-                <input type="radio" name="code_type" value="html" checked>
-                <span class="text-xs font-medium">HTML</span>
-              </label>
-              <label class="border border-slate-700 p-2.5 rounded-xl flex flex-col items-center gap-1.5 bg-slate-900/40 cursor-pointer text-center">
-                <input type="radio" name="code_type" value="react">
-                <span class="text-xs font-medium">React JSX</span>
-              </label>
-              <label class="border border-slate-700 p-2.5 rounded-xl flex flex-col items-center gap-1.5 bg-slate-900/40 cursor-pointer text-center">
-                <input type="radio" name="code_type" value="json">
-                <span class="text-xs font-medium">JSON Soal</span>
-              </label>
-            </div>
-            <p class="text-[11px] text-slate-500 leading-snug">Pilih <b class="text-slate-300">JSON Soal</b> kalau mau aplikasi kuisnya dibuatkan otomatis dari daftar soal. Jenis soal yang didukung: <b class="text-slate-300">choice</b> (PG), <b class="text-slate-300">multi</b> (pilih semua yang benar), <b class="text-slate-300">category</b> (tabel Benar/Salah), <b class="text-slate-300">matching</b> (menjodohkan), <b class="text-slate-300">ordering</b> (mengurutkan), <b class="text-slate-300">table_fill</b> (melengkapi tabel), <b class="text-slate-300">two_tier</b> (pernyataan + alasan), <b class="text-slate-300">highlight</b> (pilih kata di bacaan), <b class="text-slate-300">true_false</b>, <b class="text-slate-300">short</b>, dan <b class="text-slate-300">essay</b>. Soal bergambar cukup ditulis <code class="text-amber-400 font-mono">"image": "media:nama-slot"</code> — fotonya diunggah di tombol <b class="text-slate-300">Gambar</b> setelah dipublikasikan.</p>
-            <div>
-              <label class="block text-xs mb-1.5 text-slate-300 font-medium">Isi (kode atau JSON soal)</label>
-              <textarea name="code_content" required rows="9" placeholder="Mode HTML/React: tempel kode Gemini. Mode JSON Soal: tempel daftar soal dalam format JSON." class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl font-mono text-xs text-slate-200 outline-none focus:border-orange-500 leading-relaxed"></textarea>
-            </div>
-            <details class="text-[11px] bg-slate-900/40 border border-slate-700/60 rounded-xl p-3">
-              <summary class="cursor-pointer text-slate-300 font-medium">Contoh JSON soal lengkap (klik untuk lihat)</summary>
-              <pre class="mt-2 overflow-x-auto text-[10.5px] leading-relaxed text-slate-300 font-mono whitespace-pre">{
-  "title": "TKA Bahasa Inggris SMK - Dunia Kerja",
-  "description": "Pilih jawaban yang paling tepat.",
-  "passing_score": 70,
-  "questions": [
-    { "type": "choice", "level": "L1",
-      "stimulus": {
-        "title": "Company Operational Memo",
-        "content": "All technicians entering Zone B must wear high-visibility vests (supplied at entrance Gate 2) and keep a 2 meter clearance from any moving AGV path."
-      },
-      "question": "Where should technical staff obtain the high-visibility vests?",
-      "options": ["HSE office", "Dispatch desk", "Gate 2", "Docking station", "Exit counter"],
-      "answer": "C",
-      "explanation": "Teks menyebut vests yang disediakan **di pintu masuk Gate 2**." },
-    { "type": "category", "level": "L3", "question": "Tentukan status tiap pernyataan berikut.",
-      "labels": ["Benar", "Salah"],
-      "statements": [
-        { "text": "Password bawaan pabrik boleh dipakai terus.", "answer": false },
-        { "text": "Pemeriksaan firmware setiap Senin pertama.", "answer": true } ] },
-    { "type": "multi", "level": "L2", "question": "Manakah yang termasuk kalimat thayyibah? (pilih semua yang benar)",
-      "options": ["Tahlil", "Takbir", "Dusta", "Tahmid"], "answer": ["A", "B", "D"], "scoring": "partial" },
-    { "type": "matching", "level": "L2", "scoring": "partial", "question": "Jodohkan istilah dengan pengertiannya.",
-      "pairs": [
-        { "left": "AGV", "right": "Kendaraan pemandu otomatis di gudang" },
-        { "left": "HSE", "right": "Departemen keselamatan dan kesehatan kerja" },
-        { "left": "SOP", "right": "Prosedur baku yang wajib diikuti" } ] },
-    { "type": "ordering", "level": "L2", "scoring": "partial", "question": "Urutkan langkah mengisi daya kendaraan listrik.",
-      "items": ["Pastikan port kering", "Sambungkan konektor sampai berbunyi klik", "Tekan Finish Session", "Cabut konektor"] },
-    { "type": "table_fill", "level": "L2", "scoring": "partial", "question": "Lengkapi tabel titik lebur bahan berikut.",
-      "headers": ["Bahan", "Titik lebur"],
-      "rows": [["Timah", { "answer": ["327"] }], ["Tembaga", { "answer": ["1085"] }]] },
-    { "type": "two_tier", "level": "L3", "scoring": "partial", "question": "Setujukah kamu dengan tindakan teknisi itu?",
-      "options": ["Setuju", "Tidak setuju"], "answer": "Tidak setuju",
-      "reasons": ["Karena ia mengabaikan prosedur keselamatan", "Karena mesinnya sudah tua"],
-      "reason_answer": "Karena ia mengabaikan prosedur keselamatan" },
-    { "type": "highlight", "level": "L2", "scoring": "partial", "question": "Klik kata yang menunjukkan sikap jujur.",
-      "text": "Budi {mengembalikan} uang yang ia temukan kepada {guru} di sekolah.", "answer": ["mengembalikan"] },
-    { "type": "short", "question": "Sebutkan lafal takbir!", "answer": ["allahu akbar", "takbir"] },
-    { "type": "choice", "level": "L2", "question": "Perhatikan gambar di bawah ini!",
-      "image": "media:tumbuhan", "options": ["Fotosintesis", "Respirasi"], "answer": "Fotosintesis" },
-    { "type": "essay", "level": "L3", "question": "Ceritakan contoh perilaku jujur di sekolah!", "points": 5,
-      "explanation": "Dikoreksi manual oleh guru." }
-  ]
-}</pre>
-            </details>
-            <button type="submit" class="w-full py-2.5 bg-orange-600 hover:bg-orange-500 font-semibold rounded-xl text-sm transition text-white shadow-lg">Publikasikan ke URL</button>
-          </form>
-        </div>
+    </div>
+  </div>
+  ` : `
+  <div class="app-layout">
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a class="sidebar-brand" href="/">
+          <span class="sidebar-logo">SQ</span>
+          <span class="sidebar-title">Gemini Edge Deployer</span>
+        </a>
+        <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+        </button>
+      </div>
 
-        <!-- Panel Daftar Aplikasi -->
-        <div class="lg:col-span-7 space-y-4">
-          <h2 class="text-base font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-layer-group text-orange-400"></i> Daftar Aplikasi Aktif (${projects.length})
-          </h2>
-          ${projects.length === 0 ? `<div class="p-12 text-center bg-slate-800/40 border border-slate-800 rounded-2xl text-slate-500 text-xs">Belum ada aplikasi yang dideploy.</div>` : ''}
-          <div class="space-y-3">
-            ${projects.map((p) => `
-              <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/80 flex items-center justify-between hover:border-slate-600 transition">
-                <div>
-                  <h4 class="text-sm font-semibold text-white">${p.title}</h4>
-                  <p class="text-xs text-slate-400 font-mono mt-0.5">/p/${p.slug} &bull; ${p.size} &bull; ${p.created_at}</p>
-                  ${p.media_missing ? `<p class="text-[11px] text-rose-400 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${p.media_missing} dari ${p.media_slots} gambar soal belum diunggah</p>` : ''}
-                </div>
-                <div class="flex items-center gap-2">
-                  ${p.type === 'json' ? `<button type="button" data-print-btn="${p.slug}" class="px-2.5 py-1.5 bg-violet-600/20 text-violet-400 hover:bg-violet-500 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5" title="Cetak / Simpan PDF">
-                    <i class="fa-solid fa-print"></i> Cetak
-                  </button>` : ''}
-                  ${p.type === 'json' ? `<a href="/p/${p.slug}/edit" class="px-2.5 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5" title="Edit Soal"><i class="fa-solid fa-pen-to-square"></i> Edit</a>` : ''}
-                  <a href="/p/${p.slug}/media" class="px-2.5 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5" title="Atur Gambar Soal">
-                    <i class="fa-solid fa-image"></i> Gambar
-                  </a>
-                  <a href="/p/${p.slug}/data" class="px-2.5 py-1.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5" title="Lihat Rekap Data">
-                    <i class="fa-solid fa-table-list"></i> Log Data
-                  </a>
-                  <a href="/p/${p.slug}" target="_blank" class="p-2 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-lg text-xs transition" title="Buka Aplikasi">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                  </a>
-                  <form method="POST" action="/api/delete" onsubmit="return confirm('Hapus aplikasi ini?')">
-                    <input type="hidden" name="slug" value="${p.slug}">
-                    <button type="submit" class="p-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white rounded-lg text-xs transition" title="Hapus">
-                      <i class="fa-solid fa-trash"></i>
-                    </button>
-                  </form>
+      <div class="sidebar-new">
+        <button class="btn-new-deploy" onclick="showEmptyState(); setDeployType('json');">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Deploy Baru
+        </button>
+      </div>
+
+      <div class="sidebar-search">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Cari aplikasi..." oninput="filterApps(this.value)">
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label">Aplikasi</div>
+
+      <div class="sidebar-list" id="appList">
+        ${projects.map((p) => `
+        <div class="sidebar-item" data-slug="${p.slug}" onclick="showDetail(this,'${p.slug}')">
+          <span class="sidebar-item-icon">
+            ${p.type === 'json'
+              ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>'
+              : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'}
+          </span>
+          <span class="sidebar-item-text">${p.title}</span>
+          <span class="sidebar-item-time">${relTime(p.created_at)}</span>
+          <div class="sidebar-item-actions">
+            <button class="sidebar-item-btn" title="Buka" onclick="event.stopPropagation(); window.open('/p/${p.slug}','_blank')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+            <form method="POST" action="/api/delete" onsubmit="event.stopPropagation(); return confirm('Hapus aplikasi ini?')">
+              <input type="hidden" name="slug" value="${p.slug}">
+              <button class="sidebar-item-btn danger" title="Hapus" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </form>
+          </div>
+        </div>`).join('')}
+      </div>
+
+      <div class="sidebar-footer">
+        <a href="${GEM_URL}" target="_blank" rel="noopener" class="sidebar-footer-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+          Gem Gemini
+        </a>
+        <a href="/panduan" class="sidebar-footer-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg>
+          Panduan
+        </a>
+        <a href="/api/logout" class="sidebar-footer-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Keluar
+        </a>
+      </div>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- ===== MAIN ===== -->
+    <div class="main">
+      <div class="main-topbar">
+        <button class="hamburger" onclick="toggleSidebar()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="topbar-brand">
+          <span class="topbar-logo">SQ</span>
+          <span class="topbar-brand-text">
+            <span class="topbar-title">SMK Thibbil Qulub Assimbani</span>
+            <span class="topbar-sub">Pengembangan Perangkat Lunak dan Gim</span>
+          </span>
+        </div>
+        <div class="topbar-actions">
+          <span class="detail-chip" style="display:${projects.length ? 'inline-block' : 'none'}">${projects.length} Aplikasi</span>
+        </div>
+      </div>
+
+      <!-- VIEW: Empty State -->
+      <div class="main-content" id="viewEmpty">
+        <div class="empty-state" style="margin:auto">
+          <h1 class="empty-greeting">Dari mana kita harus mulai?</h1>
+          <p class="empty-sub">Tempel output Gemini, lalu publikan ke URL langsung.</p>
+
+          <!-- Chat input box (docked, bukan popup) -->
+          <div class="chat-box" id="deployBox" style="text-align:left">
+            <div class="chat-head">
+              <span class="chat-head-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </span>
+              <div>
+                <div class="chat-title" id="deployTitle">Deploy JSON Soal</div>
+                <div class="chat-sub" id="deploySub">Tempel daftar soal dalam format JSON.</div>
+              </div>
+            </div>
+            <form method="POST" action="/api/deploy">
+              <input type="hidden" name="code_type" id="deployCodeType" value="json">
+              <div class="form-row">
+                <label class="form-label" for="deployTitleInput">Judul Aplikasi <span style="color:var(--text-faint);font-weight:400">(jadi alamat /p/...)</span></label>
+                <input class="form-input" id="deployTitleInput" type="text" name="title" placeholder="Contoh: Kuis Akidah Akhlak Kelas 1">
+              </div>
+              <div class="form-row">
+                <label class="form-label">Jenis Kode</label>
+                <div class="type-pills">
+                  <button type="button" class="type-pill active" data-type="json" onclick="setDeployType('json')">JSON Soal</button>
+                  <button type="button" class="type-pill" data-type="html" onclick="setDeployType('html')">HTML</button>
+                  <button type="button" class="type-pill" data-type="react" onclick="setDeployType('react')">React JSX</button>
                 </div>
               </div>
-            `).join('')}
+              <div class="form-row">
+                <label class="form-label" for="deployCode">Isi Kode / JSON</label>
+                <textarea class="form-input code" id="deployCode" name="code_content" rows="7" placeholder="Tempel kode atau JSON soal di sini..." required></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn-cancel" onclick="resetForm()">Batal</button>
+                <button type="submit" class="btn-deploy" id="deployBtn">Publikasikan ke URL</button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
-    `}
-  </main>
+
+      <!-- VIEW: App Detail -->
+      <div class="main-content" id="viewDetail" style="justify-content:flex-start;padding-top:32px;display:none">
+        <div class="detail-view active">
+          <button class="detail-back" onclick="showEmptyState()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Kembali
+          </button>
+
+          <div class="detail-header">
+            <h2 class="detail-title" id="detailTitle"></h2>
+            <div class="detail-meta">
+              <span class="detail-chip" id="detailType"></span>
+              <span class="detail-meta-item">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span id="detailSlug"></span>
+              </span>
+              <span class="detail-meta-item">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span id="detailDate"></span>
+              </span>
+              <span class="detail-meta-item">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span id="detailSize"></span>
+              </span>
+            </div>
+          </div>
+
+          <div class="detail-warn" id="detailWarn" style="display:none">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span id="detailWarnText"></span>
+          </div>
+
+          <div class="detail-actions" id="detailActions"></div>
+
+          <div class="detail-section-label">Pratinjau</div>
+          <div class="detail-preview">
+            <div class="detail-preview-header">
+              <span class="detail-preview-title" id="previewFileName"></span>
+              <button type="button" class="detail-preview-toggle" onclick="togglePreviewCode(this)">Sembunyikan</button>
+            </div>
+            <div class="detail-preview-code" id="previewCode"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  `}
+
   ${isAuth ? `
   <!-- Popup Cetak / Simpan PDF -->
-  <div id="print-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm p-5 shadow-2xl">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-print text-violet-400"></i>Cetak / Simpan PDF</h3>
-        <button type="button" data-modal-close class="text-slate-400 hover:text-white" aria-label="Tutup"><i class="fa-solid fa-xmark"></i></button>
+  <div id="print-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 class="modal-title">
+          <span class="form-head-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          </span>
+          Cetak / Simpan PDF
+        </h3>
+        <button type="button" data-modal-close class="modal-close" aria-label="Tutup">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-      <div class="space-y-4">
-        <div>
-          <p class="text-xs font-medium text-slate-400 mb-2">Isi dokumen</p>
-          <label class="flex items-center gap-2 mb-2 cursor-pointer text-sm text-slate-200"><input type="radio" name="print-mode" value="soal" checked class="accent-violet-500">Naskah soal</label>
-          <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-200"><input type="radio" name="print-mode" value="kunci" class="accent-violet-500">Soal + kunci &amp; pembahasan</label>
-        </div>
-        <div>
-          <p class="text-xs font-medium text-slate-400 mb-2">Tata letak</p>
-          <div class="inline-flex rounded-lg overflow-hidden border border-slate-600/70">
-            <button type="button" data-layout="1col" class="seg-cols seg-on">1 Kolom</button>
-            <button type="button" data-layout="2col" class="seg-cols">2 Kolom</button>
-          </div>
+      <div class="opt-group">
+        <p class="opt-cap">Isi dokumen</p>
+        <label class="opt-label"><input type="radio" name="print-mode" value="soal" checked>Naskah soal</label>
+        <label class="opt-label"><input type="radio" name="print-mode" value="kunci">Soal + kunci &amp; pembahasan</label>
+      </div>
+      <div class="opt-group">
+        <p class="opt-cap">Tata letak</p>
+        <div class="seg">
+          <button type="button" data-layout="1col" class="seg-cols seg-on">1 Kolom</button>
+          <button type="button" data-layout="2col" class="seg-cols">2 Kolom</button>
         </div>
       </div>
-      <div class="flex gap-2 mt-6">
-        <button type="button" data-modal-close class="flex-1 py-2 rounded-lg text-sm text-slate-300 bg-slate-700/60 hover:bg-slate-700 transition">Batal</button>
-        <button type="button" id="print-modal-go" class="flex-1 py-2 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-500 transition">Cetak / Simpan PDF</button>
+      <div class="modal-actions">
+        <button type="button" data-modal-close class="btn btn-ghost">Batal</button>
+        <button type="button" id="print-modal-go" class="btn btn-primary">Cetak / Simpan PDF</button>
       </div>
     </div>
   </div>
   <script>
-  (function () {
-    var modal = document.getElementById('print-modal');
-    function setOpen(open) {
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-      if (open) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-      }
+  var APPDATA = ${appDataJson};
+
+  function toggleSidebar() {
+    var s = document.getElementById('sidebar');
+    var o = document.getElementById('sidebarOverlay');
+    if (s) s.classList.toggle('open');
+    if (o) o.classList.toggle('open');
+  }
+
+  function showEmptyState() {
+    var e = document.getElementById('viewEmpty');
+    var d = document.getElementById('viewDetail');
+    if (e) e.style.display = 'flex';
+    if (d) d.style.display = 'none';
+    document.querySelectorAll('.sidebar-item').forEach(function (i) { i.classList.remove('active'); });
+  }
+
+  function showDetail(el, slug) {
+    var e = document.getElementById('viewEmpty');
+    var d = document.getElementById('viewDetail');
+    if (e) e.style.display = 'none';
+    if (d) d.style.display = 'flex';
+    document.querySelectorAll('.sidebar-item').forEach(function (i) { i.classList.remove('active'); });
+    if (el) el.classList.add('active');
+
+    var app = APPDATA[slug];
+    if (!app) return;
+
+    document.getElementById('detailTitle').textContent = app.title;
+    document.getElementById('detailType').textContent = app.type;
+    document.getElementById('detailSlug').textContent = '/p/' + app.slug;
+    document.getElementById('detailDate').textContent = app.date;
+    document.getElementById('detailSize').textContent = app.size;
+
+    var warn = document.getElementById('detailWarn');
+    if (app.mediaMissing > 0) {
+      warn.style.display = 'flex';
+      document.getElementById('detailWarnText').textContent = app.mediaMissing + ' dari ' + app.mediaTotal + ' gambar soal belum diunggah';
+    } else {
+      warn.style.display = 'none';
     }
-    function openPrint() {
-      if (!modal || !modal.dataset.slug) return;
-      var mode = modal.querySelector('input[name="print-mode"]:checked').value;
-      var layout = (modal.querySelector('[data-layout].seg-on') || {
+
+    document.getElementById('previewFileName').textContent = app.slug + '.' + app.type;
+    document.getElementById('previewCode').textContent = app.preview;
+    document.getElementById('previewCode').style.display = 'block';
+    var toggler = document.querySelector('.detail-preview-toggle');
+    if (toggler) toggler.textContent = 'Sembunyikan';
+
+    var act = document.getElementById('detailActions');
+    var icons = {
+      open: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+      edit: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+      img: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+      log: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+      print: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+      del: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+    };
+    function cell(inner) {
+      return '<div class="detail-action-icon">' + inner + '</div>';
+    }
+    var html = '';
+    html += '<a class="detail-action" href="/p/' + app.slug + '" target="_blank">' + cell(icons.open) + 'Buka App</a>';
+    if (app.type === 'json') html += '<a class="detail-action" href="/p/' + app.slug + '/edit">' + cell(icons.edit) + 'Edit Soal</a>';
+    html += '<a class="detail-action" href="/p/' + app.slug + '/media">' + cell(icons.img) + 'Atur Gambar</a>';
+    html += '<a class="detail-action" href="/p/' + app.slug + '/data">' + cell(icons.log) + 'Log Data</a>';
+    if (app.type === 'json') html += '<button type="button" class="detail-action" data-print-btn="' + app.slug + '">' + cell(icons.print) + 'Cetak PDF</button>';
+    html += '<form method="POST" action="/api/delete" onsubmit="return confirm(&quot;Hapus aplikasi ini?&quot;)"><input type="hidden" name="slug" value="' + app.slug + '"><button type="submit" class="detail-action danger">' + cell(icons.del) + 'Hapus</button></form>';
+    act.innerHTML = html;
+
+    if (window.innerWidth < 1024) toggleSidebar();
+  }
+
+  function togglePreviewCode(btn) {
+    var code = document.getElementById('previewCode');
+    if (code.style.display === 'none') {
+      code.style.display = 'block';
+      btn.textContent = 'Sembunyikan';
+    } else {
+      code.style.display = 'none';
+      btn.textContent = 'Tampilkan';
+    }
+  }
+
+  function filterApps(q) {
+    var query = q.toLowerCase();
+    document.querySelectorAll('.sidebar-item').forEach(function (item) {
+      var text = item.querySelector('.sidebar-item-text').textContent.toLowerCase();
+      item.style.display = text.indexOf(query) !== -1 ? '' : 'none';
+    });
+  }
+
+  function setDeployType(type) {
+    var labels = {
+      json: { title: 'Deploy JSON Soal', sub: 'Tempel daftar soal dalam format JSON.', placeholder: 'Tempel JSON soal di sini...', btn: 'Publikasikan JSON Soal' },
+      html: { title: 'Deploy HTML', sub: 'Tempel halaman HTML lengkap.', placeholder: 'Tempel kode HTML di sini...', btn: 'Publikasikan HTML' },
+      react: { title: 'Deploy React', sub: 'Tempel komponen React dalam JSX.', placeholder: 'Tempel kode JSX di sini...', btn: 'Publikasikan React' }
+    };
+    document.querySelectorAll('.type-pill').forEach(function (p) {
+      p.classList.toggle('active', p.getAttribute('data-type') === type);
+    });
+    document.getElementById('deployCodeType').value = type;
+    var cfg = labels[type];
+    document.getElementById('deployTitle').textContent = cfg.title;
+    document.getElementById('deploySub').textContent = cfg.sub;
+    var code = document.getElementById('deployCode');
+    if (code) code.placeholder = cfg.placeholder;
+    if (code) code.focus();
+    document.getElementById('deployBtn').textContent = cfg.btn;
+  }
+
+  function resetForm() {
+    var form = document.querySelector('#deployBox form');
+    if (form) form.reset();
+    setDeployType(document.getElementById('deployCodeType').value || 'json');
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (document.getElementById('sidebar').classList.contains('open')) toggleSidebar();
+    }
+  });
+
+  // Print modal (delegated, works with dynamically-added buttons)
+  var printModal = document.getElementById('print-modal');
+  function setPrintOpen(open) {
+    printModal.classList.add('hidden');
+    printModal.classList.remove('flex');
+    if (open) {
+      printModal.classList.remove('hidden');
+      printModal.classList.add('flex');
+    }
+  }
+  if (printModal) {
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-print-btn]');
+      if (b) {
+        printModal.dataset.slug = b.getAttribute('data-print-btn');
+        setPrintOpen(true);
+      }
+    });
+    printModal.querySelectorAll('[data-layout]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        printModal.querySelectorAll('[data-layout]').forEach(function (x) { x.classList.toggle('seg-on', x === b); });
+      });
+    });
+    printModal.addEventListener('click', function (e) { if (e.target === printModal) setPrintOpen(false); });
+    document.querySelectorAll('[data-modal-close]').forEach(function (b) { b.addEventListener('click', function () { setPrintOpen(false); }); });
+    document.getElementById('print-modal-go').addEventListener('click', function () {
+      if (!printModal.dataset.slug) return;
+      var mode = printModal.querySelector('input[name="print-mode"]:checked').value;
+      var layout = (printModal.querySelector('[data-layout].seg-on') || {
         getAttribute: function () { return '1col'; }
       }).getAttribute('data-layout');
-      var q = '/p/' + modal.dataset.slug + '?print=1' + (mode === 'kunci' ? '&kunci=1' : '');
+      var q = '/p/' + printModal.dataset.slug + '?print=1' + (mode === 'kunci' ? '&kunci=1' : '');
       if (layout === '2col') q += '&layout=2col';
       q += '&auto=1';
       window.open(q, '_blank');
-    }
-    document.querySelectorAll('[data-print-btn]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        modal.dataset.slug = b.getAttribute('data-print-btn');
-        setOpen(true);
-      });
     });
-    modal.querySelectorAll('[data-layout]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        modal.querySelectorAll('[data-layout]').forEach(function (x) { x.classList.toggle('seg-on', x === b); });
-      });
-    });
-    modal.addEventListener('click', function (e) { if (e.target === modal) setOpen(false); });
-    document.querySelectorAll('[data-modal-close]').forEach(function (b) { b.addEventListener('click', function () { setOpen(false); }); });
-    document.getElementById('print-modal-go').addEventListener('click', openPrint);
-  })();
+  }
   </script>` : ''}
 </body>
 </html>`);

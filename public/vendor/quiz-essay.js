@@ -31,7 +31,7 @@
     }
 
     button.disabled = true;
-    status.className = 'js-status text-[11px] text-slate-400';
+    status.className = 'js-status e-status tone-muted';
     status.textContent = 'Menyimpan...';
 
     fetch('/api/quiz/' + encodeURIComponent(slug) + '/essay', {
@@ -51,7 +51,7 @@
         applyResult(card, result.data);
       })
       .catch(function (error) {
-        status.className = 'js-status text-[11px] text-rose-400';
+        status.className = 'js-status e-status tone-bad';
         status.textContent = 'Gagal: ' + error.message;
       })
       .then(function () {
@@ -64,7 +64,7 @@
     var badge = card.querySelector('.js-badge');
     var summary = card.querySelector('.js-summary');
 
-    status.className = 'js-status text-[11px] text-emerald-400';
+    status.className = 'js-status e-status tone-ok';
     status.textContent = 'Tersimpan.';
     if (summary) summary.textContent = summaryFromResponse(data);
 
@@ -77,19 +77,14 @@
       if (!filled) stillEmpty += 1;
       if (label) {
         label.textContent = filled ? 'Sudah dinilai' : 'Belum dinilai';
-        label.className = 'js-qstatus text-[11px] ' + (filled ? 'text-emerald-400' : 'text-slate-500');
+        label.className = 'js-qstatus e-qstatus ' + (filled ? 'tone-ok' : 'tone-muted');
       }
     }
 
     if (badge) {
       var pending = typeof data.essay_pending === 'number' ? data.essay_pending : stillEmpty;
-      if (pending > 0) {
-        badge.className = 'js-badge text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30';
-        badge.textContent = pending + ' esai belum dinilai';
-      } else {
-        badge.className = 'js-badge text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
-        badge.textContent = 'Sudah dikoreksi';
-      }
+      badge.className = 'js-badge e-badge ' + (pending > 0 ? 'warn' : 'ok');
+      badge.textContent = pending > 0 ? pending + ' esai belum dinilai' : 'Sudah dikoreksi';
     }
   }
 

@@ -40,5 +40,24 @@
 			"database_name": "gemini-db",
 			"database_id": "3ca2f617-70f7-4048-a610-558a0fad7ebd"
 		}
-	]
+	],
+	"env": {
+		"staging": {
+			"name": "gemini-deployer-staging",
+			"kv_namespaces": [
+				{
+					"binding": "STORAGE",
+					"id": "26f5f45fa7894f6faf8ba6a97e97f53e",
+					"remote": true
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "gemini-db-staging",
+					"database_id": "f44392a6-e445-41b4-a8ab-ca2ec9caba3a"
+				}
+			]
+		}
+	}
 }

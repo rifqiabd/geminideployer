@@ -314,16 +314,16 @@ function itemNote(
 /* -------------------------------------------------------------------------- */
 
 const LEVEL_CLASS: Record<ItemStat['level'], string> = {
-  ok: 'text-emerald-400',
-  warn: 'text-amber-400',
-  bad: 'text-rose-400',
-  muted: 'text-slate-500',
+  ok: 'tone-ok',
+  warn: 'tone-warn',
+  bad: 'tone-bad',
+  muted: 'tone-muted',
 };
 
 function bar(percent: number, tone: 'ok' | 'warn' | 'bad' | 'key'): string {
   const color =
-    tone === 'ok' ? 'bg-emerald-500' : tone === 'warn' ? 'bg-amber-500' : tone === 'bad' ? 'bg-rose-500' : 'bg-blue-500';
-  return `<div class="w-24 h-1.5 rounded-full bg-slate-700 overflow-hidden inline-block align-middle"><div class="${color} h-full" style="width:${Math.max(0, Math.min(100, percent))}%"></div></div>`;
+    tone === 'ok' ? 'fill-ok' : tone === 'warn' ? 'fill-warn' : tone === 'bad' ? 'fill-bad' : 'fill-key';
+  return `<div class="bar"><div class="bar-fill ${color}" style="width:${Math.max(0, Math.min(100, percent))}%"></div></div>`;
 }
 
 function optionBars(item: ItemStat): string {
@@ -334,21 +334,19 @@ function optionBars(item: ItemStat): string {
   const rows = item.options
     .map((option) => {
       const percent = total ? Math.round((option.count / total) * 100) : 0;
-      return `<div class="flex items-center gap-2 text-[11px]">
-        <span class="w-5 flex-none grid place-items-center rounded bg-slate-900 border ${
-          option.isKey ? 'border-emerald-500/60 text-emerald-400 font-bold' : 'border-slate-700 text-slate-400'
-        }">${option.letter}</span>
-        <span class="flex-1 truncate ${option.isKey ? 'text-emerald-300' : 'text-slate-400'}" title="${escapeHtml(option.text)}">${escapeHtml(option.text || '(kosong)')}</span>
+      return `<div class="opt-row">
+        <span class="opt-letter ${option.isKey ? 'key' : ''}">${option.letter}</span>
+        <span class="opt-text ${option.isKey ? 'key' : ''}" title="${escapeHtml(option.text)}">${escapeHtml(option.text || '(kosong)')}</span>
         ${bar(percent, option.isKey ? 'ok' : 'key')}
-        <span class="w-16 text-right flex-none text-slate-400">${option.count} siswa (${percent}%)</span>
+        <span class="opt-count">${option.count} siswa (${percent}%)</span>
       </div>`;
     })
     .join('');
   const blankRow = item.blank
-    ? `<div class="flex items-center gap-2 text-[11px] text-slate-500"><span class="w-5 flex-none text-center">–</span><span class="flex-1">Tidak dijawab</span><span class="w-24"></span><span class="w-16 text-right flex-none">${item.blank} siswa</span></div>`
+    ? `<div class="opt-row tone-muted"><span class="opt-letter">–</span><span class="opt-text">Tidak dijawab</span><span class="bar"></span><span class="opt-count">${item.blank} siswa</span></div>`
     : '';
-  return `<div class="mt-2 space-y-1 border-t border-slate-700/60 pt-2">
-    <p class="text-[11px] text-slate-500">Sebaran pilihan (kunci ditandai hijau):</p>
+  return `<div class="opt-box">
+    <p class="opt-cap">Sebaran pilihan (kunci ditandai hijau):</p>
     ${rows}${blankRow}
   </div>`;
 }
@@ -359,28 +357,28 @@ function weakestRowsBlock(item: ItemStat): string {
   const parts = item.weakestRows
     .map((row) => {
       const text = row.text.length > 70 ? `${row.text.slice(0, 70)}\u2026` : row.text;
-      return `<span class="text-amber-300">${escapeHtml(text || '(tanpa label)')}</span> <span class="text-slate-500">${row.wrong}/${row.total} salah</span>`;
+      return `<span class="tone-warn">${escapeHtml(text || '(tanpa label)')}</span> <span class="tone-muted">${row.wrong}/${row.total} salah</span>`;
     })
     .join(' \u00b7 ');
-  return `<div class="mt-1 text-[11px] text-slate-500">Bagian tersering keliru: ${parts}</div>`;
+  return `<div class="r-note">Bagian tersering keliru: ${parts}</div>`;
 }
 
-function tile(label: string, value: string, hint: string, tone = 'text-white'): string {
-  return `<div class="bg-slate-800 rounded-xl border border-slate-700 p-3.5">
-    <p class="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">${escapeHtml(label)}</p>
-    <p class="text-xl font-bold ${tone} mt-1">${value}</p>
-    <p class="text-[11px] text-slate-500 mt-0.5">${hint}</p>
+function tile(label: string, value: string, hint: string, tone = ''): string {
+  return `<div class="tile">
+    <p class="tile-label">${escapeHtml(label)}</p>
+    <p class="tile-value ${tone}">${value}</p>
+    <p class="tile-hint">${hint}</p>
   </div>`;
 }
 
 export function renderItemAnalysis(analysis: ItemAnalysis): string {
   const { participants, items } = analysis;
 
-  const tiles = `<div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+  const tiles = `<div class="r-tiles">
     ${tile('Peserta', String(participants), 'pengiriman yang dinilai')}
-    ${tile('Rata-rata', String(analysis.average), `KKM ${analysis.kkm}`, 'text-amber-400')}
-    ${tile('Tertinggi', String(analysis.highest), 'nilai terbaik', 'text-emerald-400')}
-    ${tile('Terendah', String(analysis.lowest), 'nilai terendah', 'text-rose-400')}
+    ${tile('Rata-rata', String(analysis.average), `KKM ${analysis.kkm}`, 'tone-warn')}
+    ${tile('Tertinggi', String(analysis.highest), 'nilai terbaik', 'tone-ok')}
+    ${tile('Terendah', String(analysis.lowest), 'nilai terendah', 'tone-bad')}
     ${tile(
       'Lulus',
       `${analysis.passed}/${participants}`,
@@ -389,13 +387,11 @@ export function renderItemAnalysis(analysis: ItemAnalysis): string {
   </div>`;
 
   if (!participants) {
-    return `<section class="space-y-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-base font-bold text-white"><i class="fa-solid fa-chart-simple text-orange-400 mr-2"></i>Analisis Butir Soal</h2>
+    return `<section class="r-section">
+      <div class="r-head">
+        <h2 class="r-title">Analisis Butir Soal</h2>
       </div>
-      <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-800 text-center text-slate-400 text-sm">
-        Belum ada jawaban siswa yang bisa dianalisis. Statistik muncul otomatis setelah siswa mengirim jawaban.
-      </div>
+      <div class="r-empty">Belum ada jawaban siswa yang bisa dianalisis. Statistik muncul otomatis setelah siswa mengirim jawaban.</div>
     </section>`;
   }
 
@@ -405,83 +401,81 @@ export function renderItemAnalysis(analysis: ItemAnalysis): string {
       const disc = item.discrimination === null ? '—' : item.discrimination.toFixed(2);
       const detail =
         item.type === 'essay'
-          ? `<span class="text-slate-500">${item.pending} jawaban esai menunggu koreksi</span>`
+          ? `<span class="tone-muted">${item.pending} jawaban esai menunggu koreksi</span>`
           : `${item.answered} menjawab`;
       const optionsBlock = item.options ? optionBars(item) : '';
-      return `<tr class="align-top hover:bg-slate-800/40 transition">
-        <td class="p-3 font-mono text-slate-400">${item.no}</td>
-        <td class="p-3">
-          <div class="text-slate-100">${escapeHtml(item.label.slice(0, 140))}${item.label.length > 140 ? '…' : ''}</div>
-          <div class="text-[11px] text-slate-500 mt-1">${TYPE_LABEL[item.type]}${item.points !== 1 ? ` · bobot ${item.points}` : ''} · ${detail}</div>
+      return `<tr class="r-row">
+        <td class="r-cell r-no">${item.no}</td>
+        <td class="r-cell">
+          <div class="r-q">${escapeHtml(item.label.slice(0, 140))}${item.label.length > 140 ? '…' : ''}</div>
+          <div class="r-sub">${TYPE_LABEL[item.type]}${item.points !== 1 ? ` · bobot ${item.points}` : ''} · ${detail}</div>
           ${
             item.options
-              ? `<details class="mt-1"><summary class="text-[11px] text-blue-400 cursor-pointer">Lihat sebaran pilihan</summary>${optionsBlock}</details>`
+              ? `<details class="r-details"><summary class="r-summary">Lihat sebaran pilihan</summary>${optionsBlock}</details>`
               : ''
           }
           ${weakestRowsBlock(item)}
         </td>
-        <td class="p-3 text-right font-mono text-emerald-400">${item.correct}</td>
-        <td class="p-3 text-right font-mono text-rose-400">${item.wrong}</td>
-        <td class="p-3">
-          <div class="flex items-center gap-2 justify-end">
-            <span class="font-mono text-slate-200">${item.answered ? item.percentCorrect + '%' : '—'}</span>
+        <td class="r-cell r-num tone-ok">${item.correct}</td>
+        <td class="r-cell r-num tone-bad">${item.wrong}</td>
+        <td class="r-cell">
+          <div class="r-pct">
+            <span class="r-pct-txt">${item.answered ? item.percentCorrect + '%' : '—'}</span>
             ${bar(item.percentCorrect, tone)}
           </div>
         </td>
-        <td class="p-3 text-right">
-          <span class="text-xs ${
-            item.difficulty === 'Sulit' ? 'text-rose-400' : item.difficulty === 'Mudah' ? 'text-emerald-400' : 'text-slate-300'
+        <td class="r-cell r-num">
+          <span class="${
+            item.difficulty === 'Sulit' ? 'tone-bad' : item.difficulty === 'Mudah' ? 'tone-ok' : 'tone-muted'
           }">${item.difficulty}</span>
         </td>
-        <td class="p-3 text-right">
-          <span class="font-mono text-slate-200">${disc}</span>
-          <div class="text-[11px] ${
-            item.discrimination !== null && item.discrimination < 0.2 ? 'text-rose-400' : 'text-slate-500'
-          }">${item.discriminationLabel}</div>
+        <td class="r-cell r-num">
+          <span class="r-mono">${disc}</span>
+          <div class="r-sub ${item.discrimination !== null && item.discrimination < 0.2 ? 'tone-bad' : 'tone-muted'}">${item.discriminationLabel}</div>
         </td>
-        <td class="p-3 text-xs ${LEVEL_CLASS[item.level]}">${escapeHtml(item.note)}</td>
+        <td class="r-cell r-note ${LEVEL_CLASS[item.level]}">${escapeHtml(item.note)}</td>
       </tr>`;
     })
     .join('');
 
   const discriminationNote = analysis.hasDiscrimination
     ? ''
-    : `<p class="text-[11px] text-amber-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Daya beda belum bisa dihitung — butuh minimal ${MIN_FOR_DISCRIMINATION} peserta.</p>`;
+    : `<p class="r-footnote tone-warn">Daya beda belum bisa dihitung — butuh minimal ${MIN_FOR_DISCRIMINATION} peserta.</p>`;
 
-  return `<section class="space-y-4">
-    <div class="flex items-start justify-between gap-3 flex-wrap">
+  return `<section class="r-section">
+    <div class="r-head">
       <div>
-        <h2 class="text-base font-bold text-white"><i class="fa-solid fa-chart-simple text-orange-400 mr-2"></i>Analisis Butir Soal</h2>
-        <p class="text-xs text-slate-400 mt-0.5">Dihitung dari jawaban yang sudah masuk, tanpa perlu mengirim ulang apa pun.</p>
+        <h2 class="r-title">Analisis Butir Soal</h2>
+        <p class="r-sub">Dihitung dari jawaban yang sudah masuk, tanpa perlu mengirim ulang apa pun.</p>
       </div>
-      <button id="item-csv" type="button" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold">
-        <i class="fa-solid fa-file-csv mr-1"></i>Unduh CSV
+      <button id="item-csv" type="button" class="btn">
+        <i class="fa-solid fa-file-csv"></i>Unduh CSV
       </button>
     </div>
 
     ${tiles}
 
-    <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs min-w-[54rem]">
-          <thead class="bg-slate-900/80 text-slate-300 border-b border-slate-700 uppercase font-semibold text-[11px]">
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="r-table">
+          <thead class="r-head-row">
             <tr>
-              <th class="p-3 w-10">No</th>
-              <th class="p-3">Soal</th>
-              <th class="p-3 text-right w-16">Benar</th>
-              <th class="p-3 text-right w-16">Salah</th>
-              <th class="p-3 text-right w-32">% Benar</th>
-              <th class="p-3 text-right w-24">Tingkat</th>
-              <th class="p-3 text-right w-24">Daya Beda</th>
-              <th class="p-3 w-64">Catatan</th>
+              <th>No</th>
+              <th>Soal</th>
+              <th class="right">Benar</th>
+              <th class="right">Salah</th>
+              <th class="right">% Benar</th>
+              <th class="right">Tingkat</th>
+              <th class="right">Daya Beda</th>
+              <th>Catatan</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-700">${rows}</tbody>
+          <tbody class="r-body">${rows}</tbody>
         </table>
       </div>
-      <div class="p-3 bg-slate-900/60 border-t border-slate-700 space-y-1">
+      <div class="r-foot">
         ${discriminationNote}
-        <p class="text-[11px] text-slate-500">
+        <p class="r-footnote tone-muted">
           Nilai memakai <b>nilai akhir</b> (objektif + esai) untuk kiriman yang esainya sudah dikoreksi, dan nilai
           objektif untuk yang belum. Tingkat: &lt;30% sulit, 30–70% sedang, &gt;70% mudah. Daya beda (kelompok 27% atas vs 27% bawah):
           &lt;0,20 jelek · 0,20–0,29 cukup · 0,30–0,39 baik · ≥0,40 baik sekali · negatif berarti kunci perlu dicek.
