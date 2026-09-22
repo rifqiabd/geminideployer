@@ -39,3 +39,6 @@ Thumbs.db
 # State alat pengembang (bukan bagian proyek)
 .omo/
 .freebuff/
+
+# imggen-proxy (repo sendiri di D:\code\cloudflare\imggen-proxy)
+imggen-proxy/
