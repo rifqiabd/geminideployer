@@ -179,6 +179,33 @@ export async function deleteAllMedia(env: MediaBindings, slug: string): Promise<
 }
 
 /**
+ * Pindahkan seluruh media dari satu slug ke slug lain (dipakai saat aplikasi
+ * diganti alamatnya). Salin dulu ke tujuan baru, baru hapus asal — kalau gagal
+ * di tengah jalan, gambar tidak hilang.
+ */
+export async function moveAllMedia(env: MediaBindings, fromSlug: string, toSlug: string): Promise<number> {
+  const items = await listMedia(env, fromSlug);
+  for (const item of items) {
+    const stored = await getMedia(env, fromSlug, item.name);
+    if (!stored) continue;
+
+    if (env.MEDIA) {
+      await env.MEDIA.put(objectKey(toSlug, item.name), stored.body, {
+        httpMetadata: { contentType: stored.contentType, cacheControl: 'public, max-age=31536000, immutable' },
+        customMetadata: stored.uploadedAt ? { uploadedAt: stored.uploadedAt } : undefined,
+      });
+    } else {
+      await env.STORAGE.put(kvKey(toSlug, item.name), stored.body, {
+        metadata: { contentType: stored.contentType, uploadedAt: stored.uploadedAt },
+      });
+    }
+
+    await deleteMedia(env, fromSlug, item.name);
+  }
+  return items.length;
+}
+
+/**
  * Gambar yang diminta siswa tapi belum diunggah guru: jangan biarkan ikon
  * "broken image" muncul. Kirim kotak placeholder yang menjelaskan masalahnya.
  * Sengaja no-store supaya begitu guru mengunggah, siswa langsung dapat gambar asli.

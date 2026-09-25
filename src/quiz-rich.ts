@@ -4,7 +4,7 @@
  * ========================================================================== */
 
 import { escapeHtml, resolveMediaUrl } from './quiz-util.ts';
-import { AUDIO_EXT, IMAGE_EXT, MEDIA_TOKEN } from './quiz-types.ts';
+import { ARABIC_RUN, AUDIO_EXT, IMAGE_EXT, JAVANESE_RUN, MEDIA_TOKEN } from './quiz-types.ts';
 import type { Feature } from './quiz-types.ts';
 
 
@@ -98,6 +98,13 @@ export function inlineRich(text: string, features: Set<Feature>, mediaBase: stri
     );
   }
 
+  if (features.has('jawa')) {
+    out = out.replace(
+      /[\uA980-\uA9DF](?:[\uA980-\uA9DF\s\d\p{M}]*[\uA980-\uA9DF])?/gu,
+      (match) => `<span class="q-jv-inline">${match}</span>`
+    );
+  }
+
   out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<em>$2</em>');
 
   out = out.replace(/https?:\/\/[^\s<]+/g, (url) => {
@@ -122,6 +129,13 @@ export function isArabicLine(text: string): boolean {
   if (!letters) return false;
   const arabic = letters.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g) ?? [];
   return arabic.length / letters.length > 0.5;
+}
+
+export function isJavaneseLine(text: string): boolean {
+  const letters = text.replace(/\s/g, '');
+  if (!letters) return false;
+  const javanese = letters.match(/[\uA980-\uA9DF]/g) ?? [];
+  return javanese.length / letters.length > 0.5;
 }
 
 
@@ -193,6 +207,12 @@ export function renderRichText(source: unknown, features: Set<Feature>, mediaBas
     if (features.has('arabic') && isArabicLine(trimmed)) {
       flush();
       out.push(`<div class="q-ar">${inlineRich(trimmed, features, mediaBase)}</div>`);
+      continue;
+    }
+
+    if (features.has('jawa') && isJavaneseLine(trimmed)) {
+      flush();
+      out.push(`<div class="q-jv">${inlineRich(trimmed, features, mediaBase)}</div>`);
       continue;
     }
 

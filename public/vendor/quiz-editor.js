@@ -257,9 +257,9 @@
         '<span class="w-6 h-6 flex-none grid place-items-center rounded-md bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-400">' + (j + 1) + '</span>' +
         '<input data-index="' + index + '" data-field="statement-text" data-opt="' + j + '" value="' + esc(value.text) +
           '" placeholder="Tulis pernyataan..." class="flex-1 min-w-[180px] px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">' +
-        '<label class="flex items-center gap-1 text-[11px] text-slate-400"><input type="radio" name="st-' + index + '" data-index="' + index + '" data-stmt="' + j + '" value="true"' +
+        '<label class="flex items-center gap-1 text-[11px] text-slate-400"><input type="radio" name="st-' + index + '-' + j + '" data-index="' + index + '" data-stmt="' + j + '" value="true"' +
           (shown === true ? ' checked' : '') + ' class="w-4 h-4 accent-orange-500">' + esc(labels[0]) + '</label>' +
-        '<label class="flex items-center gap-1 text-[11px] text-slate-400"><input type="radio" name="st-' + index + '" data-index="' + index + '" data-stmt="' + j + '" value="false"' +
+        '<label class="flex items-center gap-1 text-[11px] text-slate-400"><input type="radio" name="st-' + index + '-' + j + '" data-index="' + index + '" data-stmt="' + j + '" value="false"' +
           (shown === false ? ' checked' : '') + ' class="w-4 h-4 accent-orange-500">' + esc(labels[1]) + '</label>' +
         '<button type="button" data-action="remove-list" data-field="statements" data-opt="' + j +
           '" title="Hapus pernyataan" class="p-2 bg-slate-700/40 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 rounded-lg text-xs"><i class="fa-solid fa-xmark"></i></button>' +

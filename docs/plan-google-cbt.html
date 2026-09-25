@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rencana Implementasi Google Login &amp; CBT Terdaftar</title>
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --card:#fff;
+    --text:#172033;
+    --muted:#637086;
+    --border:#e1e6ee;
+    --border-strong:#cbd4e1;
+    --accent:#c2410c;
+    --accent-soft:#fff4eb;
+    --ok:#047857;
+    --ok-soft:#ecfdf5;
+    --info:#1d4ed8;
+    --info-soft:#eff4ff;
+    --warn:#a16207;
+    --warn-soft:#fff8e7;
+    --danger:#b42318;
+    --danger-soft:#fff1f0;
+    --code:#172033;
+    --code-text:#dbeafe;
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .layout{display:grid;grid-template-columns:255px minmax(0,1fr);gap:36px;max-width:1280px;margin:0 auto;padding:26px 22px 80px}
+  aside{position:sticky;top:22px;align-self:start;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:17px 14px;box-shadow:0 8px 24px rgba(15,23,42,.04)}
+  aside h2{margin:0 0 11px;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+  aside ol{list-style:none;counter-reset:nav;margin:0;padding:0}
+  aside li{counter-increment:nav;margin:2px 0}
+  aside a{display:block;border-radius:8px;color:#465268;padding:6px 9px;font-size:13px;line-height:1.35}
+  aside a:hover{background:var(--accent-soft);color:var(--accent);text-decoration:none}
+  aside .sub a{padding-left:18px;font-size:12.5px;color:var(--muted)}
+  main{min-width:0}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:35px 36px 31px;color:#fff;background:linear-gradient(135deg,#172033 0%,#283751 60%,#40526e 100%);box-shadow:0 14px 34px rgba(15,23,42,.13)}
+  .hero:after{content:"";position:absolute;right:-105px;top:-125px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(249,115,22,.43),transparent 68%)}
+  .eyebrow{display:inline-block;border:1px solid rgba(253,186,116,.35);background:rgba(249,115,22,.18);color:#fed7aa;border-radius:999px;padding:4px 11px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+  .hero h1{position:relative;z-index:1;max-width:760px;margin:15px 0 9px;font-size:clamp(26px,4vw,36px);line-height:1.15;letter-spacing:-.025em}
+  .hero p{position:relative;z-index:1;max-width:760px;margin:0;color:#d3deee;font-size:16px}
+  .meta{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:8px;margin-top:21px}
+  .meta span{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.1);border-radius:999px;padding:5px 11px;color:#e7edf6;font-size:12px}
+  .section{margin-top:22px;padding:27px 29px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 5px 20px rgba(15,23,42,.035)}
+  .section>h2{display:flex;align-items:baseline;gap:10px;margin:0 0 5px;font-size:21px;letter-spacing:-.015em}
+  .num{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:23px;padding:0 7px;border:1px solid #f2d4bc;border-radius:7px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.03em}
+  .deck{margin:0 0 19px;padding-bottom:15px;border-bottom:1px solid var(--border);color:var(--muted)}
+  h3{margin:25px 0 8px;font-size:16px}
+  h4{margin:18px 0 6px;font-size:14px}
+  p{margin:0 0 12px}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin:5px 0}
+  .grid{display:grid;gap:14px}
+  .grid.two{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .grid.three{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .card{border:1px solid var(--border);border-radius:12px;padding:16px 17px;background:#fcfdff}
+  .card h4{margin:0 0 7px}
+  .card p:last-child{margin-bottom:0}
+  .card.ok{background:var(--ok-soft);border-color:#c7ead8}
+  .card.info{background:var(--info-soft);border-color:#ccdafd}
+  .card.warn{background:var(--warn-soft);border-color:#efdfb6}
+  .card.danger{background:var(--danger-soft);border-color:#f0c8c4}
+  .badge{display:inline-block;border:1px solid transparent;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;vertical-align:1px}
+  .badge.ok{background:var(--ok-soft);color:var(--ok);border-color:#c7ead8}
+  .badge.info{background:var(--info-soft);color:var(--info);border-color:#ccdafd}
+  .badge.warn{background:var(--warn-soft);color:var(--warn);border-color:#efdfb6}
+  .badge.danger{background:var(--danger-soft);color:var(--danger);border-color:#f0c8c4}
+  .callout{margin:16px 0;padding:14px 16px;border:1px solid var(--border);border-radius:11px;background:#fbfcfe}
+  .callout strong{display:block;margin-bottom:4px;font-size:13.5px}
+  .callout p:last-child{margin-bottom:0}
+  .callout.ok{background:var(--ok-soft);border-color:#c7ead8}
+  .callout.info{background:var(--info-soft);border-color:#ccdafd}
+  .callout.warn{background:var(--warn-soft);border-color:#efdfb6}
+  .callout.danger{background:var(--danger-soft);border-color:#f0c8c4}
+  .table-wrap{overflow-x:auto;margin:0 0 18px;border:1px solid var(--border);border-radius:11px}
+  table{width:100%;min-width:620px;border-collapse:collapse;font-size:13.5px}
+  th{background:#f7f9fc;color:#526075;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:10px 13px;border-bottom:1px solid var(--border)}
+  td{padding:10px 13px;border-bottom:1px solid #edf0f5;vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:nth-child(even){background:#fcfdff}
+  td code,p code,li code{display:inline-block;border:1px solid #e3e8f0;border-radius:5px;background:#f2f4f7;padding:1px 5px;font-size:.88em}
+  pre{overflow-x:auto;margin:0 0 17px;border-radius:11px;padding:16px 18px;background:var(--code);color:var(--code-text);font-size:12.5px;line-height:1.6}
+  pre code{font-size:inherit}
+  .flow{overflow-x:auto;margin:0 0 18px;padding:17px;border:1px solid var(--border);border-radius:11px;background:#f8fafc;color:#334155;font:12.5px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}
+  .phase{margin:0 0 15px;overflow:hidden;border:1px solid var(--border);border-radius:12px}
+  .phase-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border);background:#f8fafc}
+  .phase-tag{padding:3px 8px;border-radius:6px;background:#e8edf4;color:#334155;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  .phase-head h3{margin:0;font-size:15px;flex:1}
+  .phase-body{padding:14px 17px 7px}
+  .phase-outcome{margin:0 -17px;padding:10px 17px;border-top:1px dashed var(--border);background:#f8fafc;color:#526075;font-size:13px}
+  .checklist{list-style:none;padding:0;margin:0}
+  .checklist li{position:relative;padding-left:25px;margin:8px 0}
+  .checklist li:before{content:"";position:absolute;left:1px;top:7px;width:13px;height:13px;border:1.5px solid var(--border-strong);border-radius:4px;background:#fff}
+  .foot{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
+  @media(max-width:850px){.layout{display:block;padding:14px 12px 50px}aside{position:static;margin-bottom:18px}.section{padding:21px 19px}.hero{padding:27px 23px}.hero h1{font-size:29px}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside aria-label="Daftar isi">
+  <h2>Daftar Isi</h2>
+  <ol>
+    <li><a href="#keputusan">Ringkasan Keputusan</a></li>
+    <li><a href="#tujuan">Tujuan &amp; Batas</a></li>
+    <li><a href="#kondisi">Kondisi Saat Ini</a></li>
+    <li><a href="#arsitektur">Arsitektur Target</a></li>
+    <li><a href="#data">Model Data D1</a></li>
+    <li><a href="#auth">Alur Login</a></li>
+    <li><a href="#endpoint">Endpoint</a></li>
+    <li><a href="#cbt">Lifecycle CBT</a></li>
+    <li><a href="#frontend">Frontend</a></li>
+    <li><a href="#ownership">Ownership</a></li>
+    <li><a href="#security">Hardening</a></li>
+    <li><a href="#fase">Fase Implementasi</a></li>
+    <li><a href="#setup">Konfigurasi</a></li>
+    <li><a href="#tes">Pengujian</a></li>
+    <li><a href="#acceptance">Acceptance Criteria</a></li>
+  </ol>
+</aside>
+<main>
+  <header class="hero">
+    <span class="eyebrow">Rencana Disetujui · Belum Diimplementasikan</span>
+    <h1>Google Login &amp; CBT Terdaftar</h1>
+    <p>Satu backend Cloudflare Worker untuk guru dan siswa: guru mengelola kuiz miliknya, siswa mengikuti CBT berdasarkan email Google yang terdaftar.</p>
+    <div class="meta">
+      <span>Tanggal: 25 September 2026</span>
+      <span>Target: ±30 siswa</span>
+      <span>Auth: satu Worker</span>
+      <span>Legacy: tetap public</span>
+    </div>
+  </header>
+
+  <section class="section" id="keputusan">
+    <h2><span class="num">01</span>Ringkasan Keputusan</h2>
+    <p class="deck">Keputusan produk dan arsitektur yang dipakai dalam rencana ini.</p>
+    <div class="grid three">
+      <div class="card info"><h4>Satu backend</h4><p>Auth, guru, siswa, kuiz, dan CBT tetap berada dalam satu Cloudflare Worker.</p></div>
+      <div class="card ok"><h4>Google OAuth</h4><p>Guru dan siswa login dengan provider yang sama, tetapi role dan scope berbeda.</p></div>
+      <div class="card warn"><h4>Roster CBT</h4><p>Semua Google dapat login, hanya email yang terdaftar yang boleh mengikuti CBT.</p></div>
+      <div class="card"><h4>Milik guru</h4><p>Guru mengelola assessment baru yang dibuat atau di-generate olehnya.</p></div>
+      <div class="card"><h4>Legacy public</h4><p>Kuiz lama tetap public dan tidak dipindahkan menjadi milik guru.</p></div>
+      <div class="card ok"><h4>CBT ketat</h4><p>Satu attempt, timer server, autosave, submit idempotent, dan hasil dikendalikan guru.</p></div>
+    </div>
+  </section>
+
+  <section class="section" id="tujuan">
+    <h2><span class="num">02</span>Tujuan &amp; Batas Kerja</h2>
+    <p class="deck">Fase pertama fokus pada fondasi yang aman tanpa membongkar seluruh aplikasi lama.</p>
+    <h3>Tujuan</h3>
+    <ol>
+      <li>Mengganti password statis dengan identitas Google yang diverifikasi server.</li>
+      <li>Memberikan setiap guru akses ke kuiz miliknya tanpa akses ke kuiz guru lain.</li>
+      <li>Memeriksa email siswa terhadap roster CBT di server.</li>
+      <li>Membuat timer, identitas, attempt, dan submit tidak dapat dimanipulasi client.</li>
+      <li>Menjaga link public dan aplikasi legacy tetap kompatibel.</li>
+    </ol>
+    <h3>Termasuk</h3>
+    <ul class="checklist">
+      <li>OAuth authorization-code dengan state, nonce, dan PKCE.</li>
+      <li>Session server-side yang dapat dicabut serta role admin, teacher, student.</li>
+      <li>Ownership assessment baru dan namespace KV.</li>
+      <li>Roster email per assessment dan dua mode public/assigned.</li>
+      <li>D1 migration untuk auth, assessment, roster, attempt, dan draft.</li>
+      <li>Timer server, autosave, resume, expiry, dan submit idempotent.</li>
+      <li>UI login, pengaturan akses, laporan, dan tes auth/CBT.</li>
+    </ul>
+    <h3>Tidak termasuk fase pertama</h3>
+    <p>Proctoring kamera, billing multi-sekolah, pemindahan owner massal untuk kuiz lama, fitur berbagi antar guru, collaboration real-time, serta konversi aplikasi HTML/React lama menjadi CBT.</p>
+  </section>
+
+  <section class="section" id="kondisi">
+    <h2><span class="num">03</span>Kondisi Saat Ini</h2>
+    <p class="deck">Baseline yang harus ditangani sebelum assigned CBT diaktifkan.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Area</th><th>Baseline</th><th>Dampak</th></tr></thead>
+        <tbody>
+          <tr><td>Auth admin</td><td><code>src/auth.ts:9-12</code> memakai cookie literal <code>authenticated_user</code>.</td><td>Cookie dapat dipalsukan dan tidak membawa identitas.</td></tr>
+          <tr><td>Password</td><td><code>src/index.ts:537-556</code> masih memiliki fallback <code>admin123</code>.</td><td>Admin lama tidak aman untuk deployment publik.</td></tr>
+          <tr><td>Identitas siswa</td><td><code>src/quiz-page.ts:329-330</code> meminta nama bebas dari browser.</td><td>Identitas dapat dikarang dan tidak terkait auth.</td></tr>
+          <tr><td>Submit</td><td><code>src/index.ts:194-271</code> membuat UUID baru pada setiap request.</td><td>Double-click/retry dapat membuat hasil ganda.</td></tr>
+          <tr><td>Timer</td><td>Tidak ada <code>started_at</code>, deadline, atau attempt server.</td><td>Browser tidak boleh menjadi sumber waktu.</td></tr>
+          <tr><td>Ownership</td><td>Key KV global seperti <code>quiz:&lt;slug&gt;</code>.</td><td>Tidak ada batas kuiz antar guru.</td></tr>
+          <tr><td>Kunci</td><td><code>?print=1&amp;kunci=1</code> dapat dipanggil public.</td><td>Tidak boleh digunakan pada assigned mode.</td></tr>
+          <tr><td>D1</td><td><code>schema.sql:1-9</code> hanya memiliki <code>app_records</code>.</td><td>Belum ada user, session, roster, attempt, atau draft.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="arsitektur">
+    <h2><span class="num">04</span>Arsitektur Target</h2>
+    <p class="deck">Semua keputusan penting tetap berada di Worker; D1 menyimpan state, KV menyimpan konten.</p>
+    <div class="flow">Browser guru/siswa
+        │
+        ▼
+Cloudflare Worker (Hono)
+  ├─ Google OAuth + session server-side
+  ├─ Authorization guru/siswa
+  ├─ Public quiz compatibility
+  ├─ CBT attempt lifecycle
+  └─ Server-side grading
+        │
+        ├──────────────► D1
+        │                 users · sessions · assessments
+        │                 roster · attempts · drafts
+        │
+        └──────────────► KV
+                          legacy public content
+                          namespaced owner content</div>
+    <h3>Prinsip auth</h3>
+    <ul>
+      <li>Browser tidak boleh memberikan email, role, score, deadline, atau status attempt sebagai sumber kebenaran.</li>
+      <li>Worker memverifikasi ID token Google, signature/JWKS, state, nonce, PKCE, dan claim.</li>
+      <li>Browser menerima session aplikasi yang opaque, bukan token Google mentah.</li>
+    </ul>
+    <h3>Prinsip ownership</h3>
+    <ul>
+      <li>Assessment baru selalu memiliki <code>owner_user_id</code>.</li>
+      <li>Guru hanya dapat mengubah assessment dengan owner yang sama; admin menjadi pengecualian.</li>
+      <li>Konten baru memakai prefix seperti <code>owned:&lt;owner_id&gt;:&lt;assessment_id&gt;:&lt;version&gt;:...</code>.</li>
+      <li>Record legacy tanpa assessment D1 tetap dibaca dari key lama.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="data">
+    <h2><span class="num">05</span>Model Data D1</h2>
+    <p class="deck">Migration baru akan dibuat di <code>migrations/0001_auth_cbt.sql</code> dan diterapkan lokal, staging, lalu production.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tabel</th><th>Kolom penting</th><th>Fungsi</th></tr></thead>
+        <tbody>
+          <tr><td><code>users</code></td><td><code>id</code>, <code>google_sub</code>, <code>email</code>, <code>display_name</code>, <code>role</code></td><td>Identitas stabil dan role guru/admin/siswa.</td></tr>
+          <tr><td><code>auth_sessions</code></td><td><code>token_hash</code>, <code>user_id</code>, <code>scope</code>, <code>expires_at</code>, <code>revoked_at</code></td><td>Session opaque yang dapat dicabut.</td></tr>
+          <tr><td><code>assessments</code></td><td><code>owner_user_id</code>, <code>slug</code>, <code>mode</code>, <code>content_prefix</code>, <code>content_version</code></td><td>Metadata, owner, mode, dan operational policy.</td></tr>
+          <tr><td><code>assessment_students</code></td><td><code>assessment_id</code>, <code>email</code>, <code>display_name</code>, <code>class_name</code>, <code>active</code></td><td>Roster email yang boleh mengakses CBT.</td></tr>
+          <tr><td><code>quiz_attempts</code></td><td><code>assessment_id</code>, <code>user_id</code>, <code>status</code>, <code>started_at</code>, <code>expires_at</code></td><td>Lifecycle dan hasil attempt server.</td></tr>
+          <tr><td><code>quiz_drafts</code></td><td><code>attempt_id</code>, <code>answers_json</code>, <code>flags_json</code>, <code>revision</code></td><td>Autosave dan konflik multi-tab.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout info"><strong>Legacy tetap dibaca</strong><p><code>app_records</code> tetap digunakan untuk public/legacy submission. Data CBT authoritative berada di <code>quiz_attempts</code>; laporan dan essay grading akan membaca kedua sumber.</p></div>
+  </section>
+
+  <section class="section" id="auth">
+    <h2><span class="num">06</span>Alur Google Login</h2>
+    <p class="deck">Semua akun Google dapat login; otorisasi diberikan setelah identity dan roster diverifikasi.</p>
+    <div class="grid two">
+      <div class="card info"><h4>Guru/admin</h4><ol><li>Buka dashboard.</li><li>Worker membuat state, nonce, dan PKCE.</li><li>Google mengembalikan authorization code.</li><li>Worker menukar code dan memverifikasi ID token/JWKS.</li><li>Email harus cocok dengan policy guru/admin.</li><li>Session dibuat dan dashboard menampilkan assessment milik user.</li></ol></div>
+      <div class="card ok"><h4>Siswa</h4><ol><li>Buka link CBT.</li><li>Worker mengarahkan login Google bila belum login.</li><li>Email dicari pada <code>assessment_students</code>.</li><li>Email tidak terdaftar mendapat akses ditolak.</li><li>Email terdaftar membuat atau melanjutkan attempt.</li><li>Identitas attempt berasal dari session server.</li></ol></div>
+    </div>
+    <h3>Kontrol akses</h3>
+    <ul>
+      <li><code>ADMIN_EMAILS</code> menjadi bootstrap role admin.</li>
+      <li>Admin dapat menambah email guru melalui panel internal.</li>
+      <li>Login Google tidak otomatis memberi role guru.</li>
+      <li>Email dinormalisasi lowercase dan dibandingkan persis.</li>
+      <li>Cookie session menggunakan <code>HttpOnly</code>, <code>Secure</code>, dan <code>SameSite=Lax</code>.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="endpoint">
+    <h2><span class="num">07</span>Endpoint yang Direncanakan</h2>
+    <p class="deck">Route public lama tetap dipertahankan hanya untuk assessment legacy/public.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Akses</th><th>Fungsi</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /auth/google</code></td><td>Public</td><td>Mulai OAuth.</td></tr>
+          <tr><td><code>GET /auth/google/callback</code></td><td>Public</td><td>Verifikasi callback dan membuat session.</td></tr>
+          <tr><td><code>GET /api/logout</code></td><td>Public</td><td>Cabut session.</td></tr>
+          <tr><td><code>GET /api/me</code></td><td>Login</td><td>User, role, dan scope.</td></tr>
+          <tr><td><code>GET /api/assessments</code></td><td>Guru/Admin</td><td>Daftar assessment milik user.</td></tr>
+          <tr><td><code>POST /api/assessments</code></td><td>Guru/Admin</td><td>Buat assessment baru.</td></tr>
+          <tr><td><code>PUT /api/assessments/:id</code></td><td>Owner/Admin</td><td>Ubah metadata dan aturan.</td></tr>
+          <tr><td><code>POST /api/assessments/:id/roster</code></td><td>Owner/Admin</td><td>Tambah roster siswa.</td></tr>
+          <tr><td><code>POST /api/assessments/:slug/attempts</code></td><td>Siswa</td><td>Mulai atau resume attempt.</td></tr>
+          <tr><td><code>GET /api/attempts/:id</code></td><td>Pemilik attempt</td><td>Status, server time, deadline, draft.</td></tr>
+          <tr><td><code>PATCH /api/attempts/:id/draft</code></td><td>Pemilik attempt</td><td>Autosave draft.</td></tr>
+          <tr><td><code>POST /api/attempts/:id/submit</code></td><td>Pemilik attempt</td><td>Finalisasi idempotent.</td></tr>
+          <tr><td><code>GET /api/assessments/:id/results</code></td><td>Owner/Admin</td><td>Laporan hasil.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn"><strong>Route legacy</strong><p><code>/api/save/:slug</code> dan <code>/api/submit/:slug</code> hanya boleh untuk public/legacy. Assigned CBT tidak boleh membuat attempt melalui route tersebut.</p></div>
+  </section>
+
+  <section class="section" id="cbt">
+    <h2><span class="num">08</span>Lifecycle CBT</h2>
+    <p class="deck">Server adalah sumber kebenaran untuk waktu, status, identitas, dan hasil.</p>
+    <ol>
+      <li>Guru membuat assessment assigned dan menambah roster email.</li>
+      <li>Guru mengatur duration, deadline, max attempts, dan release hasil.</li>
+      <li>Siswa login Google dan lolos pemeriksaan roster.</li>
+      <li>Worker membuat attempt dengan <code>started_at</code> dan <code>expires_at</code>.</li>
+      <li>Browser menghitung countdown dari server time, bukan jam lokal.</li>
+      <li>Answers di-autosave ke local cache dan D1.</li>
+      <li>Setiap request memeriksa session, attempt, deadline, dan revision.</li>
+      <li>Conditional update memastikan submit hanya berhasil satu kali.</li>
+      <li>Retry submit mengembalikan hasil yang sama tanpa record kedua.</li>
+      <li>Setelah deadline, attempt expired dan tidak dapat diedit.</li>
+      <li>Guru dapat membuka hasil setelah policy mengizinkan.</li>
+    </ol>
+    <div class="callout danger"><strong>Tidak mempercayai client</strong><p>Email, role, attempt number, score, deadline, dan status tidak pernah dipercaya dari request body atau browser clock.</p></div>
+  </section>
+
+  <section class="section" id="frontend">
+    <h2><span class="num">09</span>Perubahan Frontend</h2>
+    <p class="deck">UI guru, student gate, dan kuis memakai state server yang sama.</p>
+    <div class="grid two">
+      <div class="card"><h4>Dashboard guru</h4><p>File: <code>src/index.ts</code>. Ganti password dengan tombol Google, filter assessment milik user, dan tampilkan mode Public/CBT.</p></div>
+      <div class="card"><h4>Editor</h4><p>File: <code>src/quiz-editor.ts</code> dan <code>public/vendor/quiz-editor.js</code>. Tambahkan mode, durasi, deadline, max attempts, dan release hasil di luar <code>QuizSpec</code>.</p></div>
+      <div class="card"><h4>Student gate</h4><p>Link assigned menampilkan login Google. Email tidak roster mendapat halaman ditolak dan tidak membuat attempt.</p></div>
+      <div class="card"><h4>Quiz page</h4><p>File: <code>src/quiz-page.ts</code> dan <code>public/vendor/quiz.css</code>. Tambahkan timer, autosave status, retry, attempt ID, serta cleanup draft setelah submit.</p></div>
+    </div>
+    <ul>
+      <li>Public quiz tetap mempertahankan flow lama.</li>
+      <li>Assigned CBT tidak menampilkan name field bebas sebagai identitas.</li>
+      <li>Kunci jawaban disembunyikan pada assigned mode sebelum policy guru.</li>
+      <li>Local storage hanya cache draft, bukan otorisasi attempt.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="ownership">
+    <h2><span class="num">10</span>Ownership Konten Baru</h2>
+    <p class="deck">Global slug tetap untuk legacy; konten baru tidak boleh saling menimpa.</p>
+    <ul>
+      <li>Assessment baru menyimpan <code>owner_user_id</code> dan <code>content_prefix</code>.</li>
+      <li>Deploy/generate baru menulis metadata D1 dan konten KV dengan prefix owner/assessment.</li>
+      <li>Guru tidak dapat mengakses atau mengubah assessment guru lain.</li>
+      <li>Slug global menjadi fallback khusus legacy public.</li>
+      <li>Transfer ownership dapat menjadi fase berikutnya; tidak diperlukan untuk MVP satu guru.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="security">
+    <h2><span class="num">11</span>Hardening Wajib</h2>
+    <p class="deck">Prasyarat sebelum assigned CBT boleh dipakai oleh siswa.</p>
+    <ol class="checklist">
+      <li>Hapus static cookie <code>authenticated_user</code>.</li>
+      <li>Hapus fallback password <code>admin123</code>.</li>
+      <li>Satukan pemeriksaan admin melalui middleware/session resolver.</li>
+      <li>Validasi CORS, payload, email, dan ownership setiap request.</li>
+      <li>Fail closed ketika grading atau parsing CBT gagal.</li>
+      <li>Kunci print/kunci pada assigned mode.</li>
+      <li>Cegah guru A mengakses report/media/source assessment guru B.</li>
+      <li>Escape semua nilai dinamis di halaman admin.</li>
+      <li>Tambahkan rate limit endpoint public dan OAuth callback.</li>
+    </ol>
+  </section>
+
+  <section class="section" id="fase">
+    <h2><span class="num">12</span>Fase Implementasi</h2>
+    <p class="deck">Urutan implementasi agar perubahan tetap dapat divalidasi di tiap tahap.</p>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 0</span><h3>Fondasi auth</h3><span class="badge info">Mulai</span></div><div class="phase-body"><ul><li>Session helper dan normalisasi user.</li><li>Google OAuth, state, nonce, PKCE, ID token/JWKS.</li><li>Ganti password login lama dan pasang secret.</li><li>Tambah tabel users dan auth_sessions.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> guru dapat login dan dashboard lama tetap hidup.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 1</span><h3>Ownership assessment</h3><span class="badge info">Milik</span></div><div class="phase-body"><ul><li>Tambah assessments dan owner lookup.</li><li>Namespace KV konten baru.</li><li>Batasi dashboard/mutations ke owner/admin.</li><li>Legacy public tetap fallback.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> guru hanya melihat dan mengelola kuiznya sendiri.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 2</span><h3>Roster dan access gate</h3></div><div class="phase-body"><ul><li>Tambah assessment_students.</li><li>Tambah form roster dan validasi email.</li><li>Arahkan link assigned ke Google login.</li><li>Tolak email yang tidak terdaftar.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> hanya siswa terdaftar yang dapat memulai CBT.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 3</span><h3>Attempt lifecycle</h3></div><div class="phase-body"><ul><li>Tambah quiz_attempts dan quiz_drafts.</li><li>Start/resume, duration, deadline, autosave, expiry.</li><li>Conditional submit dan idempotent retry.</li><li>Adaptasi grading, essay, dan reports.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> satu siswa memiliki satu attempt CBT canonical.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 4</span><h3>UI dan kompatibilitas</h3></div><div class="phase-body"><ul><li>Login page, session state, timer, autosave UI.</li><li>Perbaiki localStorage retry/cleanup.</li><li>Pertahankan public legacy.</li><li>Filter dan pagination report.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> alur guru dan siswa berjalan end-to-end.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 5</span><h3>Validasi dan rollout</h3></div><div class="phase-body"><ul><li>Migration lokal dan staging.</li><li>Google OAuth callback production/staging.</li><li>Uji dua guru dan 30 siswa.</li><li>Smoke test public legacy lalu deploy production.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> assigned CBT aktif bertahap setelah semua acceptance criteria lulus.</div></div></div>
+  </section>
+
+  <section class="section" id="setup">
+    <h2><span class="num">13</span>Konfigurasi Deployment</h2>
+    <p class="deck">Secret tidak boleh disimpan di repository atau ditulis di dokumen.</p>
+    <pre><code>GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+SESSION_SECRET
+ADMIN_EMAILS
+APP_URL</code></pre>
+    <p>Callback yang diharapkan adalah <code>/auth/google/callback</code>. Production dan staging sebaiknya memakai registration OAuth terpisah.</p>
+  </section>
+
+  <section class="section" id="tes">
+    <h2><span class="num">14</span>Pengujian</h2>
+    <p class="deck">Validasi lokal harus dilakukan sebelum migration atau deploy remote.</p>
+    <pre><code>npm test
+npm run typecheck</code></pre>
+    <h3>Minimum test cases</h3>
+    <ul>
+      <li>State, nonce, PKCE, signature, issuer, audience, expiry, dan <code>email_verified</code>.</li>
+      <li>Guru A tidak dapat membaca atau mengubah assessment guru B.</li>
+      <li>Legacy public quiz tetap dapat dibuka dan disubmit.</li>
+      <li>Email Google di luar roster ditolak dari CBT.</li>
+      <li>Guru hanya melihat assessment miliknya.</li>
+      <li>Timer tidak reset setelah reload dan jam browser tidak dapat menggeser deadline.</li>
+      <li>Draft ditolak setelah submit atau deadline.</li>
+      <li>Dua submit bersamaan menghasilkan satu final attempt.</li>
+      <li>Retry submit mengembalikan hasil yang sama.</li>
+      <li>Kunci jawaban tidak bocor pada assigned mode.</li>
+    </ul>
+  </section>
+
+  <section class="section" id="acceptance">
+    <h2><span class="num">15</span>Acceptance Criteria &amp; Milestone</h2>
+    <p class="deck">Selesai bila seluruh alur berikut benar-benar teruji.</p>
+    <div class="grid two">
+      <div class="card ok"><h4>Guru</h4><ul><li>Login Google berhasil.</li><li>Dapat membuat dan mengelola assessment miliknya.</li><li>Dapat mengatur roster dan aturan CBT.</li><li>Tidak dapat mengakses assessment guru lain.</li></ul></div>
+      <div class="card ok"><h4>Siswa</h4><ul><li>Login Google berhasil.</li><li>Hanya email roster yang dapat mulai CBT.</li><li>Timer server dan autosave bekerja.</li><li>Submit ganda tidak menghasilkan nilai ganda.</li></ul></div>
+      <div class="card info"><h4>Legacy</h4><ul><li>Link public lama tetap terbuka.</li><li>Public submit lama tetap kompatibel.</li><li>Report lama tetap dapat dibaca.</li></ul></div>
+      <div class="card warn"><h4>Rollout</h4><ul><li>Migration lokal dan staging lulus.</li><li>Uji dua guru dan 30 siswa.</li><li>Secret production terpasang.</li><li>Deploy dilakukan setelah smoke test.</li></ul></div>
+    </div>
+  </section>
+
+  <p class="foot">Rencana ini dibuat untuk implementasi bertahap. Belum ada perubahan kode aplikasi pada dokumen ini.</p>
+</main>
+</div>
+</body>
+</html>

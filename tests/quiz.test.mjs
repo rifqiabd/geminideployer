@@ -49,6 +49,19 @@ check('fitur terdeteksi (table)', spec.features.includes('table'), true);
 check('fitur terdeteksi (math)', spec.features.includes('math'), true);
 check('fitur terdeteksi (arabic)', spec.features.includes('arabic'), true);
 
+// ---------- Aksara Jawa: fitur 'jawa' ----------
+const jawaSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Kuis Basa Jawa',
+    description: '꧋ ꦲꦤ ꦕꦫꦏ',
+    questions: [{ type: 'choice', question: 'Waca iki: ꦲꦤ ꦕꦫꦏ\ntegese:\n\n꧋ ꦲꦤ ꦕꦫꦏ ꦢꦠ ꦱꦮꦭ', options: ['A', 'B'], answer: 'A' }],
+  })
+);
+check('fitur jawa terdeteksi', jawaSpec.features.includes('jawa'), true);
+const jawaHtml = renderQuizApp(jawaSpec, 'uji-jawa');
+check('paragraf aksara jawa dibungkus .q-jv', jawaHtml.includes('<div class="q-jv">'), true);
+check('aksara jawa inline dibungkus .q-jv-inline', jawaHtml.includes('q-jv-inline'), true);
+
 const grade = (answers) => gradeSubmission(spec, answers);
 
 const g1 = grade([

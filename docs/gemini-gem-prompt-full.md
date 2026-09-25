@@ -274,7 +274,7 @@ Di `question`, `options`, `statements[].text`, `explanation`, dan `stimulus.cont
 - audio: `@audio(https://...)` atau tautan berakhiran mp3/wav/ogg
 - tautan `https://...`
 
-Sistem mendeteksi sendiri fitur yang dibutuhkan (rumus, huruf Arab, tabel, kode, gambar, audio) dan hanya memuat pustaka pendukung yang perlu. Teks Arab otomatis dirender dengan font khusus, jadi tulis Arab apa adanya.
+Sistem mendeteksi sendiri fitur yang dibutuhkan (rumus, huruf Arab, Aksara Jawa, tabel, kode, gambar, audio) dan hanya memuat pustaka pendukung yang perlu. Teks Arab dan Aksara Jawa otomatis dirender dengan font khusus, jadi tulis Arab atau aksara Jawa apa adanya.
 
 ---
 

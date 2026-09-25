@@ -17,6 +17,7 @@ import {
   AUDIO_EXT,
   FEATURE_ALIASES,
   IMAGE_EXT,
+  JAVANESE_RUN,
   MAX_QUESTIONS,
   QuizError,
   TYPE_ALIASES,
@@ -836,6 +837,7 @@ export function detectFeatures(rawText: string, questions: QuizQuestion[]): Set<
   const found = new Set<Feature>();
   if (/\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\[a-zA-Z]{2,}/.test(blob)) found.add('math');
   if (ARABIC_RUN.test(blob)) found.add('arabic');
+  if (JAVANESE_RUN.test(blob)) found.add('jawa');
   if (/```/.test(blob)) found.add('code');
   if (/^[^\S\r\n]*\|.*\|[^\S\r\n]*$/m.test(blob)) found.add('table');
   if (/!\[[^\]]*\]\([^)]+\)/.test(blob) || IMAGE_EXT.test(blob) || /media:[A-Za-z0-9_.\-]+/i.test(blob)) found.add('image');
@@ -942,7 +944,7 @@ export function parseQuizSpec(raw: string): QuizSpec {
   const removeFeatures = asStringList(pick(obj, ['without_features', 'tanpa_fitur']));
   for (const name of addFeatures) {
     const feature = FEATURE_ALIASES[name.toLowerCase().trim()];
-    if (!feature) throw new QuizError(`Fitur "${name}" tidak dikenal. Pilihan: math, arabic, image, audio, table, code.`);
+    if (!feature) throw new QuizError(`Fitur "${name}" tidak dikenal. Pilihan: math, arabic, jawa, image, audio, table, code.`);
     features.add(feature);
   }
   for (const name of removeFeatures) features.delete(FEATURE_ALIASES[name.toLowerCase().trim()]);

@@ -40,7 +40,7 @@ export type QuestionType =
   /** Memilih kata/frasa di dalam bacaan (gaya AKM literasi membaca). */
   | 'highlight';
 
-export type Feature = 'math' | 'arabic' | 'image' | 'audio' | 'table' | 'code';
+export type Feature = 'math' | 'arabic' | 'jawa' | 'image' | 'audio' | 'table' | 'code';
 
 /**
  * `all`     : poin penuh hanya kalau jawabannya persis benar (perilaku lama).
@@ -227,6 +227,9 @@ export const AUDIO_EXT = /\.(mp3|wav|m4a|ogg|oga|aac|opus)(\?|#|$)/i;
 
 export const ARABIC_RUN = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 
+// Aksara Jawa (Hanacaraka): sandhangan U+A980-A9BF, pangkon U+A9C0, angka Jawa U+A9D0-A9D9.
+export const JAVANESE_RUN = /[\uA980-\uA9DF]/;
+
 // Token gambar tanpa file: `media:nama-slot`. Gemini cuma menulis nama slotnya,
 // guru yang mengunggah fotonya lewat panel Gambar. Halaman siswa menerjemahkan
 // token ini jadi /media/<slug>/<nama-slot>.
@@ -338,6 +341,13 @@ export const FEATURE_ALIASES: Record<string, Feature> = {
   arabic: 'arabic',
   arabika: 'arabic',
   rtl: 'arabic',
+  jawa: 'jawa',
+  javanese: 'jawa',
+  aksara: 'jawa',
+  aksara_jawa: 'jawa',
+  hanacaraka: 'jawa',
+  carakan: 'jawa',
+  java: 'jawa',
   gambar: 'image',
   image: 'image',
   img: 'image',

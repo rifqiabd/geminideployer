@@ -8,8 +8,10 @@ import { registerMediaRoutes, withMediaStats } from './media-routes';
 import { registerQuizEditorRoutes } from './quiz-editor';
 import { computeItemAnalysis, renderItemAnalysis } from './quiz-report';
 import { registerEssayGradingRoutes } from './quiz-essay';
-import { deleteAllMedia } from './media';
+import { deleteAllMedia, moveAllMedia } from './media';
 import { registerGuideRoute, GEM_URL } from './guide';
+import { registerTkaStudioRoutes } from './tka-studio';
+import { safeSlug } from './auth';
 
 type Bindings = {
   STORAGE: KVNamespace;
@@ -45,6 +47,9 @@ registerEssayGradingRoutes(app);
 
 // Panduan penggunaan di /panduan
 registerGuideRoute(app);
+
+// TKA Prompt Engine di /studio (generator prompt asesmen/TKA + kelola mapel)
+registerTkaStudioRoutes(app);
 
 // Helper: Bersihkan tag markdown dari output Gemini
 function cleanGeminiMarkdown(code: string): string {
@@ -885,6 +890,10 @@ return c.html(`<!DOCTYPE html>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
           Gem Gemini
         </a>
+        <a href="/studio" class="sidebar-footer-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>
+          Prompt Engine
+        </a>
         <a href="/panduan" class="sidebar-footer-btn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg>
           Panduan
@@ -1009,6 +1018,41 @@ return c.html(`<!DOCTYPE html>
   `}
 
   ${isAuth ? `
+  <!-- Popup Ubah Judul & Alamat -->
+  <div id="edit-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 class="modal-title">
+          <span class="form-head-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg>
+          </span>
+          Ubah Judul &amp; Alamat
+        </h3>
+        <button type="button" data-edit-close class="modal-close" aria-label="Tutup">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form method="POST" action="/api/app/update" id="edit-form">
+        <input type="hidden" name="slug" id="edit-old-slug">
+        <div class="opt-group">
+          <label class="opt-cap" for="edit-title">Judul aplikasi</label>
+          <input class="form-input" type="text" id="edit-title" name="title" placeholder="Judul aplikasi">
+          <p class="opt-cap" style="margin-top:7px">Untuk kuis JSON Soal, judul ini juga mengganti judul di halaman siswa.</p>
+        </div>
+        <div class="opt-group">
+          <label class="opt-cap" for="edit-new-slug">Alamat /p/...</label>
+          <input class="form-input" type="text" id="edit-new-slug" name="new_slug" placeholder="slug-baru" style="font-family:'Geist Mono',ui-monospace,monospace">
+          <p class="opt-cap" id="edit-note-html" style="display:none;margin-top:7px;color:var(--warn)">Mode HTML/React: judul yang diganti hanya mengubah label di dashboard, bukan judul di halaman siswa.</p>
+          <p class="opt-cap" style="display:block;margin-top:7px;color:var(--warn)">Alamat lama langsung mati (tanpa redirect) setelah disimpan; media dan riwayat nilai ikut pindah ke alamat baru.</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" data-edit-close class="btn btn-ghost">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Popup Cetak / Simpan PDF -->
   <div id="print-modal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
@@ -1094,6 +1138,7 @@ return c.html(`<!DOCTYPE html>
     var icons = {
       open: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
       edit: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+      tag: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg>',
       img: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
       log: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
       print: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
@@ -1107,6 +1152,7 @@ return c.html(`<!DOCTYPE html>
     if (app.type === 'json') html += '<a class="detail-action" href="/p/' + app.slug + '/edit">' + cell(icons.edit) + 'Edit Soal</a>';
     html += '<a class="detail-action" href="/p/' + app.slug + '/media">' + cell(icons.img) + 'Atur Gambar</a>';
     html += '<a class="detail-action" href="/p/' + app.slug + '/data">' + cell(icons.log) + 'Log Data</a>';
+    html += '<button type="button" class="detail-action" data-edit-btn="' + app.slug + '">' + cell(icons.tag) + 'Judul &amp; Slug</button>';
     if (app.type === 'json') html += '<button type="button" class="detail-action" data-print-btn="' + app.slug + '">' + cell(icons.print) + 'Cetak PDF</button>';
     html += '<form method="POST" action="/api/delete" onsubmit="return confirm(&quot;Hapus aplikasi ini?&quot;)"><input type="hidden" name="slug" value="' + app.slug + '"><button type="submit" class="detail-action danger">' + cell(icons.del) + 'Hapus</button></form>';
     act.innerHTML = html;
@@ -1201,6 +1247,44 @@ return c.html(`<!DOCTYPE html>
       window.open(q, '_blank');
     });
   }
+
+  // Modal Ubah Judul & Alamat (delegated, works with dynamically-added buttons)
+  var editModal = document.getElementById('edit-modal');
+  if (editModal) {
+    function setEditOpen(open) {
+      editModal.classList.add('hidden');
+      editModal.classList.remove('flex');
+      if (open) {
+        editModal.classList.remove('hidden');
+        editModal.classList.add('flex');
+      }
+    }
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-edit-btn]');
+      if (b) {
+        var slug = b.getAttribute('data-edit-btn');
+        var app = APPDATA[slug];
+        if (!app) return;
+        document.getElementById('edit-old-slug').value = slug;
+        document.getElementById('edit-title').value = app.title || '';
+        document.getElementById('edit-new-slug').value = app.slug || '';
+        var htmlNote = document.getElementById('edit-note-html');
+        if (htmlNote) htmlNote.style.display = app.type === 'json' ? 'none' : 'block';
+        setEditOpen(true);
+      }
+    });
+    editModal.querySelectorAll('[data-edit-close]').forEach(function (b) {
+      b.addEventListener('click', function () { setEditOpen(false); });
+    });
+    editModal.addEventListener('click', function (e) { if (e.target === editModal) setEditOpen(false); });
+    var editForm = document.getElementById('edit-form');
+    if (editForm) {
+      editForm.addEventListener('submit', function () {
+        var slugged = editForm.querySelector('input[name="new_slug"]');
+        if (slugged) slugged.value = slugged.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+      });
+    }
+  }
   </script>` : ''}
 </body>
 </html>`);
@@ -1272,6 +1356,139 @@ app.post('/api/delete', async (c) => {
     await c.env.STORAGE.delete(`quiz:${slug}`);
     await c.env.STORAGE.delete(`quizsource:${slug}`);
     await deleteAllMedia(c.env, slug); // jangan tinggalkan gambar yatim di storage
+  }
+
+  return c.redirect('/');
+});
+
+// ==========================================
+// 5. UBAH JUDUL ATAU SLUG APLIKASI
+// ==========================================
+app.post('/api/app/update', async (c) => {
+  if (getCookie(c, 'auth_session') !== 'authenticated_user') {
+    return c.text('Unauthorized', 401);
+  }
+
+  const body = await c.req.parseBody();
+  const oldSlug = safeSlug((body.slug as string) || '');
+  if (!oldSlug) return c.html(errorPage('Aplikasi tidak ditemukan', 'Alamat aplikasi kosong.'), 400);
+
+  const metaRaw = await c.env.STORAGE.get(`meta:${oldSlug}`);
+  if (!metaRaw) {
+    return c.html(errorPage('Aplikasi tidak ditemukan', `Tidak ada aplikasi di /p/${oldSlug}.`), 404);
+  }
+  const meta = JSON.parse(metaRaw) as { title?: string; slug?: string; type?: string };
+
+  const nextTitle = (body.title as string || '').trim() || meta.title || oldSlug;
+  const newSlug = sanitizeSlug((body.new_slug as string || '').trim() || oldSlug);
+  const renamed = newSlug !== oldSlug;
+  const titleChanged = nextTitle !== (meta.title ?? oldSlug);
+  const type = meta.type || 'html';
+  let renderedSize = 0;
+
+  if (renamed) {
+    const clash = await c.env.STORAGE.get(`meta:${newSlug}`);
+    if (clash) {
+      return c.html(errorPage('Alamat sudah dipakai', `Sudah ada aplikasi lain di /p/${newSlug}. Pilih alamat yang lain.`), 400);
+    }
+  }
+
+  // --- Mode JSON Soal: judul bisa disinkronkan + halaman kuis digambar ulang ---
+  if (type === 'json') {
+    if (renamed || titleChanged) {
+      let source = (await c.env.STORAGE.get(`quizsource:${oldSlug}`)) ?? '';
+      let quiz: QuizSpec | null = null;
+
+      if (source) {
+        try {
+          const obj = JSON.parse(source) as Record<string, unknown>;
+          if (titleChanged) {
+            obj.title = nextTitle;
+            delete obj.judul;
+            delete obj.nama;
+            source = JSON.stringify(obj, null, 2);
+          }
+          quiz = parseQuizSpec(source);
+        } catch (error) {
+          return c.html(errorPage('JSON soal bermasalah', error instanceof QuizError ? error.message : String(error)), 400);
+        }
+      } else {
+        const specRaw = await c.env.STORAGE.get(`quiz:${oldSlug}`);
+        if (specRaw) {
+          try {
+            const spec = JSON.parse(specRaw) as QuizSpec;
+            if (titleChanged) spec.title = nextTitle;
+            source = JSON.stringify(spec);
+            quiz = parseQuizSpec(source);
+          } catch (error) {
+            return c.html(errorPage('JSON soal bermasalah', error instanceof QuizError ? error.message : String(error)), 400);
+          }
+        }
+      }
+
+      if (!quiz) {
+        return c.html(errorPage('Aplikasi tidak ditemukan', 'Tidak ada data soal yang bisa digambar ulang.'), 400);
+      }
+
+      const renderedHtml = renderQuizApp(quiz, newSlug);
+      await c.env.STORAGE.put(`html:${newSlug}`, renderedHtml);
+      await c.env.STORAGE.put(`quiz:${newSlug}`, JSON.stringify(quiz));
+      if (source) await c.env.STORAGE.put(`quizsource:${newSlug}`, source);
+      renderedSize = renderedHtml.length;
+    }
+  } else if (renamed) {
+    // HTML/React: kode milik guru tidak bisa digambar ulang — salin apa adanya.
+    const html = await c.env.STORAGE.get(`html:${oldSlug}`);
+    if (html) await c.env.STORAGE.put(`html:${newSlug}`, html);
+  }
+
+  await c.env.STORAGE.put(
+    `meta:${newSlug}`,
+    JSON.stringify({
+      ...meta,
+      title: nextTitle,
+      slug: newSlug,
+      ...(renderedSize ? { size: Math.round(renderedSize / 1024) } : {}),
+      updated_at: new Date().toISOString().substring(0, 10),
+    })
+  );
+
+  if (renamed) {
+    if (type === 'json') {
+      // Konfigurasi generate gambar (BYOK) ikut pindah kalau ada.
+      const imgCfg = await c.env.STORAGE.get(`imggencfg:${oldSlug}`);
+      if (imgCfg !== null) {
+        await c.env.STORAGE.put(`imggencfg:${newSlug}`, imgCfg);
+        await c.env.STORAGE.delete(`imggencfg:${oldSlug}`);
+      }
+    }
+
+    // Riwayat nilai pindah ke slug baru supaya Log Data & Koreksi Esai tetap utuh.
+    if (titleChanged && type === 'json') {
+      const { results } = await c.env.DB.prepare('SELECT id, payload_json FROM app_records WHERE app_slug = ?')
+        .bind(oldSlug)
+        .all();
+      for (const row of results as { id?: string; payload_json?: string }[]) {
+        if (!row.id || !row.payload_json) continue;
+        try {
+          const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+          if (typeof payload.quiz_title === 'string') payload.quiz_title = nextTitle;
+          await c.env.DB.prepare('UPDATE app_records SET payload_json = ? WHERE id = ?')
+            .bind(JSON.stringify(payload), row.id)
+            .run();
+        } catch {
+          // Payload rusak: lewati baris itu, jangan gagalkan migrasi.
+        }
+      }
+    }
+    await c.env.DB.prepare('UPDATE app_records SET app_slug = ? WHERE app_slug = ?').bind(newSlug, oldSlug).run();
+
+    // Link lama mati total (tanpa redirect), media dipindahkan, key lama dibersihkan.
+    await c.env.STORAGE.delete(`html:${oldSlug}`);
+    await c.env.STORAGE.delete(`meta:${oldSlug}`);
+    await c.env.STORAGE.delete(`quiz:${oldSlug}`);
+    await c.env.STORAGE.delete(`quizsource:${oldSlug}`);
+    await moveAllMedia(c.env, oldSlug, newSlug);
   }
 
   return c.redirect('/');

@@ -10,10 +10,10 @@
  * ========================================================================== */
 
 import type { Hono } from 'hono';
-import { isAuthed, safeSlug } from './auth';
-import { collectMediaSlotsFromStored, escapeHtml, mediaContextFromRaw, mediaSlotContext, mediaSlotContextFull, parseQuizSpec, sanitizeMediaName } from './quiz';
-import { buildGeminiPrompt, generateImage, mediaGenConfig, saveGeneratedMedia, IMGGEN_MODELS } from './media-gen';
-import type { MediaGenConfig, MediaGenSettings } from './media-gen';
+import { isAuthed, safeSlug } from './auth.ts';
+import { collectMediaSlotsFromStored, escapeHtml, mediaContextFromRaw, mediaSlotContext, mediaSlotContextFull, parseQuizSpec, sanitizeMediaName } from './quiz.ts';
+import { buildGeminiPrompt, generateImage, mediaGenConfig, saveGeneratedMedia, IMGGEN_MODELS } from './media-gen.ts';
+import type { MediaGenConfig, MediaGenSettings } from './media-gen.ts';
 import {
   MAX_MEDIA_BYTES,
   deleteMedia,
@@ -23,8 +23,8 @@ import {
   putMedia,
   sniffImageType,
   suggestMediaName,
-} from './media';
-import type { MediaBindings } from './media';
+} from './media.ts';
+import type { MediaBindings } from './media.ts';
 
 // Nama gambar TIDAK boleh disaring dengan safeSlug() (dari src/auth.ts), karena
 // titik pada nama seperti `foto-1.jpg` akan ikut terbuang dan gambarnya jadi
@@ -647,65 +647,6 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script>
-
-    <div class="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4 text-xs text-violet-100 leading-relaxed">
-      <p class="font-semibold mb-1"><i class="fa-solid fa-wand-magic-sparkles text-violet-400 mr-1"></i> Buat gambar dengan AI</p>
-      ${
-        genEnabled
-          ? `Klik <b>AI</b> pada kartu slot: kotak prompnya sudah <b>terisi otomatis dari konteks soal</b> (boleh diedit),
-      lalu tunggu 10\u201330 detik. Hasilnya langsung tersimpan ke slot \u2014 tidak perlu unggah manual. Batas ${genLimit} gambar/menit.
-      Mau hasil yang lebih apik? Klik <b>Salin prompt Gemini</b>, tempel di <b>gemini.google.com</b> dengan akun Gemini
-      kamu sendiri, unduh gambarnya, lalu unggah lewat <b>Pilih / Potret Foto</b>.`
-          : `Belum ada API gambar terpasang, jadi tombol <b>AI</b> belum tampil di kartu slot. Kamu bisa <b>Pakai API gambar sendiri (BYOK)</b> di bawah ini (kunci disimpan khusus untuk aplikasi ini), atau minta admin mengatur <code class="font-mono">IMGGEN_API_URL</code> &amp; <code class="font-mono">IMGGEN_API_KEY</code>.`
-      }
-      <div class="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-violet-500/20">
-        <label class="flex items-center gap-2">
-          <span>Model:</span>
-          <select id="gen-model" class="bg-slate-900 border border-violet-500/40 rounded-lg text-xs px-2 py-1.5 text-slate-100 outline-none">
-            <option value="">Model bawaan</option>
-            ${modelOptions}
-          </select>
-        </label>
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input type="checkbox" id="gen-byok-toggle" class="accent-violet-500">
-          <span>Pakai API gambar sendiri (BYOK)</span>
-        </label>
-      </div>
-      <div id="gen-byok" class="hidden flex-col gap-2 mt-2">
-        <input id="gen-url" type="text" placeholder="Alamat API (https://...), misal proxy free-image-generation-api" class="px-2.5 py-2 bg-slate-900 border border-violet-500/40 rounded-lg text-xs text-slate-100 outline-none">
-        <input id="gen-key" type="password" placeholder="API key untuk API tersebut..." class="px-2.5 py-2 bg-slate-900 border border-violet-500/40 rounded-lg text-xs text-slate-100 outline-none">
-        <p class="text-[11px] text-violet-300/80">Format API sama seperti bawaan: kirim <code class="font-mono">prompt</code> (dan opsional <code class="font-mono">model</code>) ke alamat di atas dengan header <code class="font-mono">Authorization: Bearer &lt;key&gt;</code>, dan terima gambar mentahnya. Kunci disimpan di KV aplikasi dan hanya bisa dilihat by admin.</p>
-        <div class="flex items-center gap-2">
-          <button type="button" id="gen-save" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 rounded-lg text-xs font-semibold text-white">Simpan pengaturan</button>
-          <button type="button" id="gen-reset" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-slate-200">Pakai bawaan (hapus BYOK)</button>
-          <span id="gen-byok-status" class="text-[11px]"></span>
-        </div>
-      </div>
-    </div>
-
-    <div>
-      <h2 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up text-orange-400"></i> Unggah gambar tambahan</h2>
-      <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col sm:flex-row gap-3 sm:items-end">
-        <div class="flex-1">
-          <label class="block text-xs mb-1.5 text-slate-300 font-medium">Nama gambar (tanpa spasi)</label>
-          <input id="extra-name" type="text" placeholder="misal: peta-indonesia" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-white outline-none focus:border-orange-500">
-        </div>
-        <div class="flex-1">
-          <label class="block text-xs mb-1.5 text-slate-300 font-medium">File foto (JPG/PNG/WebP)</label>
-          <input id="extra-file" type="file" accept="image/*" class="w-full text-xs text-slate-400 file:mr-2 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-slate-700 file:text-slate-100 file:text-xs">
-        </div>
-        <button id="extra-upload" class="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-semibold whitespace-nowrap">Unggah</button>
-      </div>
-      <p id="extra-status" class="text-[11px] text-slate-400 mt-2"></p>
-    </div>
-
-    <div>
-      <h2 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i class="fa-solid fa-photo-film text-orange-400"></i> Gambar tersimpan (${items.length})</h2>
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">${gallery}</div>
-    </div>
-  </div>
-
   <script>
 (function () {
   var SLUG = ${JSON.stringify(slug)};

@@ -2,7 +2,8 @@
    quiz.css — stylesheet dasar kuis hasil generate mode "JSON Soal".
    Di-serve dari domain sendiri (Worker static assets) supaya halaman kuis
    tidak ikut mati kalau CDN diblokir. Pasangan dari /vendor/fonts/amiri-*.woff2
-   (font Arab, lisensi OFL — lihat /vendor/fonts/OFL.txt).
+   (font Arab) dan /vendor/fonts/noto-sans-javanese-*.woff2 (Aksara Jawa),
+   lisensi OFL — lihat /vendor/fonts/OFL.txt).
    ========================================================================== */
 
 @font-face {
@@ -25,6 +26,24 @@
   unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
     U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74,
     U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF;
+}
+
+@font-face {
+  font-family: 'Noto Sans Javanese';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/vendor/fonts/noto-sans-javanese-400.woff2') format('woff2');
+  unicode-range: U+A980-A9DF;
+}
+
+@font-face {
+  font-family: 'Noto Sans Javanese';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/vendor/fonts/noto-sans-javanese-700.woff2') format('woff2');
+  unicode-range: U+A980-A9DF;
 }
 
 :root {
@@ -204,6 +223,16 @@ body {
   border-radius: 11px;
 }
 .q-ar-inline { font-family: 'Amiri', serif; direction: rtl; unicode-bidi: isolate; font-size: 1.3em; }
+
+/* Teks Aksara Jawa (Hanacaraka): font Noto Sans Javanese vendored, LTR */
+.q-jv {
+  font-family: 'Noto Sans Javanese', 'Noto Sans', sans-serif;
+  direction: ltr; text-align: left; font-size: 1.3em; line-height: 2;
+  margin: 10px 0; padding: 10px 14px; background: #f8fafc;
+  border: 1px solid var(--q-border); border-left: 4px solid var(--q-brand);
+  border-radius: 11px;
+}
+.q-jv-inline { font-family: 'Noto Sans Javanese', 'Noto Sans', sans-serif; font-size: 1.2em; }
 
 /* Rumus */
 .katex-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strategi Publish, Diferensiasi, dan Sosialisasi</title>
+<style>
+  :root{
+    --bg:#f3f6f8;
+    --surface:#ffffff;
+    --surface-alt:#f8fafc;
+    --text:#172033;
+    --muted:#5e6b7e;
+    --border:#dfe6ed;
+    --border-strong:#c8d2df;
+    --accent:#0f766e;
+    --accent-dark:#115e59;
+    --accent-soft:#ecfdf5;
+    --orange:#c2410c;
+    --orange-soft:#fff4eb;
+    --blue:#1d4ed8;
+    --blue-soft:#eff4ff;
+    --green:#047857;
+    --green-soft:#ecfdf5;
+    --amber:#a16207;
+    --amber-soft:#fff8e7;
+    --red:#b42318;
+    --red-soft:#fff1f0;
+    --code:#172033;
+    --code-text:#dbeafe;
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.68 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent-dark);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible{outline:3px solid #f59e0b;outline-offset:3px;border-radius:5px}
+  code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+  code{font-size:.88em}
+  .skip-link{position:absolute;left:12px;top:-80px;z-index:10;padding:9px 13px;background:var(--text);color:#fff;border-radius:8px}
+  .skip-link:focus{top:12px}
+  .layout{display:grid;grid-template-columns:258px minmax(0,1fr);gap:36px;max-width:1320px;margin:0 auto;padding:24px 22px 80px}
+  aside{position:sticky;top:20px;align-self:start;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:17px 14px;box-shadow:0 8px 24px rgba(15,23,42,.04)}
+  aside h2{margin:0 0 10px;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+  aside ol{list-style:none;counter-reset:nav;margin:0;padding:0}
+  aside li{counter-increment:nav;margin:2px 0}
+  aside a{display:block;border-radius:8px;color:#46536a;padding:6px 9px;font-size:13px;line-height:1.35}
+  aside a:hover{background:var(--accent-soft);color:var(--accent-dark);text-decoration:none}
+  main{min-width:0}
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:36px 37px 32px;color:#fff;background:linear-gradient(135deg,#102a43 0%,#183b56 57%,#0f766e 145%);box-shadow:0 14px 34px rgba(15,23,42,.14)}
+  .hero:after{content:"";position:absolute;right:-112px;top:-128px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(251,146,60,.35),transparent 68%)}
+  .eyebrow{display:inline-block;border:1px solid rgba(153,246,228,.34);background:rgba(15,118,110,.25);color:#ccfbf1;border-radius:999px;padding:4px 11px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+  .hero h1{position:relative;z-index:1;max-width:820px;margin:15px 0 9px;font-size:clamp(27px,4vw,40px);line-height:1.12;letter-spacing:-.03em}
+  .hero p{position:relative;z-index:1;max-width:780px;margin:0;color:#d7e5ef;font-size:17px}
+  .meta{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .meta span{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);border-radius:999px;padding:5px 11px;color:#edf7f7;font-size:12px}
+  .section{margin-top:22px;padding:28px 30px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 5px 20px rgba(15,23,42,.035)}
+  .section>h2{display:flex;align-items:baseline;gap:10px;margin:0 0 5px;font-size:22px;letter-spacing:-.02em}
+  .num{display:inline-flex;align-items:center;justify-content:center;min-width:31px;height:24px;padding:0 7px;border:1px solid #bfe8df;border-radius:7px;background:var(--accent-soft);color:var(--accent-dark);font-size:11px;font-weight:800;letter-spacing:.03em;flex:none}
+  .deck{margin:0 0 20px;padding-bottom:15px;border-bottom:1px solid var(--border);color:var(--muted)}
+  h3{margin:26px 0 8px;font-size:17px;letter-spacing:-.01em}
+  h4{margin:0 0 7px;font-size:14.5px}
+  p{margin:0 0 13px}
+  ul,ol{margin:0 0 15px;padding-left:23px}
+  li{margin:6px 0}
+  li>ul,li>ol{margin-top:6px}
+  .grid{display:grid;gap:14px}
+  .grid.two{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .grid.three{grid-template-columns:repeat(auto-fit,minmax(205px,1fr))}
+  .grid.four{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{border:1px solid var(--border);border-radius:12px;padding:16px 17px;background:var(--surface-alt)}
+  .card p:last-child,.card ul:last-child,.card ol:last-child{margin-bottom:0}
+  .card.teal{background:var(--green-soft);border-color:#bde8d5}
+  .card.blue{background:var(--blue-soft);border-color:#ccdafd}
+  .card.orange{background:var(--orange-soft);border-color:#f2d4bc}
+  .card.amber{background:var(--amber-soft);border-color:#efdfb6}
+  .card.red{background:var(--red-soft);border-color:#f0c8c4}
+  .card strong{color:var(--text)}
+  .badge{display:inline-block;border:1px solid transparent;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;vertical-align:1px}
+  .badge.ok{background:var(--green-soft);color:var(--green);border-color:#bde8d5}
+  .badge.info{background:var(--blue-soft);color:var(--blue);border-color:#ccdafd}
+  .badge.warn{background:var(--amber-soft);color:var(--amber);border-color:#efdfb6}
+  .badge.danger{background:var(--red-soft);color:var(--red);border-color:#f0c8c4}
+  .callout{margin:16px 0;padding:15px 17px;border:1px solid var(--border);border-radius:11px;background:var(--surface-alt)}
+  .callout strong{display:block;margin-bottom:4px;font-size:14px}
+  .callout p:last-child{margin-bottom:0}
+  .callout.ok{background:var(--green-soft);border-color:#bde8d5}
+  .callout.info{background:var(--blue-soft);border-color:#ccdafd}
+  .callout.warn{background:var(--amber-soft);border-color:#efdfb6}
+  .callout.danger{background:var(--red-soft);border-color:#f0c8c4}
+  .quote{margin:16px 0;padding:19px 21px;border-left:4px solid var(--accent);border-radius:0 12px 12px 0;background:var(--accent-soft);color:#123b45;font-size:18px;font-weight:700;line-height:1.45}
+  .flow{overflow-x:auto;margin:0 0 19px;padding:18px;border:1px solid var(--border);border-radius:11px;background:#f8fafc;color:#334155;font:12.5px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace}
+  .table-wrap{overflow-x:auto;margin:0 0 19px;border:1px solid var(--border);border-radius:11px}
+  table{width:100%;min-width:650px;border-collapse:collapse;font-size:13.5px}
+  th{background:#f7f9fc;color:#526075;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:10px 13px;border-bottom:1px solid var(--border)}
+  td{padding:10px 13px;border-bottom:1px solid #edf0f5;vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:nth-child(even){background:#fcfdff}
+  td code,p code,li code,td strong{display:inline-block;border:1px solid #e3e8f0;border-radius:5px;background:#f2f4f7;padding:1px 5px;font-size:.88em}
+  td strong{border:0;background:transparent;padding:0;color:var(--text)}
+  pre{overflow-x:auto;margin:0 0 18px;border-radius:11px;padding:16px 18px;background:var(--code);color:var(--code-text);font-size:12.5px;line-height:1.6}
+  pre code{font-size:inherit}
+  .checklist{list-style:none;padding:0;margin:0}
+  .checklist li{position:relative;padding-left:25px;margin:8px 0}
+  .checklist li:before{content:"";position:absolute;left:1px;top:7px;width:13px;height:13px;border:1.5px solid var(--border-strong);border-radius:4px;background:#fff}
+  .two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+  .track{border-radius:12px;padding:17px;border:1px solid var(--border)}
+  .track.muted{background:#f8fafc}
+  .track.accent{background:var(--accent-soft);border-color:#bde8d5}
+  .track h4{margin:0 0 7px}
+  .track ul{margin-bottom:0}
+  .metric{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid var(--border);border-radius:11px;background:var(--surface-alt)}
+  .metric strong{font-size:22px;letter-spacing:-.03em;color:var(--accent-dark)}
+  .metric span{color:var(--muted);font-size:13px;text-align:right}
+  .phase{margin:0 0 15px;overflow:hidden;border:1px solid var(--border);border-radius:12px}
+  .phase-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border);background:#f8fafc}
+  .phase-tag{padding:3px 8px;border-radius:6px;background:#e8edf4;color:#334155;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  .phase-head h3{margin:0;font-size:15px;flex:1}
+  .phase-body{padding:14px 17px 7px}
+  .phase-outcome{margin:0 -17px;padding:10px 17px;border-top:1px dashed var(--border);background:#f8fafc;color:#526075;font-size:13px}
+  .timeline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .week{padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--surface-alt)}
+  .week h4{margin:0 0 8px;color:var(--accent-dark)}
+  .week ul{padding-left:19px;margin-bottom:0;font-size:13.5px}
+  .foot{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
+  .small{font-size:13px;color:var(--muted)}
+  @media (max-width:980px){
+    .layout{display:block;padding:14px 12px 54px}
+    aside{position:static;margin-bottom:18px}
+    main{min-width:0}
+    .hero{padding:28px 23px}
+    .hero h1{font-size:31px}
+    .section{padding:22px 19px}
+    .timeline{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:620px){
+    body{font-size:15px}
+    .hero h1{font-size:27px}
+    .hero p{font-size:15.5px}
+    .section>h2{font-size:19px}
+    .two-col,.timeline{grid-template-columns:1fr}
+    .metric{align-items:flex-start;flex-direction:column;gap:3px}
+    .metric span{text-align:left}
+    .table-wrap{margin-left:0;margin-right:0}
+  }
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  @media print{
+    body{background:#fff;font-size:11pt}
+    .layout{display:block;max-width:none;padding:0}
+    aside{display:none}
+    .section{box-shadow:none;break-inside:avoid;padding:0;margin-top:20px}
+    .hero{background:#102a43 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    pre{background:#f2f4f7;color:#0f172a}
+    a{color:#0f172a}
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#awal">Lewati ke konten</a>
+<div class="layout">
+  <aside aria-label="Daftar isi">
+    <h2>Daftar Isi</h2>
+    <ol>
+      <li><a href="#ringkasan">Ringkasan keputusan</a></li>
+      <li><a href="#tujuan">Tujuan &amp; batas</a></li>
+      <li><a href="#alur">Alur produk</a></li>
+      <li><a href="#nilai">Nilai utama</a></li>
+      <li><a href="#moat">Diferensiasi</a></li>
+      <li><a href="#audiens">Audiens</a></li>
+      <li><a href="#pesan">Positioning &amp; pesan</a></li>
+      <li><a href="#gate">Gerbang rilis</a></li>
+      <li><a href="#diseminasi">Diseminasi</a></li>
+      <li><a href="#sosialisasi">Sosialisasi 60 menit</a></li>
+      <li><a href="#pilot">Desain pilot</a></li>
+      <li><a href="#metrik">Metrik</a></li>
+      <li><a href="#konten">Kalender konten</a></li>
+      <li><a href="#risiko">Risiko</a></li>
+      <li><a href="#operasional">Model operasional</a></li>
+      <li><a href="#30hari">Rencana 30 hari</a></li>
+      <li><a href="#rilis">Bentuk rilis</a></li>
+      <li><a href="#keputusan">Keputusan penutup</a></li>
+    </ol>
+  </aside>
+  <main id="awal">
+    <header class="hero">
+      <span class="eyebrow">Strategi Produk · Pilot Terbatas</span>
+      <h1>Strategi Publish, Diferensiasi, dan Sosialisasi</h1>
+      <p>Cara memosisikan produk sebagai alur kerja asesmen kelas, membangun bukti melalui pilot, lalu melakukan publikasi secara bertahap.</p>
+      <div class="meta">
+        <span>Tanggal: 25 September 2026</span>
+        <span>Target: 5–10 guru</span>
+        <span>Sekolah: 1–3</span>
+        <span>Status: belum untuk publikasi luas</span>
+      </div>
+    </header>
+
+    <section class="section" id="ringkasan">
+      <h2><span class="num">01</span>Ringkasan Keputusan</h2>
+      <p class="deck">Empat keputusan yang menjadi arah strategi fase berikutnya.</p>
+      <div class="grid four">
+        <div class="card teal"><h4>Positioning</h4><p>Dari materi ajar menjadi asesmen siap pakai, dapat diedit, dibagikan, dan dianalisis.</p></div>
+        <div class="card blue"><h4>Bukti</h4><p>Demo langsung dan pilot terbatas mendahului publikasi luas.</p></div>
+        <div class="card orange"><h4>Moat</h4><p>Template lokal, kualitas, pendampingan, kepercayaan, dan rutinitas penggunaan.</p></div>
+        <div class="card amber"><h4>Gerbang</h4><p>Autentikasi, privasi, pembatasan laju, kunci jawaban, dan pengujian rute harus selesai lebih dulu.</p></div>
+      </div>
+      <div class="quote">Materi sudah siap. Mengapa masih lama untuk membuat asesmen?</div>
+    </section>
+
+    <section class="section" id="tujuan">
+      <h2><span class="num">02</span>Tujuan &amp; Batas</h2>
+      <p class="deck">Strategi ini mengukur permintaan dan kegunaan sebelum menambah luas atau kompleksitas.</p>
+      <div class="grid two">
+        <div class="card teal"><h4>Tujuan bisnis</h4><ul><li>Membuktikan permintaan nyata dari guru.</li><li>Mengubah penggunaan pertama menjadi kebiasaan.</li><li>Membangun studi kasus yang sah.</li><li>Menentukan kelayakan pilot sekolah.</li><li>Memperoleh rekomendasi dari pengguna awal.</li></ul></div>
+        <div class="card blue"><h4>Tujuan produk</h4><ul><li>Menegaskan alur prompt hingga kuis aktif.</li><li>Mempercepat kuis pertama.</li><li>Mempertahankan kontrol guru.</li><li>Membuat laporan berguna untuk keputusan.</li><li>Mengurangi hambatan setiap sesi.</li></ul></div>
+      </div>
+      <div class="callout warn"><strong>Batas fase ini</strong><p>Tidak mengklaim produk siap untuk semua sekolah, tidak menjanjikan hasil belajar yang belum diukur, dan tidak menggunakan data pribadi siswa tanpa kebijakan serta persetujuan yang benar.</p></div>
+    </section>
+
+    <section class="section" id="alur">
+      <h2><span class="num">03</span>Alur Produk</h2>
+      <p class="deck">Nilai utama muncul ketika satu alur menghubungkan pembuatan, penggunaan, dan tinjauan hasil.</p>
+      <pre>Materi atau prompt
+      ↓
+Dashboard guru
+      ↓
+JSON, HTML, atau React
+      ↓
+Publikasi ke /p/&lt;slug&gt;
+      ↓
+Siswa mengerjakan asesmen
+      ↓
+Penilaian, laporan, dan koreksi esai</pre>
+      <div class="two-col">
+        <div class="card teal"><h4>Dapat ditunjukkan</h4><ul class="checklist"><li>Kuis dengan beberapa format keluaran.</li><li>Link publik dan editor browser.</li><li>Media, upload gambar, dan AI opsional.</li><li>Penilaian server, rekap, dan analisis butir.</li><li>Tinjauan serta koreksi esai.</li><li>TKA Studio dan fitur pendidikan lain.</li></ul></div>
+        <div class="card amber"><h4>Masih direncanakan</h4><ul class="checklist"><li>Google OAuth dan sesi sisi server.</li><li>Peran guru, admin, dan siswa.</li><li>Kepemilikan asesmen dan isolasi data.</li><li>Daftar siswa untuk mode assigned/CBT.</li><li>Timer, penyimpanan otomatis, dan submit idempotent.</li><li>Audit, pagination, pembatasan laju, dan R2.</li></ul></div>
+      </div>
+      <p class="small">Rencana rinci autentikasi dan CBT berada di <code>docs/plan-google-cbt.md</code>; fitur tersebut belum dinyatakan tersedia di kode saat dokumen ini dibuat.</p>
+    </section>
+
+    <section class="section" id="nilai">
+      <h2><span class="num">04</span>Nilai Utama</h2>
+      <p class="deck">Poin plus yang harus disampaikan secara konsisten, bukan menjadi daftar fitur terpisah.</p>
+      <div class="grid three">
+        <div class="card"><h4>Satu alur</h4><p>Guru tidak perlu berpindah antara dokumen, alat generik, editor, kuis, dan spreadsheet.</p></div>
+        <div class="card"><h4>Cepat mencapai nilai</h4><p>Keberhasilan diukur dari berapa cepat guru menerbitkan asesmen pertama yang layak.</p></div>
+        <div class="card"><h4>Guru memegang kendali</h4><p>AI menghasilkan draf; guru memeriksa isi, kunci, dan media sebelum publikasi.</p></div>
+        <div class="card"><h4>Laporan terhubung</h4><p>Skor, rekap, analisis butir, dan koreksi esai berada dalam konteks yang sama.</p></div>
+        <div class="card"><h4>Tanpa coding</h4><p>Guru berfokus pada tujuan belajar dan tingkat kesulitan, bukan teknis.</p></div>
+        <div class="card"><h4>Mudah diulang</h4><p>Link publik mendukung praktik, asesmen formatif, ulangan, dan remediasi.</p></div>
+      </div>
+    </section>
+
+    <section class="section" id="moat">
+      <h2><span class="num">05</span>Diferensiasi</h2>
+      <p class="deck">Replikasi dari sisi teknis itu wajar; keunggulan yang harus dibangun berasal dari kualitas dan hubungan.</p>
+      <div class="two-col">
+        <div class="track muted"><h4>Mudah direplikasi</h4><ul><li>Tampilan dashboard.</li><li>Integrasi model AI.</li><li>Tombol pembuatan soal.</li><li>Link publik.</li><li>Format editor umum.</li></ul></div>
+        <div class="track accent"><h4>Lebih sulit direplikasi</h4><ul><li>Template kurikulum yang terbukti.</li><li>Standar tinjauan dan kualitas.</li><li>Orientasi yang membuat kuis pertama cepat.</li><li>Dukungan dan pendampingan.</li><li>Hubungan sekolah.</li><li>Reputasi dan studi kasus.</li><li>Privasi serta operasi yang andal.</li></ul></div>
+      </div>
+      <div class="callout info"><strong>Prinsip defensif</strong><p>Jangan menjadikan akses model AI, library browser, atau tampilan sebagai alasan utama untuk unggul. Fokuslah pada hasil yang dirasakan guru: kecepatan, kualitas, kepercayaan, dan kemampuan memakai kembali.</p></div>
+    </section>
+
+    <section class="section" id="audiens">
+      <h2><span class="num">06</span>Audiens &amp; Nilai</h2>
+      <p class="deck">Mulai dari guru yang tinggal memakai produk; sekolah dan MGMP adalah mitra pilot.</p>
+      <div class="table-wrap"><table><thead><tr><th>Audiens</th><th>Masalah</th><th>Nilai</th><th>Prioritas</th></tr></thead><tbody>
+        <tr><td>Guru individu</td><td>Persiapan soal dan laporan memakan waktu</td><td>Kuis siap pakai tanpa coding</td><td><span class="badge ok">Prioritas 1</span></td></tr>
+        <tr><td>Guru mata pelajaran</td><td>Format soal dan media beragam</td><td>Editor, media, dan laporan</td><td><span class="badge ok">Prioritas 1</span></td></tr>
+        <tr><td>Sekolah</td><td>Kualitas dan pemantauan tidak seragam</td><td>Template dan pendampingan</td><td><span class="badge info">Pilot</span></td></tr>
+        <tr><td>MGMP dan pelatih</td><td>Memerlukan materi pelatihan</td><td>Contoh dan pelatihan</td><td><span class="badge info">Pilot</span></td></tr>
+        <tr><td>Admin sekolah</td><td>Data, akun, dan audit harus aman</td><td>Fondasi autentikasi dan kontrol akses</td><td><span class="badge warn">Setelah penguatan</span></td></tr>
+        <tr><td>Siswa</td><td>Akses harus sederhana</td><td>Link publik yang mudah</td><td>Pengguna, bukan pembeli awal</td></tr>
+      </tbody></table></div>
+      <div class="grid three"><div class="metric"><strong>5–10</strong><span>guru pada kelompok awal</span></div><div class="metric"><strong>1–3</strong><span>sekolah pembina</span></div><div class="metric"><strong>1–2</strong><span>mata pelajaran awal</span></div></div>
+    </section>
+
+    <section class="section" id="pesan">
+      <h2><span class="num">07</span>Positioning &amp; Pesan</h2>
+      <p class="deck">Pesan harus singkat, dapat dibuktikan, dan tidak menjanjikan kemampuan yang belum ada.</p>
+      <div class="quote">Dari materi ajar menjadi asesmen siap pakai—bisa diedit, dibagikan, dan dianalisis dalam satu alur, tanpa coding.</div>
+      <div class="two-col">
+        <div class="card teal"><h4>Pesan yang konsisten</h4><ul><li>AI membantu membuat draf.</li><li>Guru memeriksa dan bertanggung jawab.</li><li>Produk mempercepat pekerjaan rutin.</li><li>Laporan membantu keputusan.</li><li>Link publik memudahkan penggunaan awal.</li></ul></div>
+        <div class="card red"><h4>Hindari</h4><ul><li>AI menggantikan guru.</li><li>Soal dijamin benar.</li><li>Semua pekerjaan hilang.</li><li>Sistem aman dari semua kecurangan.</li><li>Multi-tenant sudah siap.</li></ul></div>
+      </div>
+    </section>
+
+    <section class="section" id="gate">
+      <h2><span class="num">08</span>Gerbang Sebelum Rilis</h2>
+      <p class="deck">Penguatan keamanan adalah bagian dari strategi produk, bukan pekerjaan tambahan setelah peluncuran.</p>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">P0</span><h3>Wajib sebelum pilot sekolah</h3><span class="badge danger">Syarat mutlak</span></div><div class="phase-body"><ul class="checklist"><li>Ganti cookie statis di <code>src/auth.ts:9-12</code>.</li><li>Hapus fallback <code>admin123</code> di <code>src/index.ts:537-556</code>.</li><li>Batasi dashboard, laporan, media, sumber, dan kepemilikan.</li><li>Validasi dan escape title, URL media kaya, serta import TKA.</li><li>Cegah kebocoran kunci pada print dan parameter URL.</li><li>Tambahkan pembatasan laju dan pengujian rute, autentikasi, KV, serta D1.</li><li>Tetapkan data minimum, retensi, ekspor, dan hapus.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> risiko utama tidak ikut tersebar bersama link pilot.</div></div></div>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">P1</span><h3>Wajib sebelum multi-sekolah</h3><span class="badge warn">Skala</span></div><div class="phase-body"><ul class="checklist"><li>Identitas guru dan kepemilikan asesmen.</li><li>Namespace konten per pemilik atau asesmen.</li><li>Pembagian halaman, index, dan query terbatas.</li><li>R2 atau strategi fallback media yang jelas dan terukur.</li><li>Pemantauan biaya, error, latensi, dan AI.</li><li>SOP dukungan, insiden, backup, dan pemulihan.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> perluasan tidak menguras histori dan operasional.</div></div></div>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">P2</span><h3>Untuk CBT terdaftar</h3><span class="badge info">Nanti</span></div><div class="phase-body"><ul class="checklist"><li>Google OAuth dengan state, nonce, PKCE, dan verifikasi token.</li><li>Daftar siswa dan sesi sisi server.</li><li>Timer dan percobaan yang dikendalikan server.</li><li>Penyimpanan otomatis, melanjutkan, submit idempotent, dan kebijakan rilis hasil.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> identitas, waktu, dan percobaan tidak dipercaya dari klien.</div></div></div>
+    </section>
+
+    <section class="section" id="diseminasi">
+      <h2><span class="num">09</span>Strategi Diseminasi</h2>
+      <p class="deck">Bagikan kasus yang mudah dicoba dan buktikan dengan demo, bukan hanya janji.</p>
+      <div class="grid three">
+        <div class="card blue"><h4>1. Masalah</h4><p>Menyiapkan asesmen membutuhkan pekerjaan berulang.</p></div>
+        <div class="card teal"><h4>2. Solusi</h4><p>Satu alur dari materi hingga asesmen aktif.</p></div>
+        <div class="card orange"><h4>3. Bukti</h4><p>Demo nyata, kontrol guru, dan laporan yang dapat dibaca.</p></div>
+      </div>
+      <h3>Kanal yang direkomendasikan</h3>
+      <ul class="checklist"><li>Demo online langsung 30–45 menit.</li><li>Pelatihan sekolah 60 menit dengan latihan terbimbing.</li><li>Komunitas guru, MGMP, dan grup yang relevan.</li><li>Video pendek membuat soal, media, dan laporan.</li><li>Template dan contoh prompt yang telah diuji.</li><li>Studi kasus dengan persetujuan sekolah.</li><li>Rekomendasi dari guru yang rutin memakai.</li></ul>
+    </section>
+
+    <section class="section" id="sosialisasi">
+      <h2><span class="num">10</span>Program Sosialisasi 60 Menit</h2>
+      <p class="deck">Sesi yang berhasil membuat peserta mencoba, bukan sekadar membuat peserta mengangguk.</p>
+      <div class="table-wrap"><table><thead><tr><th>Waktu</th><th>Materi</th><th>Hasil</th></tr></thead><tbody>
+        <tr><td>0–5</td><td>Masalah dan contoh alur</td><td>Peserta memahami masalah.</td></tr>
+        <tr><td>5–15</td><td>Demo prompt hingga kuis aktif</td><td>Peserta melihat alur end-to-end.</td></tr>
+        <tr><td>15–30</td><td>Buat, edit, dan tambahkan media</td><td>Peserta membuat draf pertama.</td></tr>
+        <tr><td>30–40</td><td>Pakai link dan baca laporan</td><td>Peserta memahami umpan balik.</td></tr>
+        <tr><td>40–50</td><td>Studi kasus dan tinjauan kualitas</td><td>Peserta belajar memeriksa keluaran.</td></tr>
+        <tr><td>50–60</td><td>Diskusi, template, langkah pilot</td><td>Peserta tahu cara melanjutkan.</td></tr>
+      </tbody></table></div>
+      <div class="grid two"><div class="card"><h3>Persiapan</h3><ul class="checklist"><li>3–5 kasus relevan.</li><li>Data demo, bukan data siswa nyata.</li><li>Akun, jaringan, dan AI sudah diuji.</li><li>Tugas sederhana dan kanal dukungan tersedia.</li></ul></div><div class="card"><h3>Tindak lanjut</h3><ul class="checklist"><li>Hari 1: template dan tugas.</li><li>Hari 7: cek kuis pertama.</li><li>Hari 14: demo kuis peserta.</li><li>Hari 30: umpan balik dan keputusan.</li></ul></div></div>
+    </section>
+
+    <section class="section" id="pilot">
+      <h2><span class="num">11</span>Desain Pilot</h2>
+      <p class="deck">Pilot adalah eksperimen belajar, bukan kesempatan untuk menjual semua fitur.</p>
+      <div class="grid three"><div class="card teal"><h4>Kelompok</h4><p>5–10 guru, 1–3 sekolah, 1–2 mata pelajaran, satu kasus nyata per guru.</p></div><div class="card blue"><h4>Prasyarat</h4><p>Gerbang P0, persetujuan sekolah, aturan data, dan penanggung jawab dukungan.</p></div><div class="card amber"><h4>Privasi</h4><p>Demo dahulu bila perlu; gunakan data yang disetujui atau data simulasi bila ada kekhawatiran privasi.</p></div></div>
+      <h3>Aktivitas wajib</h3>
+      <ol><li>Guru membuat atau mengimpor materi.</li><li>Guru membuat kuis pertama.</li><li>Guru meninjau isi, kunci, bahasa, dan media.</li><li>Guru menerbitkan link.</li><li>Tiga hingga sepuluh siswa memakai data yang disetujui.</li><li>Guru membaca rekap dan melakukan tindak lanjut.</li><li>Guru membuat kuis kedua atau memakai ulang template.</li></ol>
+      <div class="grid three"><div class="card teal"><h4>Lanjut</h4><p>Aktivasi, penggunaan ulang, kepuasan, dan keamanan memenuhi target.</p></div><div class="card amber"><h4>Iterasi</h4><p>Produk berguna, tetapi orientasi, kualitas, atau kebijakan masih menghambat.</p></div><div class="card red"><h4>Jeda</h4><p>Ada insiden kritis, kebocoran data, atau tidak ada penggunaan ulang.</p></div></div>
+    </section>
+
+    <section class="section" id="metrik">
+      <h2><span class="num">12</span>Metrik Keberhasilan</h2>
+      <p class="deck">Angka berikut adalah target rekomendasi fase pilot, bukan klaim kondisi saat ini.</p>
+      <div class="table-wrap"><table><thead><tr><th>Area</th><th>Metrik</th><th>Target awal</th></tr></thead><tbody>
+        <tr><td>Aktivasi</td><td>Peserta yang menerbitkan kuis pertama</td><td><strong>≥ 80%</strong></td></tr>
+        <tr><td>Aktivasi</td><td>Waktu median sampai kuis terbit</td><td><strong>≤ 30 menit</strong></td></tr>
+        <tr><td>Adopsi</td><td>Membuat atau memakai kuis kedua dalam 14 hari</td><td><strong>≥ 50%</strong></td></tr>
+        <tr><td>Retensi</td><td>Guru aktif pada minggu ke-4</td><td><strong>≥ 60%</strong></td></tr>
+        <tr><td>Nilai</td><td>Kepuasan setelah satu siklus</td><td><strong>≥ 4,3/5</strong></td></tr>
+        <tr><td>Kualitas</td><td>Kuis yang ditolak atau perlu perbaikan besar</td><td><strong>≤ 20%</strong></td></tr>
+        <tr><td>Dukungan</td><td>Tiket yang menghambat tugas</td><td><strong>&lt; 20% peserta</strong></td></tr>
+        <tr><td>Keamanan</td><td>Insiden kritis atau kebocoran</td><td><strong>0</strong></td></tr>
+      </tbody></table></div>
+      <h3>Cara mengukur</h3><ul class="checklist"><li>Catatan event anonim: mulai, publikasi, submit, laporan dibuka, kuis kedua.</li><li>Wawancara hari 7, 14, dan 30.</li><li>Catat waktu penyiapan, revisi, hambatan, dan alasan berhenti.</li><li>Pisahkan umpan balik kualitas soal, pengalaman pengguna, kebijakan, dan dukungan.</li><li>Jangan menghitung klik tanpa hasil pemakaian nyata.</li></ul>
+    </section>
+
+    <section class="section" id="konten">
+      <h2><span class="num">13</span>Kalender Konten 30 Hari</h2>
+      <p class="deck">Urutan komunikasi bergerak dari masalah menuju bukti dan kelompok terbatas.</p>
+      <div class="timeline">
+        <div class="week"><h4>Minggu 1 — Masalah</h4><ul><li>Post: materi selesai, asesmen masih lama.</li><li>Video prompt menjadi kuis.</li><li>Halaman alur dan batasan.</li></ul></div>
+        <div class="week"><h4>Minggu 2 — Produk</h4><ul><li>Demo prompt → editor → publikasi → laporan.</li><li>Guru tetap melakukan tinjauan.</li><li>Template tanpa data pribadi.</li></ul></div>
+        <div class="week"><h4>Minggu 3 — Bukti</h4><ul><li>Studi kasus pilot.</li><li>Testimoni yang spesifik.</li><li>Sesi tanya jawab.</li></ul></div>
+        <div class="week"><h4>Minggu 4 — Pilot</h4><ul><li>Undangan kelompok terbatas.</li><li>Daftar periksa kesiapan.</li><li>Formulir minat dan follow-up pribadi.</li></ul></div>
+      </div>
+    </section>
+
+    <section class="section" id="risiko">
+      <h2><span class="num">14</span>Daftar Risiko</h2>
+      <p class="deck">Setiap risiko memiliki mitigasi dan pemicu keputusan, bukan sekadar catatan.</p>
+      <div class="table-wrap"><table><thead><tr><th>Risiko</th><th>Dampak</th><th>Mitigasi</th><th>Pemicu</th></tr></thead><tbody>
+        <tr><td>Autentikasi atau kepemilikan lemah</td><td>Akses data lintas pengguna</td><td>Sesi, peran, namespace, dan pengujian rute</td><td>Jangan publikasikan dashboard bersama.</td></tr>
+        <tr><td>Kunci jawaban bocor</td><td>Soal bocor dan kepercayaan rusak</td><td>Kunci print, kebijakan rilis, tinjauan</td><td>Hentikan mode CBT.</td></tr>
+        <tr><td>Output AI salah</td><td>Guru kehilangan waktu</td><td>Status draf, daftar tinjauan, eskalasi</td><td>Hentikan template bermasalah.</td></tr>
+        <tr><td>Data siswa disalahgunakan</td><td>Privasi dan reputasi</td><td>Data minimum, persetujuan, retensi, hapus</td><td>Jeda pilot data nyata.</td></tr>
+        <tr><td>Media menumpuk di KV</td><td>Biaya dan performa</td><td>R2, thumbnail, batas, pemantauan</td><td>Hentikan volume tinggi.</td></tr>
+        <tr><td>Dukungan terlalu berat</td><td>Tim tumbuh tanpa pengguna</td><td>FAQ, orientasi, jam konsultasi</td><td>Batasi kelompok.</td></tr>
+        <tr><td>Provider AI berubah</td><td>Output dan biaya berubah</td><td>Abstraksi provider dan fallback manual</td><td>Ubah paket atau hentikan pembuatan soal.</td></tr>
+        <tr><td>Guru mencoba sekali</td><td>Retensi rendah</td><td>Template, tindak lanjut, kasus rutin</td><td>Revisi orientasi.</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section class="section" id="operasional">
+      <h2><span class="num">15</span>Model Operasional</h2>
+      <p class="deck">Pilot membutuhkan pemilik yang jelas untuk produk, teknik, keberhasilan guru, konten, dan sekolah.</p>
+      <div class="grid two"><div class="card"><h4>Produk</h4><p>Memprioritaskan hambatan yang paling sering muncul.</p></div><div class="card"><h4>Tim teknik</h4><p>Menjaga keamanan, rute, data, dan pengujian regresi.</p></div><div class="card"><h4>Keberhasilan guru</h4><p>Mendampingi orientasi, mencatat umpan balik, menjaga dukungan.</p></div><div class="card"><h4>Konten</h4><p>Menyiapkan contoh, demo, dan materi sosialisasi.</p></div><div class="card"><h4>Kontak sekolah</h4><p>Menjadi kontak sekolah dan pemilik keputusan kelanjutan.</p></div><div class="card"><h4>Keputusan</h4><p>Lanjut, iterasi, atau jeda selalu ditulis beserta alasannya.</p></div></div>
+      <h3>Ritme mingguan</h3><ul><li>15 menit tinjauan metrik dan insiden.</li><li>30 menit tinjauan hambatan peserta.</li><li>45 menit fokus pada keputusan dan prioritas.</li><li>Sesi pendampingan atau jam konsultasi.</li><li>Satu keputusan tertulis: lanjut, iterasi, atau jeda.</li></ul>
+    </section>
+
+    <section class="section" id="30hari">
+      <h2><span class="num">16</span>Rencana 30 Hari</h2>
+      <p class="deck>Rencana eksekusi yang berakhir pada keputusan, bukan sekadar daftar tugas.</p>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">Hari 1–5</span><h3>Posisikan dan amankan</h3><span class="badge info">Mulai</span></div><div class="phase-body"><ul><li>Tetapkan positioning dan pesan utama.</li><li>Selesaikan daftar periksa Gerbang P0.</li><li>Siapkan 3–5 kasus demo dan FAQ.</li><li>Buat formulir minat dan daftar periksa pilot.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> dasar produk, keamanan, dan rekrutmen siap.</div></div></div>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">Hari 6–10</span><h3>Siapkan materi</h3></div><div class="phase-body"><ul><li>Buat demo 30 menit dan pelatihan 60 menit.</li><li>Buat template, contoh prompt, dan panduan tinjauan.</li><li>Rekam demo singkat untuk kanal sosial.</li><li>Siapkan kanal dukungan dan formulir umpan balik.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> peserta punya tugas yang jelas dan mudah.</div></div></div>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">Hari 11–15</span><h3>Rekrut pilot</h3></div><div class="phase-body"><ul><li>Ajak 5–10 guru melalui koneksi MGMP, sekolah, atau komunitas.</li><li>Pilih 1–3 sekolah dengan kebutuhan yang jelas.</li><li>Pastikan guru, kelas, persetujuan data, dan penanggung jawab sekolah.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> kelompok awal dan persetujuan data sudah jelas.</div></div></div>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">Hari 16–20</span><h3>Sosialisasi dan orientasi</h3></div><div class="phase-body"><ul><li>Jalankan sesi 60 menit.</li><li>Pastikan setiap peserta membuat draf pertama.</li><li>Catat hambatan dan pertanyaan yang berulang.</li><li>Kirim tugas dan jadwal tindak lanjut.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> kelompok awal sudah tahu langkah publikasi pertama.</div></div></div>
+      <div class="phase"><div class="phase-head"><span class="phase-tag">Hari 21–30</span><h3>Pilot dan keputusan</h3></div><div class="phase-body"><ul><li>Dampingi publikasi dan pemakaian pertama.</li><li>Catat kuis kedua, rekap, dan umpan balik.</li><li>Perbaiki hambatan yang berulang.</li><li>Pilih demo publik, iterasi, atau jeda.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> keputusan perluasan berdasarkan data pilot.</div></div></div>
+    </section>
+
+    <section class="section" id="rilis">
+      <h2><span class="num">17</span>Bentuk Rilis</h2>
+      <p class="deck">Setiap rilis menambah bukti dan kontrol, bukan hanya menambah audiens.</p>
+      <div class="grid three"><div class="card teal"><h4>Rilis 1 — Pilot</h4><ul><li>5–10 guru, 1–3 sekolah.</li><li>Undangan pribadi.</li><li>Data simulasi atau disetujui.</li><li>Jangan menjanjikan fitur yang belum ada.</li></ul></div><div class="card blue"><h4>Rilis 2 — Bukti</h4><ul><li>Satu studi kasus nyata.</li><li>Satu demo end-to-end.</li><li>Daftar tunggu kelompok berikutnya.</li><li>Hanya undangan bila gerbang belum lengkap.</li></ul></div><div class="card amber"><h4>Rilis 3 — Beta publik</h4><ul><li>Halaman pendaratan dan orientasi.</li><li>FAQ, status, dan dukungan.</li><li>Respons insiden aktif.</li><li>Harga setelah data penggunaan yang relevan.</li></ul></div></div>
+    </section>
+
+    <section class="section" id="keputusan">
+      <h2><span class="num">18</span>Keputusan Penutup</h2>
+      <p class="deck">Delapan arah yang dipakai sebagai rujukan keputusan berikutnya.</p>
+      <div class="grid two">
+        <div class="card"><h4>1–4</h4><ol><li>Fokuskan produk pada guru.</li><li>Jual alur kerja, bukan AI sebagai gimmick.</li><li>Demo langsung sebagai diferensiasi.</li><li>Mulai pilot dengan gerbang yang jelas.</li></ol></div>
+        <div class="card"><h4>5–8</h4><ol start="5"><li>Ukur publikasi pertama dan kedua.</li><li>Bangun moat lewat kualitas dan dukungan.</li><li>Publikasikan bertahap.</li><li>Iterasi atau jeda bila data tidak mendukung.</li></ol></div>
+      </div>
+      <div class="callout ok"><strong>Prinsip terakhir</strong><p>Jangan menambah janji sebelum ada proses yang dapat dibuktikan. Pilot yang menghasilkan penggunaan ulang lebih berharga daripada demo yang hanya terlihat rapi.</p></div>
+    </section>
+
+    <p class="foot">Strategi publikasi, diferensiasi, dan sosialisasi · 25 September 2026 · Pasangan dokumen: <span class="mono">docs/strategi-publish-dan-sosialisasi.md</span></p>
+  </main>
+</div>
+</body>
+</html>
