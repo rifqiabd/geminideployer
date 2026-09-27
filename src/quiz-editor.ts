@@ -12,7 +12,7 @@
 
 import type { Hono } from 'hono';
 import { isAuthed, safeSlug } from './auth';
-import { QuizError, escapeHtml, parseQuizSpec, quizToAuthoringSource, renderQuizApp } from './quiz';
+import { QuizError, escapeHtml, parseQuizSpec, quizToAuthoringSource, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
 
@@ -59,7 +59,7 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
     if (!source) {
       const explanation =
         problem ||
-        'Aplikasi ini dideploy dari kode HTML/React, bukan dari daftar soal JSON, jadi tidak punya butir soal yang bisa diedit. Deploy ulang memakai mode "JSON Soal" kalau mau memakai editor ini.';
+        'Aplikasi ini dibuat dari kode HTML, bukan dari daftar soal JSON, jadi tidak punya butir soal yang bisa diedit. Publish ulang sebagai "JSON Soal" kalau mau memakai editor ini.';
       return c.html(messagePage('Editor soal tidak tersedia untuk aplikasi ini', explanation), 400);
     }
 
@@ -290,7 +290,7 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
         ...meta,
         title,
         type: 'json',
-        updated_at: new Date().toISOString().substring(0, 10),
+        updated_at: stampNow(),
         size: (new TextEncoder().encode(html).length / 1024).toFixed(1) + ' KB',
       })
     );

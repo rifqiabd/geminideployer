@@ -282,3 +282,33 @@ export function relTime(raw: unknown, now: number = Date.now()): string {
   const shifted = new Date(ms + WIB_OFFSET_MINUTES * 60000);
   return `${shifted.getUTCDate()} ${MONTH_SHORT[shifted.getUTCMonth()]} ${shifted.getUTCFullYear()}`;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Helper slug unik                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Alfabet untuk sufiks slug. Huruf `i`, `l`, `o` dan angka `0`, `1` sengaja
+ * tidak dipakai supaya guru yang menyalin URL ke WA tidak salah ketik — `l`
+ * vs `1` dan `O` vs `0` adalah kesalahan ketik yang paling sering.
+ */
+const SLUG_SUFFIX_LETTERS = 'abcdefghjkmnpqrstuvwxyz';
+const SLUG_SUFFIX_BODY = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+/**
+ * Sufiks acak 4 karakter untuk slug yang sudah dipakai, misalnya `a1b2`.
+ *
+ * Karakter pertama dipaksa huruf supaya alamatnya tidak pernah dimulai angka.
+ * Acaknya dari `crypto.getRandomValues`, yang tersedia di Workers maupun di
+ * Node, jadi tidak perlu seeding dan tidak bisa ditebak dari slug sebelumnya.
+ * Hasilnya selalu lolos `safeSlug()` di `auth.ts` karena hanya memakai huruf
+ * kecil dan angka.
+ */
+export function randomSlugSuffix(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  let out = SLUG_SUFFIX_LETTERS[bytes[0] % SLUG_SUFFIX_LETTERS.length];
+  for (let i = 1; i < 4; i++) {
+    out += SLUG_SUFFIX_BODY[bytes[i] % SLUG_SUFFIX_BODY.length];
+  }
+  return out;
+}

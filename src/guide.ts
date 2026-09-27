@@ -132,16 +132,16 @@ export function registerGuideRoute<E extends { Bindings: object }>(app: Hono<E>)
     </section>
 
     <section class="space-y-3">
-      <div>${stepHeader('2', 'Publikasikan ke dashboard', 'Tempel JSON dari Gem, pilih mode JSON Soal, lalu tekan Publikasikan.')}</div>
+      <div>${stepHeader('2', 'Publikasikan ke dashboard', 'Tempel JSON dari Gem, lalu tekan Publikasikan.')}</div>
       <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
         <ol class="list-decimal list-inside text-xs text-slate-300 space-y-1.5 leading-relaxed">
           <li>Buka dashboard (<code class="font-mono text-amber-300">/</code>) dan login dengan kata sandi guru.</li>
-          <li>Pilih mode <b>JSON Soal</b> — aplikasi kuis dibuatkan otomatis: identitas siswa, penilaian di server, rekap, analisis butir, editor soal, dan koreksi esai.</li>
-          <li>Salin seluruh blok JSON dari Gem (dari <code class="font-mono">{</code> sampai <code class="font-mono">}</code>), tempel ke kolom <b>Isi (kode atau JSON soal)</b>.</li>
+          <li>Salin seluruh blok JSON dari Gem (dari <code class="font-mono">{</code> sampai <code class="font-mono">}</code>), tempel ke kolom <b>JSON Soal</b>.</li>
           <li>Isi <b>Judul Aplikasi</b> (jadi alamat <code class="font-mono">/p/... </code>). Boleh dikosongkan bila JSON sudah punya <code class="font-mono">title</code>.</li>
           <li>Klik <b>Publikasikan ke URL</b>.</li>
         </ol>
-        <p class="text-xs text-slate-400 leading-relaxed">Aplikasi muncul di <b>Daftar Aplikasi Aktif</b> dengan kartu berisi tombol <b>Edit</b>, <b>Gambar</b>, <b>Log Data</b>, Buka, dan Hapus. Siswa sudah bisa mengerjakan di <code class="font-mono">/p/&lt;slug&gt;</code> sekarang juga.</p>
+        <p class="text-xs text-slate-400 leading-relaxed">Aplikasi kuis dibuatkan otomatis: identitas siswa, penilaian di server, rekap, analisis butir, editor soal, dan koreksi esai. Siswa sudah bisa mengerjakan di <code class="font-mono">/p/&lt;slug&gt;</code> sekarang juga.</p>
+        <p class="text-xs text-slate-400 leading-relaxed">Kalau alamat <code class="font-mono">/p/...</code> itu sudah dipakai aplikasi lain, yang baru otomatis dapat tambahan kode di belakangnya (misal <code class="font-mono">-a1b2</code>) supaya versi lama tidak tertimpa. Kamu langsung diarahkan ke panel detail aplikasi yang baru, dan alamat publiknya bisa disalin dari sana.</p>
       </div>
     </section>
 
@@ -188,7 +188,7 @@ export function registerGuideRoute<E extends { Bindings: object }>(app: Hono<E>)
             ['<b>semua tipe</b>', 'judul & teks bacaan (stimulus) yang tampil di atas kartu soalnya — bisa diedit per soal'],
           ]
         )}
-        <p class="text-xs text-slate-400 leading-relaxed">Saat disimpan, JSON divalidasi ulang dan halaman kuis digambar ulang — siswa melihat versi baru di <b>alamat yang sama</b>, jawaban yang masuk tidak berubah. Mode <b>HTML/React</b> tidak bisa diedit di sini; perbaikannya lewat Gemini lalu deploy ulang.</p>
+        <p class="text-xs text-slate-400 leading-relaxed">Saat disimpan, JSON divalidasi ulang dan halaman kuis digambar ulang — siswa melihat versi baru di <b>alamat yang sama</b>, jawaban yang masuk tidak berubah. Ini satu-satunya cara memperbaiki soal: publish ulang lewat editor, bukan membuat alamat baru.</p>
       </div>
     </section>
 

@@ -47,7 +47,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
     const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
     if (meta.type !== 'json' || !specRaw) {
       return c.html(
-        messagePage('Hanya untuk aplikasi mode "JSON Soal"', 'Aplikasi HTML/React tidak punya daftar soal yang bisa dikoreksi di sini.'),
+        messagePage('Hanya untuk aplikasi mode "JSON Soal"', 'Aplikasi lama yang dibuat dari kode HTML tidak punya daftar soal yang bisa dikoreksi di sini.'),
         400
       );
     }

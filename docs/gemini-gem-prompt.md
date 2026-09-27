@@ -30,12 +30,7 @@ Mode aplikasi yang didukung:
 
 | Mode | Cara menulis gambar |
 | --- | --- |
-| **JSON Soal** (disarankan) | `"image": "media:nama-slot"` atau `![keterangan](media:nama-slot)` di dalam teks soal |
-| **HTML / React JSX** | `<img src="/media/<slug>/nama-slot">`, atau di JSX: `src={`/media/${getQuizSlug()}/nama-slot`}` |
-
-Untuk mode HTML/React, nama `<slug>` adalah judul aplikasi yang diketik di
-dashboard (huruf kecil, spasi jadi tanda hubung), atau bisa didapat saat runtime
-dengan fungsi `getQuizSlug()` yang sudah ada di prompt Gem.
+| **JSON Soal** (satu-satunya) | `"image": "media:nama-slot"` atau `![keterangan](media:nama-slot)` di dalam teks soal |
 
 ---
 
@@ -64,16 +59,10 @@ Aturan penulisan:
 2. Teks soal juga boleh memuat gambar di tengah-tengah dengan markdown:
    ![Tanaman hijau di pot](media:tumbuhan)
    Satu soal boleh punya lebih dari satu gambar (pakai nama slot berbeda).
-3. Jika soal ditulis sebagai aplikasi HTML/React standalone, rujuk gambar lewat
-   path relatif yang dibangun dari slug kuis, JANGAN pakai URL luar:
-     HTML : <img src="/media/" + getQuizSlug() + "/tumbuhan" alt="Tanaman">
-     JSX  : <img src={`/media/${getQuizSlug()}/tumbuhan`} alt="Tanaman" />
-   Untuk mode HTML/React, tambahkan juga satu baris catatan di Ringkasan
-   Asesmen: "Unggah foto untuk slot: tumbuhan, peta-jawa" agar guru tahu.
-4. Setelah blok kode pada BAGIAN 2, tulis satu daftar ringkas berjudul
+3. Setelah blok kode pada BAGIAN 2, tulis satu daftar ringkas berjudul
    "DAFTAR GAMBAR YANG PERLU DIUNGGAH" berisi semua nama slot yang dipakai,
    satu per baris, supaya guru bisa menyalinnya ke panel Gambar.
-5. Jangan memakai gambar untuk soal yang tidak benar-benar membutuhkannya.
+4. Jangan memakai gambar untuk soal yang tidak benar-benar membutuhkannya.
 
 Bila pengguna mengirim gambar langsung di percakapan, JANGAN mengubahnya jadi
 base64. Cukup gunakan gambar itu sebagai referensi untuk menulis soal, lalu
@@ -272,8 +261,9 @@ Saat disimpan, JSON-nya divalidasi ulang dan halaman kuis digambar ulang, jadi
 siswa langsung melihat versi barunya di alamat yang sama. Jawaban yang sudah
 masuk tidak berubah.
 
-Editor ini hanya tersedia untuk aplikasi mode JSON Soal. Untuk mode HTML/React,
-perbaikannya tetap lewat Gemini lalu deploy ulang.
+Editor ini tersedia untuk semua aplikasi. Menyimpan di sini membuat siswa
+melihat versi barunya di alamat yang sama, dan jawaban yang sudah masuk tidak
+berubah.
 
 ## Membaca hasil: analisis butir soal
 
@@ -363,5 +353,5 @@ bisa diubah dari sisi browser.
    meminta Gem menulis ulang kodenya.
 
 Catatan: urutan pemakaian bisa dibalik — unggah foto lebih dulu di panel Gambar,
-salin URL-nya, lalu pakai URL itu saat menyusun soal (praktis untuk mode
-HTML/React yang gambarnya ditulis langsung di kode).
+lalu pakai URL itu saat menyusun soal kalau lebih mudah daripada menulis nama
+slot.

@@ -62,12 +62,15 @@ Aplikasi ini mengubah **teks** (kisi-kisi, materi, atau daftar soal) menjadi **a
 ## Langkah 2: Publikasikan ke dashboard
 
 1. Buka dashboard aplikasi (`/`) dan login dengan kata sandi guru.
-2. Pilih mode **JSON Soal** (disarankan). Mode ini membuatkan seluruh aplikasi kuis otomatis: identitas siswa, penilaian di server, rekap nilai, analisis butir soal, editor soal, dan koreksi esai.
-3. **Salin seluruh blok JSON** dari Gem (mulai `{` sampai `}`) lalu tempel ke kolom **Isi (kode atau JSON soal)**.
-4. Isi **Judul Aplikasi** (jadi alamat `/p/...`). Boleh dikosongkan kalau JSON sudah punya `title`.
-5. Klik **Publikasikan ke URL**.
+2. **Salin seluruh blok JSON** dari Gem (mulai `{` sampai `}`) lalu tempel ke kolom **JSON Soal**. Tidak ada pilihan mode lain lagi: seluruh fitur kuis (identitas siswa, penilaian di server, rekap nilai, analisis butir soal, editor soal, koreksi esai) sudah otomatis dibuatkan dari JSON itu.
+3. Isi **Judul Aplikasi** (jadi alamat `/p/...`). Boleh dikosongkan kalau JSON sudah punya `title`.
+4. Klik **Publikasikan ke URL**.
 
-Aplikasi langsung muncul di **Daftar Aplikasi Aktif** dengan kartu berisi tombol: **Edit**, **Gambar**, **Log Data**, *Buka*, dan *Hapus*. Siswa bisa mulai mengerjakan di `/p/<slug>` sekarang juga.
+Setelah publish, dashboard langsung membuka **panel detail** aplikasi yang baru, dan alamat publiknya bisa disalin dari sana.
+
+> **Kalau alamatnya sudah dipakai.** Aplikasi yang sudah ada tidak akan ditimpa. Publish kedua dengan judul sama otomatis mendapat tambahan kode di belakang alamatnya, misalnya `/p/ulangan-harian-a1b2`. Kuis versi lama tetap bisa dibuka dan jawaban siswa yang sudah terkumpul tetap utuh.
+
+Siswa bisa mulai mengerjakan di `/p/<slug>` sekarang juga.
 
 ---
 
@@ -123,7 +126,7 @@ Yang bisa dilakukan di editor:
 
 Saat disimpan, JSON divalidasi ulang dan halaman kuis langsung digambar ulang — siswa melihat versi baru di **alamat yang sama**, dan jawaban yang sudah masuk tidak berubah.
 
-> Editor hanya untuk aplikasi mode **JSON Soal**. Untuk mode HTML/React, perbaikan tetap lewat Gemini lalu deploy ulang.
+Editor ini tersedia untuk semua aplikasi, jadi memperbaiki soal cukup di sini — tidak perlu publish ulang.
 
 ---
 

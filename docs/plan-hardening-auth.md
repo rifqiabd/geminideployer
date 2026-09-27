@@ -31,12 +31,22 @@ Repo ini private, jadi sponsor serangan yang biasanya kita bayangkan — orang y
 | 1 | `admin123` tetap aktif karena `APP_PASSWORD` lupa diisi saat deploy | Domain `*.workers.dev` bisa ditebak dari nama proyek, dan `admin123` adalah tebakan paling pertama yang akan dicoba. Ini bukan serangan yang rumit, ini sekadar lupa mengisi satu variabel. | Admin penuh: publish, ganti judul, hapus semua kiriman, buka kunci jawaban | T1, T2 |
 | 2 | Komputer lab dipakai bersama, sesi tidak pernah kedaluwarsa | Cookie sekarang berupa literal permanen tanpa masa berlaku. Guru login sekali di komputer kelas; siapa pun yang memakai komputer itu berikutnya langsung punya akses admin, tanpa batas waktu. | Akses admin tanpa jejak siapa yang masuk | T1, T2 (tetap wajib logout manual) |
 | 3 | Murid menambahkan `&kunci=1` pada link kuis | Pola `/p/<slug>` sudah dibagikan ke teman atau muncul di grup chat. Menambahkan satu parameter tidak butuh trik apa pun. | Kunci jawaban terbuka tanpa login | T6 |
-| 4 | Dua kelas membuat kuis dengan judul sama | `sanitizeSlug()` hanya membersihkan judul, jadi "Ulangan Harian" dari kelas 7A dan 7B menghasilkan slug identik. `POST /api/deploy` tidak punya guard tabrakan — guard itu hanya ada di `/api/app/update` (`src/index.ts:1415`). | Saling menimpa: `html:`, `meta:`, `quiz:`, dan `quizsource:` milik kuis pertama hilang tanpa peringatan | **belum ditutup** di dokumen ini |
+| 4 | Dua kelas membuat kuis dengan judul sama | `sanitizeSlug()` hanya membersihkan judul, jadi "Ulangan Harian" dari kelas 7A dan 7B menghasilkan slug identik. | ~~Saling menimpa~~ → publish kedua dapat sufiks acak, jadi keduanya hidup berdampingan | **Ditutup** (lihat catatan di bawah) |
 | 5 | Guru A melihat kunci API milik guru B | Kunci disimpan plaintext dan dikembalikan ke browser. Baru terasa begitu ada lebih dari satu guru. | Biaya API terpakai akun orang lain | T7 |
 
-Nomor 1, 2, dan 3 adalah risiko yang **benar-benar akan terjadi** di pilot ini, dan ketiganya ditutup oleh Bagian 5 dokumen ini. Nomor 4 dan 5 baru terasa kalau lebih dari satu guru aktif — dan skenario "tiga kelas berbagi satu akun admin" justru yang paling mungkin muncul duluan di sebuah sekolah.
+Nomor 1, 2, dan 3 adalah risiko yang **benar-benar akan terjadi** di pilot ini, dan ketiganya ditutup oleh Bagian 5 dokumen ini. Nomor 5 baru terasa kalau lebih dari satu guru aktif — dan skenario "tiga kelas berbagi satu akun admin" justru yang paling mungkin muncul duluan di sebuah sekolah. Nomor 4 sudah ditutup di luar auth, lewat perubahan slug di `POST /api/deploy`.
 
-> Catatan-interaksi: fitur tanggal di repo ini membuat `created_at` tidak lagi di-reset saat publish ulang. Efek sampingnya, kalau skenario 4 terjadi, kuis yang tertimpa sekarang **mewarisi tanggal buat kuis lama**, sehingga overwrite lebih sulit disadari dari tampilannya. Guard tabrakan slug di `/api/deploy` jadi lebih penting, bukan kurang.
+> Catatan-interaksi (sudah，回头): fitur tanggal membuat `created_at` tidak lagi di-reset saat publish ulang. Kalau overwrite masih mungkin, kuis yang tertimpa mewarisi tanggal buat kuis lama sehingga overwrite lebih sulit disadari. Ini alasan tambahan kenapa guard bentrok di `/api/deploy` tidak bisa ditunda.
+
+**Cara skenario 4 ditutup (di luar lingkup auth):**
+
+- `POST /api/deploy` mengecek `meta:<slug>` sebelum menyimpan. Kalau slug dasar masih bebas, app baru memakai slug itu apa adanya.
+- Kalau sudah dipakai, `uniqueSlug()` mengupai enam sufiks acak 4 karakter (`randomSlugSuffix()` di `src/quiz-util.ts:295-314`) dan memakai yang pertama yang `meta:`-nya belum ada. Karakter ambiguous `i l o 0 1` sengaja tidak dipakai supaya guru tidak salah mengetik saat menyalin URL. Cadangan terakhir: slug dasar + timestamp base36.
+- Spec yang disimpan di `quiz:<slug>` ditulis ulang ke slug akhir, sehingga penilaian server dan editor tidak menyimpang dari URL.
+- `quizsource:<slug>` sengaja menyimpan slug yang diketik guru, apa adanya. Editor menyimpan lewat rute (`/api/quiz/:slug/save`) yang selalu memakai slug alamat, jadi slug lama di dalam sumber tidak pernah menentukan alamat lagi.
+- Publish diarahkan ke `/?app=<slug>` supaya guru langsung melihat panel detail dan menyalin URL yang benar.
+- `POST /api/app/update` (`:1360`) tetap **menolak** slug yang sudah dipakai, bukan otomatis memberi sufiks. Di situ slug adalah keputusan guru yang sedang diklik, dan diam-diam memindahkannya justru membingungkan.
+- Satu-satunya app lawas, `akidah-akhlak-kelas-1` (`meta.type = "html"`), dibiarkan apa adanya. Pen النشر tidak lagi membuat app HTML/React baru, jadi tidak ada sumber baru untuk app sejenis.
 
 #### Yang tetap terbuka setelah dokumen ini selesai
 
@@ -44,7 +54,7 @@ Nomor 1, 2, dan 3 adalah risiko yang **benar-benar akan terjadi** di pilot ini, 
 - **Domain masih bisa ditebak.** Password kuat plus rate limit menurunkan risiko, tapi tidak menghapus kemungkinan domain ditemukan.
 - **Kunci jawaban hanya terkunci di server.** Jawaban tetap dikirim ke browser untuk penilaian, jadi murid yang membuka DevTools masih bisa membacanya. T6 menutup jalan pintas lewat query string, bukan semua jalan.
 - **Tidak ada batas upload per akun.** `MAX_MEDIA_PER_APP` masih dipakai sebagai `limit` saat listing, bukan sebagai batas tulis.
-- **Slug global masih ada.** Skenario 4 belum ditangani di sini.
+- **Slug global masih ada.** Dua app berbeda masih bisa berbagi slug dasar yang sama, hanya berbeda sufiks. Yang ditutup adalah overwrite diam-diam, bukan tabrakan nama itu sendiri.
 
 #### Pemicu peninjauan ulang
 
@@ -61,16 +71,16 @@ Nomor 1, 2, dan 3 adalah risiko yang **benar-benar akan terjadi** di pilot ini, 
 
 - `src/auth.ts:9` mengekspor konstanta `AUTH_SESSION = 'authenticated_user'`. `src/auth.ts:11-13` (`isAuthed`) hanya membandingkan nilai cookie dengan konstan itu.
 - Nilainya adalah **literal yang tertanam di source code**, bukan rahasia. Atribut `httpOnly` tidak menghalangi cookie yang **dibuat** dari sisi klien, jadi selama nilainya diketahui, siapa pun bisa memalsukan cookie tersebut. Untuk repo private, risikonya bukan "nilai ini bisa di-Google", melainkan nilainya akan bocor begitu repo ini dibuka atau artefak build-nya bocor.
-- `src/index.ts:28,34` masih mendeklarasikan `FALLBACK_PASSWORD = 'admin123'`, dan `src/index.ts:552` memakainya kalau `c.env.APP_PASSWORD` kosong.
+- `src/index.ts:28,34` masih mendeklarasikan `FALLBACK_PASSWORD = 'admin123'`, dan `src/index.ts:538` memakainya kalau `c.env.APP_PASSWORD` kosong.
 - Pemeriksaan auth terpecah jadi dua gaya:
 
   | Gaya | Lokasi |
   |---|---|
   | `isAuthed(c)` | `src/quiz-editor.ts:26,255`; `src/quiz-essay.ts:40,268`; `src/media-routes.ts:98,154,175,257,276,303`; `src/tka-studio.ts:908,924,967,1018,1077` |
-  | `getCookie(c, 'auth_session') !== 'authenticated_user'` | `src/index.ts:290,572,1320,1370,1391` |
+  | `getCookie(c, 'auth_session') !== 'authenticated_user'` | `src/index.ts:256,538,1270,1315,1336` |
 
 - Tidak ada `SESSION_SECRET`, tidak ada `crypto.subtle`, tidak ada `jose`. Total dependency runtime hanya `hono`.
-- `src/index.ts:566-567` (`/api/logout`) memakai `GET` lalu menghapus cookie.
+- `src/index.ts:532-533` (`/api/logout`) memakai `GET` lalu menghapus cookie.
 - Cookie sesi tidak punya `maxAge` maupun `expires`, jadi umurnya tidak terbatas sampai browser ditutup. Ini dasar skenario 2 di Bagian 1.
 
 ### CORS
@@ -83,11 +93,11 @@ Sepuluh form HTML POST yang dilindungi auth, ditambah tujuh call site `fetch()`:
 
 | # | Lokasi | Endpoint | Metode |
 |---|---|---|---|
-| 1 | `src/index.ts:849` | `/api/login` | form POST |
-| 2 | `src/index.ts:903` | `/api/delete` | form POST |
-| 3 | `src/index.ts:968` | `/api/deploy` | form POST |
-| 4 | `src/index.ts:1058` | `/api/app/update` | form POST |
-| 5 | `src/index.ts:1180` | `/api/delete` | form POST yang dibangun di string JS |
+| 1 | `src/index.ts:811` | `/api/login` | form POST |
+| 2 | `src/index.ts:865` | `/api/delete` | form POST |
+| 3 | `src/index.ts:930` | `/api/deploy` | form POST |
+| 4 | `src/index.ts:1011` | `/api/app/update` | form POST |
+| 5 | `src/index.ts:1133` | `/api/delete` | form POST yang dibangun di string JS |
 | 6 | `src/tka-studio.ts:233` | `/studio/template` | form POST |
 | 7 | `src/tka-studio.ts:253` | `/studio/subject` | form POST |
 | 8 | `src/tka-studio.ts:747` | `/studio/import` | form POST `multipart/form-data` |
@@ -101,14 +111,14 @@ Sepuluh form HTML POST yang dilindungi auth, ditambah tujuh call site `fetch()`:
 | 16 | `src/media-routes.ts:854` | `/api/media/:slug/gen-config` | `fetch` |
 | 17 | `src/media-routes.ts:877` | `/api/media/:slug/gen-config` (reset) | `fetch` |
 
-Satu-satunya proteksi sekarang adalah `SameSite=Lax` (`src/index.ts:554`), yang memblokir cookie pada POST lintas-site di browser modern. Yang tidak tertutup: browser lama, klien non-browser, dan nomor 1 (login CSRF) yang tidak punya proteksi apa pun karena memang tidak ada ambient authority.
+Satu-satunya proteksi sekarang adalah `SameSite=Lax` (`src/index.ts:520`), yang memblokir cookie pada POST lintas-site di browser modern. Yang tidak tertutup: browser lama, klien non-browser, dan nomor 1 (login CSRF) yang tidak punya proteksi apa pun karena memang tidak ada ambient authority.
 
 `docs/plan-google-cbt.md:76` dan `:436` hanya menyebut tiga form (`/api/deploy`, `/api/delete`, `/api/app/update`). Lima form TKA Studio dan header `X-CSRF-Token` untuk jalur `fetch` terlewat di sana; dokumen ini menutup keduanya.
 
 ### Kebocoran kunci jawaban
 
-- `src/index.ts:178-187` melayani `?print=1` dan `?print=1&kunci=1` dari `GET /p/:slug` yang sama sekali tidak punya auth check. `showKunci` diambil langsung dari query string di `src/index.ts:187`.
-- Dashboard sendiri hanya menampilkan link tersebut ke sesi authed (dibentuk di `src/index.ts:1267`), tetapi link dashboard bukan gerbang. Siapa pun yang tahu pola URL bisa meminta kunci jawaban.
+- `src/index.ts:140-153` melayani `?print=1` dan `?print=1&kunci=1` dari `GET /p/:slug` yang sama sekali tidak punya auth check. `showKunci` diambil langsung dari query string di `src/index.ts:153`.
+- Dashboard sendiri hanya menampilkan link tersebut ke sesi authed (dibentuk di `src/index.ts:1200`), tetapi link dashboard bukan gerbang. Siapa pun yang tahu pola URL bisa meminta kunci jawaban.
 - `docs/peta-migrasi-frontend-backend.html:370-376` mengklaim sebaliknya ("Kunci jawaban dan pembahasan tidak pernah dikirim ke browser"). Klaim itu salah dan harus dikoreksi.
 
 ### Kebocoran `apiKey` BYOK
@@ -122,10 +132,10 @@ Satu-satunya proteksi sekarang adalah `SameSite=Lax` (`src/index.ts:554`), yang 
 |---|---|---|
 | `KEY` tidak terdefinisi | `src/quiz-page.ts:746` | `localStorage.setItem(KEY, name)`; error tertelan `catch` kosong, nama siswa tidak tersimpan saat submit |
 | Batas media hanya saat `list()` | `src/media.ts:137,146` | `MAX_MEDIA_PER_APP = 200` dipakai sebagai `limit`, bukan write cap; upload ke-201 dan seterusnya sukses tapi tak terlihat |
-| Query rekap tanpa `LIMIT` | `src/index.ts:298`, `src/quiz-essay.ts:67` | `SELECT *` penuh, di-parse di memori Worker |
-| `app_records` yatim | `src/index.ts:1369-1385` | `/api/delete` menghapus KV dan media, tidak pernah menyentuh D1 |
-| Grading fail-open | `src/index.ts:227-229` | Spec yang gagal parse disimpan tanpa grading |
-| Slug global | `src/index.ts:64-71` | `sanitizeSlug()` hanya membersihkan judul. `/api/deploy` (`:1319-1347`) tidak mengecek tabrakan, jadi dua guru dengan judul sama saling menimpa `quizsource:`. Guard hanya ada di `/api/app/update` (`:1415`). Lihat skenario 4 di Bagian 1. |
+| Query rekap tanpa `LIMIT` | `src/index.ts:264`, `src/quiz-essay.ts:67` | `SELECT *` penuh, di-parse di memori Worker |
+| `app_records` yatim | `src/index.ts:1314-1334` | `/api/delete` menghapus KV dan media, tidak pernah menyentuh D1 |
+| Grading fail-open | `src/index.ts:230-232` | Spec yang gagal parse disimpan tanpa grading |
+| Slug global | `src/index.ts:55-62` | `sanitizeSlug()` hanya membersihkan judul. `/api/deploy` (`:1269-1312`) mengecek bentrok dan, kalau `meta:<slug>` sudah ada, memakai sufiks acak dari `uniqueSlug()` (`:78-85`) — jadi dua guru dengan judul sama tidak saling menimpa. `/api/app/update` (`:1360`) tetap menolak slug bentrok. Ditutup; lihat skenario 4 di Bagian 1. |
 
 ## 3. Batas Kerja
 
@@ -151,7 +161,7 @@ Satu-satunya proteksi sekarang adalah `SameSite=Lax` (`src/index.ts:554`), yang 
 - Harness tes HTTP (mock KV/D1) dan direktori `migrations/`. Ini prasyarat Fase 0 plan-google-cbt dan tercatat di sana.
 - Pemecahan admin menjadi SPA (`docs/peta-migrasi-frontend-backend.html`). Ditunda sesuai keputusan.
 - Perbaikan `KEY`, write cap media, `LIMIT` query, R2, dan `app_records` yatim. Terpisah dan independen dari auth.
-- **Guard tabrakan slug di `POST /api/deploy`.** Ini skenario 4 di Bagian 1: `/api/deploy` (`:1319-1347`) tidak mengecek apakah slug sudah dipakai, padahal `/api/app/update` sudah punya guardnya (`:1415`). Dua kelas yang membuat kuis dengan judul sama akan saling menimpa tanpa peringatan. Bukan bagian dari auth, tapi skenario yang paling mungkin benar-benar terjadi di pilot satu sekolah, jadi sebaiknya jadi PR kecil sendiri — memblokir deploy dengan pesan 409 bila `meta:<slug>` sudah ada, atau mengsuffix slug dengan angka. Karena `created_at` kini tidak lagi di-reset saat publish ulang, overwrite diam-diam juga mewarisi tanggal kuis lama, sehingga lebih sulit disadari dari tampilannya.
+- ~~**Guard tabrakan slug di `POST /api/deploy`.**~~ **Sudah dikerjakan, di luar auth.** `/api/deploy` (`:1269-1312`) sekarang mengecek `meta:<slug>` dan, kalau dipakai, memanggil `uniqueSlug()` (`:78-85`) untuk memberi sufiks acak. Ini skenario 4 di Bagian 1. Yang tersisa dari bullet ini hanya `/api/app/update` (`:1360`), dan itu memang sengaja ditolak, bukan disuffix — alasannya ada di catatan skenario 4.
 
 ## 4. Arsitektur Sesi
 
@@ -196,7 +206,7 @@ Selalu bandingkan dengan `safeEqual`.
 
 ### Form login (login CSRF)
 
-`GET /` yang belum punya sesi memasang cookie `auth_pre` berisi nilai bertanda tangan `{v:1,npc,exp}` dengan TTL 30 menit. Form login (`src/index.ts:849`) memuat `_csrf` yang diturunkan dari `npc` milik `auth_pre`. `/api/login` memverifikasi token itu sebelum memeriksa password, lalu mengabaikan `auth_pre`.
+`GET /` yang belum punya sesi memasang cookie `auth_pre` berisi nilai bertanda tangan `{v:1,npc,exp}` dengan TTL 30 menit. Form login (`src/index.ts:811`) memuat `_csrf` yang diturunkan dari `npc` milik `auth_pre`. `/api/login` memverifikasi token itu sebelum memeriksa password, lalu mengabaikan `auth_pre`.
 
 Kalau `auth_pre` tidak ada atau kedaluwarsa, form login menampilkan token kosong dan `/api/login` menjawab 403 dengan pesan "muat ulang halaman".
 
@@ -249,14 +259,14 @@ Helper base64url dan HMAC ditulis manual memakai `crypto.subtle`. Alasannya `jos
 |---|---|
 | Hapus `FALLBACK_PASSWORD` | `:33-34` |
 | Pecah `app.use('/api/*', cors())` (lihat T5) | `:37` |
-| Ganti pembacaan cookie mentah dengan `requireAdmin` atau `isAuthed` | `:277`, `:559`, `:1297`, `:1347`, `:1368` |
-| `/api/login`: konfigurasi kosong memberi 503 plus halaman instruksi; verifikasi CSRF; `safeEqual` untuk password; pasang `auth_session` dari `signSession` | `:537-551` |
-| `/api/logout` tetap `GET`, hapus `auth_session` dan `auth_pre` | `:553-556` |
-| Sisipkan `<meta name="csrf-token" content="...">` di dalam `<head>` hanya pada cabang authed | sebelum `:816` |
-| Sisipkan `<input type="hidden" name="_csrf" value="...">` di lima form | `:827`, `:880`, `:945`, `:1035`, `:1157` |
-| Kunci `?kunci=1` (lihat T6) | `:167-183` |
+| Ganti pembacaan cookie mentah dengan `requireAdmin` atau `isAuthed` | `:256`, `:538`, `:1270`, `:1315`, `:1336` |
+| `/api/login`: konfigurasi kosong memberi 503 plus halaman instruksi; verifikasi CSRF; `safeEqual` untuk password; pasang `auth_session` dari `signSession` | `:516-530` |
+| `/api/logout` tetap `GET`, hapus `auth_session` dan `auth_pre` | `:532-535` |
+| Sisipkan `<meta name="csrf-token" content="...">` di dalam `<head>` hanya pada cabang authed | sebelum `:799` |
+| Sisipkan `<input type="hidden" name="_csrf" value="...">` di lima form | `:811`, `:865`, `:930`, `:1011`, `:1133` |
+| Kunci `?kunci=1` (lihat T6) | `:140-153` |
 
-`src/index.ts:572` (`const isAuth = getCookie(...) !== ...`) menjadi `await isAuthed(c)`. Halaman dashboard dirender dari satu fungsi dengan cabang `${!isAuth ? ... : ...}` (`src/index.ts:840,1043`), jadi meta tag CSRF cukup disisipkan satu kali sebelum `</head>` dengan kondisi.
+`src/index.ts:538` (`const isAuth = getCookie(...) !== ...`) menjadi `await isAuthed(c)`. Halaman dashboard dirender dari satu fungsi dengan cabang `${!isAuth ? ... : ...}` (`src/index.ts:836,996`), jadi meta tag CSRF cukup disisipkan satu kali sebelum `</head>` dengan kondisi.
 
 ### T3 - Rate limit `/api/login`, fail-closed
 
@@ -278,7 +288,7 @@ Batasnya harus jujur: KV bersifat eventual-consistency, jadi penghitung ini adal
 ### T4 - CSRF
 
 - Lima form di `src/index.ts` dan lima form di `src/tka-studio.ts` mendapat `<input type="hidden" name="_csrf">`.
-- `src/index.ts:1180` membangun form delete dari string JS, jadi token harus masuk ke string itu, bukan ke template HTML. Lokasi yang paling mudah terlewat.
+- `src/index.ts:1133` membangun form delete dari string JS, jadi token harus masuk ke string itu, bukan ke template HTML. Lokasi yang paling mudah terlewat.
 - `src/tka-studio.ts:747` adalah `multipart/form-data`; field `_csrf` tetap bekerja tanpa tambahan.
 - Lima dari tujuh call site itu adalah POST di `src/media-routes.ts:702,719,754,854,877`, jadi tokennya harus ikut disisipkan ke inline JS panel gambar. `src/media-routes.ts:819` adalah GET baca dan tidak perlu token.
 - `public/vendor/quiz-report.js` tidak memanggil `fetch` ke API, jadi tidak tersentuh.
@@ -296,7 +306,7 @@ Karena frontend tidak pindah domain, seluruh request admin praktis menjadi same-
 
 ### T6 - Kunci `?kunci=1`
 
-Di `src/index.ts:178-187`, sebelum memanggil `renderPrintSheet`:
+Di `src/index.ts:140-153`, sebelum memanggil `renderPrintSheet`:
 
 - `kunci=1` tanpa sesi memberi 404, bukan 403. 403 mengonfirmasi bahwa kunci jawabannya memang ada.
 - `kunci=1` dengan sesi tetap seperti sekarang.
@@ -363,8 +373,8 @@ Tidak ada test route HTTP di sini. `app.request()` dengan mock KV/D1 adalah pras
 | `docs/panduan-pakai.md:19,64` | Tambah masa berlaku sesi 7 hari dan cara logout. Halaman siswa tetap tanpa login, jadi tidak berubah |
 | `src/guide.ts:107,138` | Sama seperti di atas; `guide.ts` menyajikan `/panduan` sehingga harus sinkron dengan markdown-nya |
 | `docs/plan-google-cbt.md` bagian 4 dan 12 | Tandai item auth yang sudah selesai sebagai rujukan ke dokumen ini. Karena bagian 19 menyatakan plan itu sumber kebenaran, status yang basi akan menyesatkan |
-| `docs/analisis-resource.md:24` | Temuan nomor 2 sudah tidak akurat, karena password sudah dibaca dari env sejak `src/index.ts:552`; tandai resolved beserta `file:line` |
-| `docs/analisis-resource.md:25` | Temuan nomor 3 (stored XSS) sudah **terperbaiki**: `escapeHtml()` dipakai di `src/index.ts:524-530` pada `created_at`, `user_id`, `summary`, dan `JSON.stringify(payload)`; tandai resolved |
+| `docs/analisis-resource.md:24` | Temuan nomor 2 sudah tidak akurat, karena password sudah dibaca dari env sejak `src/index.ts:538`; tandai resolved beserta `file:line` |
+| `docs/analisis-resource.md:25` | Temuan nomor 3 (stored XSS) sudah **terperbaiki**: `escapeHtml()` dipakai di `src/index.ts:490-496` pada `created_at`, `user_id`, `summary`, dan `JSON.stringify(payload)`; tandai resolved |
 | `docs/strategi-publish-dan-sosialisasi.md` bagian 8 | Centang item Gerbang P0 yang jadi selesai oleh dokumen ini; sisanya tetap terbuka |
 | `docs/peta-migrasi-frontend-backend.html:370-376` | Tambahkan koreksi bahwa `kunci=1` tidak punya auth check. Plan SPA-nya sendiri tetap ditunda |
 

@@ -562,7 +562,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
         &ldquo;Gambar belum diunggah&rdquo;. Setelah diunggah di sini, gambarnya langsung muncul tanpa perlu publish ulang
         (kalau belum kelihatan, muat ulang halaman dengan Ctrl+Shift+R supaya salinan lama di browser dibuang).
         Kalau soalmu tidak memakai token, kamu tetap bisa mengunggah gambar di bagian bawah lalu menyalin URL-nya
-        (berguna untuk mode HTML/React yang gambarnya di-hardcode).
+        (berguna untuk gambar yang direferensikan di luar teks soal).
       </p>
     </div>
     <div class="card info-card webp">

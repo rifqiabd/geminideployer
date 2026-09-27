@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
-import { QuizError, escapeHtml, gradeSubmission, mediaBaseFor, parseQuizJson, parseQuizSpec, parseStamp, relTime, renderPrintSheet, renderQuizApp, stampNow } from './quiz';
+import { QuizError, escapeHtml, gradeSubmission, mediaBaseFor, parseQuizJson, parseQuizSpec, parseStamp, randomSlugSuffix, relTime, renderPrintSheet, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
 import { registerMediaRoutes, withMediaStats } from './media-routes';
 import { registerQuizEditorRoutes } from './quiz-editor';
@@ -51,15 +51,6 @@ registerGuideRoute(app);
 // TKA Prompt Engine di /studio (generator prompt asesmen/TKA + kelola mapel)
 registerTkaStudioRoutes(app);
 
-// Helper: Bersihkan tag markdown dari output Gemini
-function cleanGeminiMarkdown(code: string): string {
-  return code
-    .trim()
-    .replace(/^```(?:html|react|jsx|javascript|js)?\r?\n/i, '')
-    .replace(/\r?\n```(?:eof)?$/i, '')
-    .trim();
-}
-
 // Helper: Format slug URL
 function sanitizeSlug(str: string): string {
   const slug = str
@@ -68,6 +59,29 @@ function sanitizeSlug(str: string): string {
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return slug || `app-${Date.now()}`;
+}
+
+/**
+ * Cari alamat yang belum dipakai untuk aplikasi baru.
+ *
+ * Publish memakai slug yang sama persis dengan judul yang diketik guru, jadi
+ * mengulang publish dengan judul yang sama tadinya menimpa aplikasi lama —
+ * termasuk soal dan jawaban siswa yang sudah masuk. Sekarang slug yang sudah
+ * dipakai diberi sufiks acak (`-a1b2`) sehingga tiap publish selalu jadi aplikasi
+ * baru dan versi lama tetap bisa dibuka.
+ *
+ * Keberadaan dicek lewat `meta:` karena itu kunci yang selalu ditulis untuk
+ * setiap aplikasi, sama seperti pengecekan bentrok di `/api/app/update`. Enam
+ * percobaan dengan 31^4 kombinasi praktis tidak mungkin habis; kalau tetap
+ * habis, jatuh ke cap waktu base36 yang juga belum pernah dipakai.
+ */
+async function uniqueSlug(env: Bindings, base: string): Promise<string> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const candidate = `${base}-${randomSlugSuffix()}`;
+    const taken = await env.STORAGE.get(`meta:${candidate}`);
+    if (!taken) return candidate;
+  }
+  return `${base}-${Date.now().toString(36)}`;
 }
 
 // Helper: Halaman error yang bisa dibaca guru (bukan teks polos)
@@ -118,55 +132,6 @@ async function saveApp(env: Bindings, entry: { title: string; slug: string; type
   );
 }
 
-// Helper: Pembungkus React JSX Standalone
-function wrapReactComponent(reactCode: string, title: string): string {
-  const processedCode = reactCode
-    .replace(/export\s+default\s+function\s+([A-Za-z0-9_]+)/, 'function $1')
-    .replace(/export\s+default\s+([A-Za-z0-9_]+);?/, '')
-    .replace(/import\s+.*?from\s+['"].*?['"];?/g, '// $& (CDN Handled)');
-
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
-    @media print { .no-print { display: none !important; } }
-  </style>
-</head>
-<body class="bg-gray-50 text-gray-900">
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect, useRef, useMemo, useCallback } = React;
-    ${processedCode}
-    (function autoMount() {
-      const candidates = ["App", "Main", "Index", "Application"];
-      let Target = null;
-      for (const name of candidates) {
-        try {
-          if (typeof window[name] === "function" || typeof eval(name) === "function") {
-            Target = eval(name);
-            break;
-          }
-        } catch (e) {}
-      }
-      const rootNode = document.getElementById("root");
-      if (Target && rootNode) {
-        ReactDOM.createRoot(rootNode).render(<Target />);
-      }
-    })();
-  </script>
-</body>
-</html>`;
-}
-
 // ==========================================
 // 1. ENDPOINT APLIKASI PUBLIK
 // ==========================================
@@ -176,7 +141,8 @@ app.get('/p/:slug', async (c) => {
   const slug = c.req.param('slug');
 
   // Mode cetak (Print to PDF) khusus kuis JSON: `?print=1` (+ `&kunci=1`).
-  // Aplikasi mode HTML/React tidak punya spec terstruktur — biarkan apa adanya.
+  // Aplikasi lama yang dulu dipublish sebagai HTML/React tidak punya spec
+  // terstruktur, jadi permintaan cetakinya dilewati dan halamannya tampil biasa.
   if (c.req.query('print') === '1') {
     const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
     if (specRaw) {
@@ -745,11 +711,6 @@ return c.html(`<!DOCTYPE html>
     .form-input:focus{border-color:var(--accent)}
     .form-input.code{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;min-height:120px;resize:vertical}
 
-    .type-pills{display:flex;gap:6px;flex-wrap:wrap}
-    .type-pill{padding:6px 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text-secondary);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
-    .type-pill:hover{border-color:var(--text-faint);color:var(--text)}
-    .type-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-
     .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
     .btn-cancel{padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-secondary);font-size:13px;cursor:pointer;font-family:inherit;transition:background .15s}
     .btn-cancel:hover{background:var(--surface-2)}
@@ -871,7 +832,7 @@ return c.html(`<!DOCTYPE html>
       </div>
 
       <div class="sidebar-new">
-        <button class="btn-new-deploy" onclick="showEmptyState(); setDeployType('json');">
+        <button class="btn-new-deploy" onclick="showEmptyState();">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Deploy Baru
         </button>
@@ -966,22 +927,13 @@ return c.html(`<!DOCTYPE html>
               </div>
             </div>
             <form method="POST" action="/api/deploy">
-              <input type="hidden" name="code_type" id="deployCodeType" value="json">
               <div class="form-row">
                 <label class="form-label" for="deployTitleInput">Judul Aplikasi <span style="color:var(--text-faint);font-weight:400">(jadi alamat /p/...)</span></label>
                 <input class="form-input" id="deployTitleInput" type="text" name="title" placeholder="Contoh: Kuis Akidah Akhlak Kelas 1">
               </div>
               <div class="form-row">
-                <label class="form-label">Jenis Kode</label>
-                <div class="type-pills">
-                  <button type="button" class="type-pill active" data-type="json" onclick="setDeployType('json')">JSON Soal</button>
-                  <button type="button" class="type-pill" data-type="html" onclick="setDeployType('html')">HTML</button>
-                  <button type="button" class="type-pill" data-type="react" onclick="setDeployType('react')">React JSX</button>
-                </div>
-              </div>
-              <div class="form-row">
-                <label class="form-label" for="deployCode">Isi Kode / JSON</label>
-                <textarea class="form-input code" id="deployCode" name="code_content" rows="7" placeholder="Tempel kode atau JSON soal di sini..." required></textarea>
+                <label class="form-label" for="deployCode">JSON Soal</label>
+                <textarea class="form-input code" id="deployCode" name="code_content" rows="7" placeholder="Tempel JSON soal dari Gem di sini..." required></textarea>
               </div>
               <div class="form-actions">
                 <button type="button" class="btn-cancel" onclick="resetForm()">Batal</button>
@@ -1065,7 +1017,7 @@ return c.html(`<!DOCTYPE html>
         <div class="opt-group">
           <label class="opt-cap" for="edit-new-slug">Alamat /p/...</label>
           <input class="form-input" type="text" id="edit-new-slug" name="new_slug" placeholder="slug-baru" style="font-family:'Geist Mono',ui-monospace,monospace">
-          <p class="opt-cap" id="edit-note-html" style="display:none;margin-top:7px;color:var(--warn)">Mode HTML/React: judul yang diganti hanya mengubah label di dashboard, bukan judul di halaman siswa.</p>
+          <p class="opt-cap" id="edit-note-legacy" style="display:none;margin-top:7px;color:var(--warn)">Aplikasi lama (HTML): judul yang diganti hanya mengubah label di dashboard, bukan judul di halaman siswa.</p>
           <p class="opt-cap" style="display:block;margin-top:7px;color:var(--warn)">Alamat lama langsung mati (tanpa redirect) setelah disimpan; media dan riwayat nilai ikut pindah ke alamat baru.</p>
         </div>
         <div class="modal-actions">
@@ -1202,29 +1154,9 @@ return c.html(`<!DOCTYPE html>
     });
   }
 
-  function setDeployType(type) {
-    var labels = {
-      json: { title: 'Deploy JSON Soal', sub: 'Tempel daftar soal dalam format JSON.', placeholder: 'Tempel JSON soal di sini...', btn: 'Publikasikan JSON Soal' },
-      html: { title: 'Deploy HTML', sub: 'Tempel halaman HTML lengkap.', placeholder: 'Tempel kode HTML di sini...', btn: 'Publikasikan HTML' },
-      react: { title: 'Deploy React', sub: 'Tempel komponen React dalam JSX.', placeholder: 'Tempel kode JSX di sini...', btn: 'Publikasikan React' }
-    };
-    document.querySelectorAll('.type-pill').forEach(function (p) {
-      p.classList.toggle('active', p.getAttribute('data-type') === type);
-    });
-    document.getElementById('deployCodeType').value = type;
-    var cfg = labels[type];
-    document.getElementById('deployTitle').textContent = cfg.title;
-    document.getElementById('deploySub').textContent = cfg.sub;
-    var code = document.getElementById('deployCode');
-    if (code) code.placeholder = cfg.placeholder;
-    if (code) code.focus();
-    document.getElementById('deployBtn').textContent = cfg.btn;
-  }
-
   function resetForm() {
     var form = document.querySelector('#deployBox form');
     if (form) form.reset();
-    setDeployType(document.getElementById('deployCodeType').value || 'json');
   }
 
   document.addEventListener('keydown', function (e) {
@@ -1291,8 +1223,8 @@ return c.html(`<!DOCTYPE html>
         document.getElementById('edit-old-slug').value = slug;
         document.getElementById('edit-title').value = app.title || '';
         document.getElementById('edit-new-slug').value = app.slug || '';
-        var htmlNote = document.getElementById('edit-note-html');
-        if (htmlNote) htmlNote.style.display = app.type === 'json' ? 'none' : 'block';
+        var legacyNote = document.getElementById('edit-note-legacy');
+        if (legacyNote) legacyNote.style.display = app.type === 'json' ? 'none' : 'block';
         setEditOpen(true);
       }
     });
@@ -1308,6 +1240,23 @@ return c.html(`<!DOCTYPE html>
       });
     }
   }
+
+  // Deep-link: /?app=<slug> langsung membuka panel detail aplikasi itu.
+  // Dipakai /api/deploy setelah publish supaya guru langsung melihat alamat
+  // publik yang baru dan tidak salah share alamat lamanya ke siswa. Query-nya
+  // lalu dibuang supaya refresh tidak memaksa panel yang sama terbuka lagi.
+  (function openAppFromQuery() {
+    var params = new URLSearchParams(window.location.search);
+    var want = params.get('app');
+    if (!want || !APPDATA[want]) return;
+    var item = null;
+    document.querySelectorAll('.sidebar-item').forEach(function (el) {
+      if (!item && el.getAttribute('data-slug') === want) item = el;
+    });
+    showDetail(item, want);
+    if (item && item.scrollIntoView) item.scrollIntoView({ block: 'nearest' });
+    window.history.replaceState(null, '', window.location.pathname);
+  })();
   </script>` : ''}
 </body>
 </html>`);
@@ -1323,47 +1272,47 @@ app.post('/api/deploy', async (c) => {
 
   const body = await c.req.parseBody();
   const formTitle = (body.title as string || '').trim();
-  const codeType = (body.code_type as string) || 'html';
   const rawCode = (body.code_content as string || '').trim();
 
   if (!rawCode) {
-    return c.html(errorPage('Isi masih kosong', 'Tempel kode HTML/React atau daftar soal JSON dulu sebelum dipublikasikan.'), 400);
+    return c.html(errorPage('Isi masih kosong', 'Tempel daftar soal JSON dulu sebelum dipublikasikan.'), 400);
   }
 
-  // ---- Mode JSON Soal: aplikasi kuisnya dibuat otomatis dari spec JSON ----
-  if (codeType === 'json') {
-    let quiz: QuizSpec | null = null;
-    let quizError = '';
-    try {
-      quiz = parseQuizSpec(rawCode);
-    } catch (err) {
-      quizError = err instanceof QuizError ? err.message : String(err);
-    }
-    if (!quiz) return c.html(errorPage('JSON soal belum valid', quizError), 400);
-
-    const title = formTitle || quiz.title || 'Kuis';
-    const slug = sanitizeSlug(quiz.slug || formTitle || quiz.title);
-
-    await saveApp(c.env, { title, slug, type: 'json', html: renderQuizApp(quiz, slug) });
-    // Spec disimpan supaya skor bisa dihitung ulang di server saat siswa mengirim jawaban.
-    await c.env.STORAGE.put(`quiz:${slug}`, JSON.stringify(quiz));
-    // JSON mentah dari guru/Gem disimpan utuh sebagai sumber kebenaran editor soal.
-    await c.env.STORAGE.put(`quizsource:${slug}`, JSON.stringify(parseQuizJson(rawCode), null, 2));
-
-    return c.redirect('/');
+  let quiz: QuizSpec | null = null;
+  let quizError = '';
+  try {
+    quiz = parseQuizSpec(rawCode);
+  } catch (err) {
+    quizError = err instanceof QuizError ? err.message : String(err);
   }
+  if (!quiz) return c.html(errorPage('JSON soal belum valid', quizError), 400);
 
-  if (!formTitle) {
-    return c.html(errorPage('Judul belum diisi', 'Mode HTML/React butuh judul aplikasi karena dipakai sebagai alamat /p/...'), 400);
-  }
+  const title = formTitle || quiz.title || 'Kuis';
+  // Slug dasar mengikuti yang diminta guru. Kalau alamat itu sudah dipakai
+  // aplikasi lain, dapet sufiks acak supaya publish kedua tidak menimpa versi
+  // lama — termasuk jawaban siswa yang sudah terkumpul di aplikasi itu.
+  const baseSlug = sanitizeSlug(quiz.slug || formTitle || quiz.title);
+  const slug = (await c.env.STORAGE.get(`meta:${baseSlug}`))
+    ? await uniqueSlug(c.env, baseSlug)
+    : baseSlug;
+  // Spec yang disimpan harus menyebut alamat yang benar, bukan slug yang dipesan
+  // guru sebelum kena sufiks, supaya editor dan spec tidak berbeda dengan URL.
+  quiz.slug = slug;
 
-  const slug = sanitizeSlug(formTitle);
-  const cleanCode = cleanGeminiMarkdown(rawCode);
-  const finalHtml = codeType === 'react' ? wrapReactComponent(cleanCode, formTitle) : cleanCode;
+  await saveApp(c.env, { title, slug, type: 'json', html: renderQuizApp(quiz, slug) });
+  // Spec disimpan supaya skor bisa dihitung ulang di server saat siswa mengirim jawaban.
+  await c.env.STORAGE.put(`quiz:${slug}`, JSON.stringify(quiz));
+  // JSON mentah dari guru/Gem disimpan utuh sebagai sumber kebenaran editor soal,
+  // termasuk `slug` yang diketik guru. Sengaja tidak disinkronkan ke slug akhir:
+  // editor menyimpan lewat rute (`/api/quiz/:slug/save`) yang memakai slug alamat,
+  // jadi slug lama di dalam sumber tidak pernah dipakai lagi untuk menentukan
+  // alamat. Kalau slug guru bentrok dan guru mem-publish ulang sumber itu,
+  // `POST /api/deploy` mendeteksi bentrok lagi dan memberi sufiks baru.
+  await c.env.STORAGE.put(`quizsource:${slug}`, JSON.stringify(parseQuizJson(rawCode), null, 2));
 
-  await saveApp(c.env, { title: formTitle, slug, type: codeType, html: finalHtml });
-
-  return c.redirect('/');
+  // `?app=` membuat dashboard langsung membuka panel detail aplikasi ini, jadi
+  // guru melihat alamat publik yang benar dan tidak salah share ke siswa.
+  return c.redirect(`/?app=${encodeURIComponent(slug)}`);
 });
 
 app.post('/api/delete', async (c) => {
@@ -1406,7 +1355,7 @@ app.post('/api/app/update', async (c) => {
   const newSlug = sanitizeSlug((body.new_slug as string || '').trim() || oldSlug);
   const renamed = newSlug !== oldSlug;
   const titleChanged = nextTitle !== (meta.title ?? oldSlug);
-  const type = meta.type || 'html';
+  const type = meta.type || 'json';
   let renderedSize = 0;
 
   if (renamed) {
@@ -1460,7 +1409,8 @@ app.post('/api/app/update', async (c) => {
       renderedSize = renderedHtml.length;
     }
   } else if (renamed) {
-    // HTML/React: kode milik guru tidak bisa digambar ulang — salin apa adanya.
+    // Aplikasi lama (dulu dipublish sebagai HTML/React) tidak punya spec soal
+    // untuk digambar ulang, jadi halamannya disalin apa adanya ke alamat baru.
     const html = await c.env.STORAGE.get(`html:${oldSlug}`);
     if (html) await c.env.STORAGE.put(`html:${newSlug}`, html);
   }
@@ -1472,7 +1422,7 @@ app.post('/api/app/update', async (c) => {
       title: nextTitle,
       slug: newSlug,
       ...(renderedSize ? { size: Math.round(renderedSize / 1024) } : {}),
-      updated_at: new Date().toISOString().substring(0, 10),
+      updated_at: stampNow(),
     })
   );
 
