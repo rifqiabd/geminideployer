@@ -3,7 +3,7 @@
     "hono": "^4.13.8"
   },
   "scripts": {
-    "test": "node tests/quiz.test.mjs",
+    "test": "node tests/quiz.test.mjs && node tests/meta-date.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
-import { QuizError, escapeHtml, gradeSubmission, mediaBaseFor, parseQuizJson, parseQuizSpec, renderPrintSheet, renderQuizApp } from './quiz';
+import { QuizError, escapeHtml, gradeSubmission, mediaBaseFor, parseQuizJson, parseQuizSpec, parseStamp, relTime, renderPrintSheet, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
 import { registerMediaRoutes, withMediaStats } from './media-routes';
 import { registerQuizEditorRoutes } from './quiz-editor';
@@ -92,14 +92,27 @@ function errorPage(title: string, message: string): string {
 
 // Helper: Simpan HTML aplikasi + metadatanya ke KV
 async function saveApp(env: Bindings, entry: { title: string; slug: string; type: string; html: string }) {
+  // Baca metadata lama dulu supaya `created_at` tidak hilang kalau aplikasi yang
+  // sama di-publish ulang. Tanpa ini, tanggal dibuat ikut melompat ke hari ini
+  // setiap kali kuis di-replace, dan urutan sidebar jadi tidak jujur.
+  let prev: Record<string, unknown> | null = null;
+  try {
+    const raw = await env.STORAGE.get(`meta:${entry.slug}`);
+    if (raw) prev = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    prev = null;
+  }
+
   await env.STORAGE.put(`html:${entry.slug}`, entry.html);
   await env.STORAGE.put(
     `meta:${entry.slug}`,
     JSON.stringify({
+      ...prev,
       title: entry.title,
       slug: entry.slug,
       type: entry.type,
-      created_at: new Date().toISOString().substring(0, 10),
+      created_at: prev?.created_at ?? stampNow(),
+      updated_at: stampNow(),
       size: (new TextEncoder().encode(entry.html).length / 1024).toFixed(1) + ' KB',
     })
   );
@@ -565,18 +578,11 @@ app.get('/', async (c) => {
       const val = await c.env.STORAGE.get(key.name);
       if (val) projects.push(await withMediaStats(c.env, JSON.parse(val)));
     }
-    projects.reverse();
-  }
-
-  function relTime(iso: string): string {
-    if (!iso) return '';
-    const d = new Date(iso);
-    const today = new Date();
-    const dayDiff = Math.floor((Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) - Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
-    if (dayDiff <= 0) return 'Hari ini';
-    if (dayDiff === 1) return 'Kemarin';
-    if (dayDiff < 7) return dayDiff + ' hari lalu';
-    return iso.substring(0, 10);
+    // Urutan sidebar mengikuti tanggal dibuat, terbaru dulu. Sebelumnya hanya
+    // `reverse()` atas urutan leksikografis KV, jadi urutannya Z->A berdasarkan
+    // slug dan sama sekali tidak mencerminkan tanggal. `sort` di JS stabil,
+    // sehingga aplikasi yang `created_at`-nya sama tetap urutnya seperti biasa.
+    projects.sort((a, b) => parseStamp(b.created_at) - parseStamp(a.created_at));
   }
 
   const appData: Record<string, any> = {};
@@ -601,6 +607,20 @@ app.get('/', async (c) => {
       };
     }
   }
+  // Kuis lama belum punya `updated_at`. Guard di sini memakai hasil `relTime`,
+  // bukan nilai mentahnya: kalau metadata berisi tipe yang salah, `relTime`
+  // mengembalikan string kosong dan tidak ada sisa teks "Diubah ..." yang
+  // menggantung di sidebar.
+  const modSpan = (p: { updated_at?: unknown }): string => {
+    const label = relTime(p.updated_at);
+    return label ? `<span class="sidebar-item-mod">Diubah ${escapeHtml(label)}</span>` : '';
+  };
+  const modTitle = (p: { created_at?: unknown; updated_at?: unknown }): string => {
+    const label = relTime(p.updated_at);
+    if (!label) return '';
+    return ` title="Dibuat ${escapeHtml(relTime(p.created_at))} · Diubah ${escapeHtml(label)}"`;
+  };
+
   const appDataJson = JSON.stringify(appData).replace(/</g, '\\u003c');
 
 return c.html(`<!DOCTYPE html>
@@ -675,6 +695,8 @@ return c.html(`<!DOCTYPE html>
     .sidebar-item-actions{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:none;gap:2px}
     .sidebar-item:hover .sidebar-item-actions{display:flex}
     .sidebar-item:hover .sidebar-item-time{display:none}
+    .sidebar-item-mod{font-size:11px;color:var(--text-faint);flex:none;white-space:nowrap}
+    .sidebar-item:hover .sidebar-item-mod{display:inline}
     .sidebar-item-btn{width:26px;height:26px;border:none;background:var(--surface);color:var(--text-secondary);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
     .sidebar-item-btn:hover{background:var(--surface-2);color:var(--text)}
     .sidebar-item-btn.danger:hover{color:var(--danger)}
@@ -867,7 +889,7 @@ return c.html(`<!DOCTYPE html>
 
       <div class="sidebar-list" id="appList">
         ${projects.map((p) => `
-        <div class="sidebar-item" data-slug="${p.slug}" onclick="showDetail(this,'${p.slug}')">
+        <div class="sidebar-item" data-slug="${p.slug}" onclick="showDetail(this,'${p.slug}')"${modTitle(p)}>
           <span class="sidebar-item-icon">
             ${p.type === 'json'
               ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>'
@@ -875,6 +897,7 @@ return c.html(`<!DOCTYPE html>
           </span>
           <span class="sidebar-item-text">${p.title}</span>
           <span class="sidebar-item-time">${relTime(p.created_at)}</span>
+          ${modSpan(p)}
           <div class="sidebar-item-actions">
             <button class="sidebar-item-btn" title="Buka" onclick="event.stopPropagation(); window.open('/p/${p.slug}','_blank')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
             <form method="POST" action="/api/delete" onsubmit="event.stopPropagation(); return confirm('Hapus aplikasi ini?')">

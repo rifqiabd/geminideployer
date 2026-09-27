@@ -23,6 +23,7 @@ import {
   putMedia,
   sniffImageType,
   suggestMediaName,
+  touchMeta,
 } from './media.ts';
 import type { MediaBindings } from './media.ts';
 
@@ -134,6 +135,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     }
 
     await putMedia(c.env, slug, name, bytes.buffer as ArrayBuffer, contentType);
+    await touchMeta(c.env, slug);
 
     return c.json({
       status: 'success',
@@ -157,6 +159,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     if (!slug || !name) return c.json({ status: 'error', message: 'Nama gambar tidak valid.' }, 400);
 
     await deleteMedia(c.env, slug, name);
+    await touchMeta(c.env, slug);
     return c.json({ status: 'success', message: 'Gambar dihapus.' });
   });
 
@@ -234,6 +237,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     }
 
     await saveGeneratedMedia(c.env, slug, name, generated.bytes, generated.contentType);
+    await touchMeta(c.env, slug);
     return c.json({
       status: 'success',
       message: 'Gambar berhasil dibuat dan tersimpan.',

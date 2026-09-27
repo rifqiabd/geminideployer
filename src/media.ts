@@ -13,7 +13,7 @@
 
 // Impor sengaja memakai ekstensi .ts: file ini ikut dijalankan langsung oleh Node
 // dari tests/quiz.test.mjs, dan Node ESM tidak menebak ekstensi seperti esbuild.
-import { escapeHtml, sanitizeMediaName } from './quiz.ts';
+import { escapeHtml, sanitizeMediaName, stampNow } from './quiz.ts';
 
 export type MediaBindings = {
   STORAGE: KVNamespace;
@@ -176,6 +176,28 @@ export async function deleteAllMedia(env: MediaBindings, slug: string): Promise<
   const items = await listMedia(env, slug);
   for (const item of items) await deleteMedia(env, slug, item.name);
   return items.length;
+}
+
+/**
+ * Tandai aplikasi sebagai "baru saja diubah" dengan menyegarkan `updated_at`.
+ *
+ * Dipanggil setiap kali isi aplikasi berubah lewat panel Gambar (unggah, hapus,
+ * generate AI) supaya label "Diubah ..." di sidebar jujur. Field lain tidak
+ * disentuh, dan `created_at` ikut dipertahankan apa adanya.
+ *
+ * Sengaja diam-diam kalau metadata-nya tidak ada: panel Gambar tidak boleh
+ * bisa membuat aplikasi yang belum pernah disimpan. Kegagalan di sini juga
+ * ditelan supaya metadata yang sudah ada tidak ikut hilang kalau KV sempat error.
+ */
+export async function touchMeta(env: MediaBindings, slug: string): Promise<void> {
+  try {
+    const raw = await env.STORAGE.get(`meta:${slug}`);
+    if (!raw) return;
+    const meta = JSON.parse(raw) as Record<string, unknown>;
+    await env.STORAGE.put(`meta:${slug}`, JSON.stringify({ ...meta, updated_at: stampNow() }));
+  } catch {
+    // lihat catatan di atas
+  }
 }
 
 /**

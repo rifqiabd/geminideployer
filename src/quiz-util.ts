@@ -211,3 +211,74 @@ export function hashString(value: string): number {
 }
 
 /** Urutan indeks hasil pengacakan deterministik (Fisher-Yates berbenih). */
+
+/* -------------------------------------------------------------------------- */
+/* Helper tanggal                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Ofset zona waktu untuk menghitung batas "hari" pada label tanggal.
+ * WIB (UTC+7) dipilih karena seluruh antarmuka ini bahasa Indonesia dan
+ * dipakai di dalam satu sekolah. Ofset ini hanya dipakai untuk membulatkan
+ * ke hari kalender (label "Hari ini"), TIDAK untuk mengurutkan — sorting memakai
+ * milidetik asli dari `parseStamp`, jadi urutan tidak pernah terpengaruh zona.
+ */
+const WIB_OFFSET_MINUTES = 7 * 60;
+
+const DAY_MS = 86400000;
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+/**
+ * Ubah cap waktu menjadi milidetik sejak epoch, atau 0 kalau tidak bisa dibaca.
+ *
+ * Menerima dua bentuk yang memang tersimpan di KV:
+ *   - `2026-09-27` (data lama, tanggal saja tanpa jam)
+ *   - `2026-09-27T14:32:00.000Z` (data baru, ISO penuh)
+ *
+ * `Date.parse` memperlakukan bentuk tanggal-saja sebagai UTC tengah malam
+ * sesuai spesifikasi ECMAScript, jadi keduanya tidak perlu cabang terpisah.
+ * Nilai 0 sekaligus dipakai sebagai penanda "tidak ada tanggal": tidak pernah
+ * muncul di data nyata, dan membuat pemanggil cukup memeriksa satu kondisi.
+ */
+export function parseStamp(raw: unknown): number {
+  const text = String(raw ?? '').trim();
+  if (!text) return 0;
+  const ms = Date.parse(text);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/** Cap waktu ISO penuh (dengan jam) untuk disimpan ke KV. */
+export function stampNow(): string {
+  return new Date().toISOString();
+}
+
+/** Awal hari kalender WIB, dalam milidetik sejak epoch. */
+function wibDayStart(ms: number): number {
+  const shifted = new Date(ms + WIB_OFFSET_MINUTES * 60000);
+  return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
+}
+
+/**
+ * Label tanggal yang dipakai di sidebar dan panel detail:
+ * "Hari ini" / "Kemarin" / "3 hari lalu" / "27 Sep 2026".
+ *
+ * Selisih hari dihitung dari awal hari kalender di kedua sisi, jadi jam
+ * penyimpanannya tidak memengaruhi label. Hasil selalu sama untuk semua
+ * pengguna di zona waktu berbeda, dan kuis yang dibuat pukul 01:00 WIB tetap
+ * berlabel "Hari ini" sampai lewat tengah malam, bukan berubah jadi "Kemarin"
+ * di tengah hari.
+ *
+ * Mengembalikan string kosong kalau tanggalnya tidak ada atau rusak, supaya
+ * pemanggil bisa menamparkannya tanpa perlu cek tambahan. Lihat `tests/meta-date.test.mjs`.
+ */
+export function relTime(raw: unknown, now: number = Date.now()): string {
+  const ms = parseStamp(raw);
+  if (!ms) return '';
+  const days = Math.floor((wibDayStart(now) - wibDayStart(ms)) / DAY_MS);
+  if (days <= 0) return 'Hari ini';
+  if (days === 1) return 'Kemarin';
+  if (days < 7) return days + ' hari lalu';
+  const shifted = new Date(ms + WIB_OFFSET_MINUTES * 60000);
+  return `${shifted.getUTCDate()} ${MONTH_SHORT[shifted.getUTCMonth()]} ${shifted.getUTCFullYear()}`;
+}
