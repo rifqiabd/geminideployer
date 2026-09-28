@@ -573,18 +573,18 @@ app.get('/', async (c) => {
       };
     }
   }
-  // Kuis lama belum punya `updated_at`. Guard di sini memakai hasil `relTime`,
-  // bukan nilai mentahnya: kalau metadata berisi tipe yang salah, `relTime`
-  // mengembalikan string kosong dan tidak ada sisa teks "Diubah ..." yang
-  // menggantung di sidebar.
-  const modSpan = (p: { updated_at?: unknown }): string => {
-    const label = relTime(p.updated_at);
-    return label ? `<span class="sidebar-item-mod">Diubah ${escapeHtml(label)}</span>` : '';
-  };
+  // Sidebar tidak lagi menampilkan tanggal secara permanen, jadi keterangan
+  // kapan aplikasi dibuat dan kapan terakhir diubah harus tetap tersedia lewat
+  // tooltip pada barisnya. Kuis lama belum punya `updated_at`, jadi bagian
+  // "Diubah ..." hanya ditulis kalau `relTime` benar-benar menghasilkan teks.
   const modTitle = (p: { created_at?: unknown; updated_at?: unknown }): string => {
-    const label = relTime(p.updated_at);
-    if (!label) return '';
-    return ` title="Dibuat ${escapeHtml(relTime(p.created_at))} · Diubah ${escapeHtml(label)}"`;
+    const created = relTime(p.created_at);
+    const mod = relTime(p.updated_at);
+    const parts: string[] = [];
+    if (created) parts.push(`Dibuat ${created}`);
+    if (mod) parts.push(`Diubah ${mod}`);
+    if (!parts.length) return '';
+    return ` title="${escapeHtml(parts.join(' · '))}"`;
   };
 
   const appDataJson = JSON.stringify(appData).replace(/</g, '\\u003c');
@@ -657,12 +657,14 @@ return c.html(`<!DOCTYPE html>
     .sidebar-item-icon{color:var(--text-secondary);flex:none;display:flex}
     .sidebar-item.active .sidebar-item-icon{color:var(--accent)}
     .sidebar-item-text{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .sidebar-item-time{font-size:11px;color:var(--text-faint);flex:none;white-space:nowrap}
+    .sidebar-item-time{font-size:11px;color:var(--text-faint);flex:none;white-space:nowrap;display:none}
     .sidebar-item-actions{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:none;gap:2px}
     .sidebar-item:hover .sidebar-item-actions{display:flex}
-    .sidebar-item:hover .sidebar-item-time{display:none}
-    .sidebar-item-mod{font-size:11px;color:var(--text-faint);flex:none;white-space:nowrap}
-    .sidebar-item:hover .sidebar-item-mod{display:inline}
+    /* Tanggal dibuat disembunyikan permanen supaya daftar aplikasi tetap rapat,
+       lalu muncul lagi saat hover. Nilai 62px menyisakan ruang untuk dua tombol
+       aksi (26px + celah 2px) yang juga muncul saat hover, jadi tanggal tidak
+       tertutup tombol. */
+    .sidebar-item:hover .sidebar-item-time{display:inline;margin-right:62px}
     .sidebar-item-btn{width:26px;height:26px;border:none;background:var(--surface);color:var(--text-secondary);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
     .sidebar-item-btn:hover{background:var(--surface-2);color:var(--text)}
     .sidebar-item-btn.danger:hover{color:var(--danger)}
@@ -858,7 +860,6 @@ return c.html(`<!DOCTYPE html>
           </span>
           <span class="sidebar-item-text">${p.title}</span>
           <span class="sidebar-item-time">${relTime(p.created_at)}</span>
-          ${modSpan(p)}
           <div class="sidebar-item-actions">
             <button class="sidebar-item-btn" title="Buka" onclick="event.stopPropagation(); window.open('/p/${p.slug}','_blank')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
             <form method="POST" action="/api/delete" onsubmit="event.stopPropagation(); return confirm('Hapus aplikasi ini?')">
@@ -1363,6 +1364,41 @@ app.post('/api/app/update', async (c) => {
     if (clash) {
       return c.html(errorPage('Alamat sudah dipakai', `Sudah ada aplikasi lain di /p/${newSlug}. Pilih alamat yang lain.`), 400);
     }
+
+    // Riwayat jawaban di D1 dipindahkan lebih dulu, sebelum satu pun kunci KV
+    // ditulis ke slug baru. KV dan D1 tidak bisa digabung dalam satu transaksi,
+    // tapi urutan ini memastikan kondisi gagal selalu jatuh kembali ke slug
+    // lama: kalau D1 gagal, alamat baru belum pernah hidup, jadi guru tidak
+    // pernah melihat dua aplikasi dengan isi sama di dua slug sekaligus.
+    try {
+      if (titleChanged && type === 'json') {
+        const { results } = await c.env.DB.prepare('SELECT id, payload_json FROM app_records WHERE app_slug = ?')
+          .bind(oldSlug)
+          .all();
+        for (const row of results as { id?: string; payload_json?: string }[]) {
+          if (!row.id || !row.payload_json) continue;
+          try {
+            const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+            if (typeof payload.quiz_title === 'string') payload.quiz_title = nextTitle;
+            await c.env.DB.prepare('UPDATE app_records SET payload_json = ? WHERE id = ?')
+              .bind(JSON.stringify(payload), row.id)
+              .run();
+          } catch {
+            // Payload rusak: lewati baris itu, jangan gagalkan migrasi.
+          }
+        }
+      }
+      await c.env.DB.prepare('UPDATE app_records SET app_slug = ? WHERE app_slug = ?').bind(newSlug, oldSlug).run();
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      return c.html(
+        errorPage(
+          'Riwayat jawaban belum tersinkron',
+          `Alamat aplikasi tidak diubah karena database jawaban tidak bisa diperbarui (${escapeHtml(detail)}). Coba lagi sebentar.`
+        ),
+        500
+      );
+    }
   }
 
   // --- Mode JSON Soal: judul bisa disinkronkan + halaman kuis digambar ulang ---
@@ -1436,26 +1472,8 @@ app.post('/api/app/update', async (c) => {
       }
     }
 
-    // Riwayat nilai pindah ke slug baru supaya Log Data & Koreksi Esai tetap utuh.
-    if (titleChanged && type === 'json') {
-      const { results } = await c.env.DB.prepare('SELECT id, payload_json FROM app_records WHERE app_slug = ?')
-        .bind(oldSlug)
-        .all();
-      for (const row of results as { id?: string; payload_json?: string }[]) {
-        if (!row.id || !row.payload_json) continue;
-        try {
-          const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
-          if (typeof payload.quiz_title === 'string') payload.quiz_title = nextTitle;
-          await c.env.DB.prepare('UPDATE app_records SET payload_json = ? WHERE id = ?')
-            .bind(JSON.stringify(payload), row.id)
-            .run();
-        } catch {
-          // Payload rusak: lewati baris itu, jangan gagalkan migrasi.
-        }
-      }
-    }
-    await c.env.DB.prepare('UPDATE app_records SET app_slug = ? WHERE app_slug = ?').bind(newSlug, oldSlug).run();
-
+    // Riwayat jawaban sudah dipindah ke slug baru di blok try di atas, sebelum
+    // kunci KV ditulis, supaya kegagalan D1 tidak meninggalkan dua alamat hidup.
     // Link lama mati total (tanpa redirect), media dipindahkan, key lama dibersihkan.
     await c.env.STORAGE.delete(`html:${oldSlug}`);
     await c.env.STORAGE.delete(`meta:${oldSlug}`);
