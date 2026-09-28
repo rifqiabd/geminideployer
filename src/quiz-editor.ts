@@ -11,7 +11,7 @@
  * ========================================================================== */
 
 import type { Hono } from 'hono';
-import { isAuthed, safeSlug } from './auth';
+import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth';
 import { QuizError, escapeHtml, parseQuizSpec, quizToAuthoringSource, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
@@ -23,7 +23,7 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
   /* Halaman editor                                                      */
   /* ------------------------------------------------------------------ */
   app.get('/p/:slug/edit', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    if (!(await getSession(c))) return c.redirect('/');
 
     const slug = safeSlug(c.req.param('slug'));
     const metaRaw = await c.env.STORAGE.get(`meta:${slug}`);
@@ -65,6 +65,10 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
 
     const embedded = JSON.stringify({ slug, source, synthesized }).replace(/</g, '\\u003c');
     const title = meta.title ?? slug;
+    // Token CSRF untuk inline JS editor (T4) — dikirim sebagai header
+    // X-CSRF-Token pada fetch simpan, bukan field form.
+    const editorSession = (await getSession(c))!;
+    const csrfToken = await csrfFor(editorSession.npc, c.env.SESSION_SECRET ?? '');
 
     return c.html(`<!DOCTYPE html>
 <html lang="id">
@@ -72,6 +76,7 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Edit Soal - ${escapeHtml(title)}</title>
+  <meta name="csrf-token" content="${csrfToken}">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
   <style>
@@ -252,7 +257,11 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
   /* Simpan perubahan                                                    */
   /* ------------------------------------------------------------------ */
   app.post('/api/quiz/:slug/save', async (c) => {
-    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
+    const session = await getSession(c);
+    if (!session) return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
+    if (!(await verifyCsrfFromRequest(c, session, c.env.SESSION_SECRET ?? ''))) {
+      return c.json({ status: 'error', message: 'Token keamanan tidak valid. Muat ulang halaman editor.' }, 403);
+    }
 
     const slug = safeSlug(c.req.param('slug'));
     const metaRaw = await c.env.STORAGE.get(`meta:${slug}`);

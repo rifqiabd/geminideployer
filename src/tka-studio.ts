@@ -19,9 +19,10 @@
 import type { Hono } from 'hono';
 // Impor memakai ekstensi .ts supaya modul ini juga bisa dijalankan langsung
 // oleh Node (mis. smoke test), seperti di media-gen.ts.
-import { isAuthed } from './auth.ts';
+import { csrfFor, getSession, verifyCsrfFromRequest } from './auth.ts';
+import type { Context } from 'hono';
 
-type TkaBindings = { STORAGE: KVNamespace };
+type TkaBindings = { STORAGE: KVNamespace; SESSION_SECRET?: string };
 
 export type TkaTemplate = { id: number; nama: string; tipe: string; template: string };
 
@@ -212,10 +213,12 @@ type StudioData = {
   tab: string;
   message: string;
   ok: boolean;
+  // Token CSRF sesi admin — dipasang ke <meta> dan ke kelima form POST (T4).
+  csrf: string;
 };
 
 function renderStudioPage(data: StudioData): string {
-  const { templates, subjects, tab, message, ok } = data;
+  const { templates, subjects, tab, message, ok, csrf } = data;
 
   const templateOptions = templates
     .map((t) => `<option value="${t.id}" data-type="${escapeHtml(t.tipe)}">${escapeHtml(t.nama)}</option>`)
@@ -231,6 +234,7 @@ function renderStudioPage(data: StudioData): string {
           <td class="ta-right nowrap">
             <button type="button" class="btn btn-sm" onclick="editModalById(${t.id})"><i class="fa-solid fa-pen"></i>Edit</button>
             <form method="POST" action="/studio/template" class="inline" onsubmit="return confirm('Hapus template ini?')">
+              <input type="hidden" name="_csrf" value="${csrf}">
               <input type="hidden" name="action" value="delete_template">
               <input type="hidden" name="template_id" value="${t.id}">
               <button type="submit" class="btn btn-sm btn-danger"><i class="fa-solid fa-trash"></i>Hapus</button>
@@ -251,6 +255,7 @@ function renderStudioPage(data: StudioData): string {
           <td class="ta-right nowrap">
             <button type="button" class="btn btn-sm" onclick="editSubjectModalById(${s.id})"><i class="fa-solid fa-pen"></i>Edit</button>
             <form method="POST" action="/studio/subject" class="inline" onsubmit="return confirm('Yakin ingin menghapus mapel ini?')">
+              <input type="hidden" name="_csrf" value="${csrf}">
               <input type="hidden" name="action" value="delete_subject">
               <input type="hidden" name="subject_id" value="${s.id}">
               <button type="submit" class="btn btn-sm btn-danger"><i class="fa-solid fa-trash"></i>Hapus</button>
@@ -267,6 +272,7 @@ function renderStudioPage(data: StudioData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="${csrf}">
   <title>TKA Prompt Engine - Gemini Edge Deployer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -745,6 +751,7 @@ function renderStudioPage(data: StudioData): string {
             <code>SEMUA</code> agar bisa dipakai bersama.
           </p>
           <form method="POST" action="/studio/import" enctype="multipart/form-data" class="stack-sm">
+            <input type="hidden" name="_csrf" value="${csrf}">
             <input type="file" name="json_file" accept=".json" required class="input">
             <button type="submit" class="btn btn-accent"><i class="fa-solid fa-upload"></i>Proses impor JSON</button>
           </form>
@@ -784,6 +791,7 @@ function renderStudioPage(data: StudioData): string {
   <div id="modal-subject" class="modal hidden">
     <div class="modal-card wide">
       <form method="POST" action="/studio/subject" style="display:contents">
+        <input type="hidden" name="_csrf" value="${csrf}">
         <input type="hidden" name="action" value="save_subject">
         <input type="hidden" id="modal-sub-id" name="subject_id">
         <div class="modal-head">
@@ -833,6 +841,7 @@ function renderStudioPage(data: StudioData): string {
   <div id="modal-tpl" class="modal hidden">
     <div class="modal-card wide">
       <form method="POST" action="/studio/template" style="display:contents">
+        <input type="hidden" name="_csrf" value="${csrf}">
         <input type="hidden" name="action" value="save_template">
         <input type="hidden" id="modal-tpl-id" name="template_id">
         <div class="modal-head">
@@ -902,10 +911,24 @@ function flashRedirect(tab: string, message: string, ok: boolean): string {
   return `/studio?tab=${encodeURIComponent(tab)}&ok=${ok ? '1' : '0'}&msg=${encodeURIComponent(message)}`;
 }
 
+/**
+ * Guard admin untuk semua POST /studio/* (T4): sesi valid + token CSRF cocok.
+ * Gagal sesi -> redirect login; gagal CSRF -> flash peringatan di tab admin.
+ */
+async function denyStudioRequest<E extends { Bindings: TkaBindings }>(c: Context<E>): Promise<Response | null> {
+  const session = await getSession(c);
+  if (!session) return c.redirect('/');
+  if (!(await verifyCsrfFromRequest(c, session, c.env.SESSION_SECRET ?? ''))) {
+    return c.redirect(flashRedirect('admin', 'Token keamanan tidak valid. Muat ulang halaman, lalu ulangi aksinya.', false));
+  }
+  return null;
+}
+
 export function registerTkaStudioRoutes<E extends { Bindings: TkaBindings }>(app: Hono<E>): void {
   /* --------- Halaman utama --------- */
   app.get('/studio', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    const session = await getSession(c);
+    if (!session) return c.redirect('/');
     const [templates, subjects] = await Promise.all([loadTemplates(c.env.STORAGE), loadSubjects(c.env.STORAGE)]);
     const tab = c.req.query('tab') || 'generator';
     return c.html(
@@ -915,13 +938,15 @@ export function registerTkaStudioRoutes<E extends { Bindings: TkaBindings }>(app
         tab,
         message: c.req.query('msg') || '',
         ok: c.req.query('ok') !== '0',
+        csrf: await csrfFor(session.npc, c.env.SESSION_SECRET ?? ''),
       })
     );
   });
 
   /* --------- Template CRUD --------- */
   app.post('/studio/template', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    const denied = await denyStudioRequest(c);
+    if (denied) return denied;
     const body = await c.req.parseBody();
     const action = String(body.action ?? '');
     const templates = await loadTemplates(c.env.STORAGE);
@@ -964,7 +989,8 @@ export function registerTkaStudioRoutes<E extends { Bindings: TkaBindings }>(app
 
   /* --------- Mapel CRUD --------- */
   app.post('/studio/subject', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    const denied = await denyStudioRequest(c);
+    if (denied) return denied;
     const body = await c.req.parseBody();
     const action = String(body.action ?? '');
     const subjects = await loadSubjects(c.env.STORAGE);
@@ -1015,7 +1041,8 @@ export function registerTkaStudioRoutes<E extends { Bindings: TkaBindings }>(app
 
   /* --------- Import matriks JSON --------- */
   app.post('/studio/import', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    const denied = await denyStudioRequest(c);
+    if (denied) return denied;
     const body = await c.req.parseBody();
     const file = body.json_file;
 
@@ -1074,7 +1101,7 @@ export function registerTkaStudioRoutes<E extends { Bindings: TkaBindings }>(app
 
   /* --------- Export matriks JSON --------- */
   app.get('/studio/export', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    if (!(await getSession(c))) return c.redirect('/');
     const subjects = await loadSubjects(c.env.STORAGE);
     const payload = {
       metadata: {

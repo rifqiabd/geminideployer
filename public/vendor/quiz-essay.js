@@ -36,7 +36,10 @@
 
     fetch('/api/quiz/' + encodeURIComponent(slug) + '/essay', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': (document.querySelector('meta[name=\"csrf-token\"]') || {}).content || ''
+      },
       body: JSON.stringify({ id: recordId, scores: scores })
     })
       .then(function (res) {

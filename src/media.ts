@@ -22,6 +22,10 @@ export type MediaBindings = {
   // Kalau keduanya diisi, panel Gambar mendapat tombol "Generate AI".
   IMGGEN_API_URL?: string;
   IMGGEN_API_KEY?: string;
+  // Wajib sejak hardening auth: dipakai verifikasi sesi admin dan token CSRF.
+  SESSION_SECRET?: string;
+  // Opsional: allowlist CORS untuk endpoint admin.
+  ALLOWED_ORIGINS?: string;
 };
 
 /** Batas ukuran satu file. Foto dari HP (3-5 MB) masih masuk, video tidak. */

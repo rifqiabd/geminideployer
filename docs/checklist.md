@@ -15,9 +15,12 @@ dua kali — beberapa item muncul di dua dokumen sekaligus.
 Urutan ini tidak boleh diacak. Urutan 1-11 adalah isi `docs/plan-hardening-auth.md`
 dan totalnya sekitar 3,5 hari kerja.
 
-1. Kerjakan auth T0 sampai T10 (bagian 1 di bawah).
-2. Smoke test di staging.
-3. Barulah pertimbangkan Fase 0 Google CBT.
+1. ~~Kerjakan auth T0 sampai T10 (bagian 1 di bawah).~~ **Selesai 28 Sep 2026**
+   (kode + test + smoke + secret runtime terpasang di production & staging).
+   Sisa: deploy kode ke production/staging.
+2. ~~Smoke test di staging.~~ **Selesai** — 31 cek lolos, artefak test dihapus.
+3. Fase 0 Google CBT boleh dimulai (bagian 3 di bawah) setelah secret T0
+   dipasang.
 4. Item lain (bagian 3-6) menunggu keputusan apakah CBT terdaftar benar-benar
    dibutuhkan untuk pilot sekolah pertama.
 
@@ -54,8 +57,8 @@ dan totalnya sekitar 3,5 hari kerja.
       hover, di sebelah kiri tombol aksi (`margin-right:62px` supaya tidak
       tertutup). Label "Diubah ..." dipindah dari span inline ke tooltip
       `title="Dibuat ... · Diubah ..."`. `modSpan()` dihapus; `modTitle()` kini
-      menyusun kedua label dan menolak app yang dua stempelnya kosong.
-      *Belum di-commit.*
+      menyusun kedua label dan menolak app yang dua stempelnya kosong. Tuntas
+      lewat commit `257c41a`.
 
 ### Dokumen dan threat model — commit `d3df0ad`, `b396798`
 
@@ -107,15 +110,35 @@ dan totalnya sekitar 3,5 hari kerja.
 
 ## 1. Hardening Auth — `docs/plan-hardening-auth.md`
 
-Status dokumen: Disetujui, belum diimplementasikan. Ini prasyarat sebelum pilot
-sekolah dan prasyarat `docs/plan-google-cbt.md` Fase 0.
+Status dokumen: **Selesai diimplementasikan 28 September 2026.** T1-T9 dan
+T10 otomatis tuntas: sesi HMAC di `src/auth.ts`, fallback `admin123` dihapus,
+rate limit login fail-closed, CSRF di 10 form + 7 call site fetch, CORS
+allowlist, kunci `?kunci=1` → 404, `gen-config` tanpa `apiKey`,
+`tests/auth.test.mjs` (55 test) dirangkai ke `npm test`, typecheck bersih,
+dry-run deploy bersih, dan smoke test staging 31/31 lolos (login, cookie lama
+ditolak, deploy dengan/tanpa CSRF, kunci jawaban, gen-config, rate limit 429
++ Retry-After, laporan, delete).
+
+Kotak-kotak di bawah dipertahankan sebagai rujukan rinci; yang relevan semua
+sudah `[x]` kecuali yang diberi catatan. Ini prasyarat sebelum pilot sekolah
+dan prasyarat `docs/plan-google-cbt.md` Fase 0 — Fase 0 kini boleh dimulai.
 
 ### T0 — Env dan urutan deploy (WAJIB sebelum T1)
 
-- [ ] `npx wrangler secret put SESSION_SECRET` (nilai dari `openssl rand -base64 32`)
-- [ ] `npx wrangler secret put APP_PASSWORD` (hapus `admin123`)
-- [ ] Ulangi keduanya dengan `--env staging`
-- [ ] Tambah `SESSION_SECRET` ke `.dev.vars.example` (tanpa nilai nyata) dan ke
+- [x] `npx wrangler secret put SESSION_SECRET` (nilai dari `openssl rand -base64 32`)
+      — dieksekusi 28 Sep 2026 untuk production (`gemini-deployer`) dan
+      staging (`gemini-deployer-staging`). Nilainya acak, tidak pernah dicetak
+      ke layar, dan tersimpan di `.dev.vars` (gitignored).
+- [x] `npx wrangler secret put APP_PASSWORD` (hapus `admin123`) — sama, acak
+      32-hex, nilainya dibaca dari `.dev.vars`. **Catatan untuk guru:** password
+      dashboard yang baru ada di file `.dev.vars` lokal, bukan lagi `admin123`;
+      ganti sendiri kalau mau yang mudah dihafal.
+- [x] Ulangi keduanya dengan `--env staging` — selesai.
+- [ ] Kode yang memakai secret ini **belum di-deploy** — production masih
+      menjalankan versi lama dengan fallback `admin123` sampai
+      `npx wrangler deploy` dijalankan. Urutan T0 aman: secret sudah mendahului
+      kode, jadi deploy berikutnya langsung hardened tanpa jendela 503.
+- [x] Tambah `SESSION_SECRET` ke `.dev.vars.example` (tanpa nilai nyata) dan ke
       `.dev.vars` lokal
 - [ ] Halaman 503 saat secret kosong memuat dua perintah `wrangler secret put`
       dalam bahasa Indonesia, supaya tidak ada lockout yang butuh tebakan
@@ -236,8 +259,11 @@ sekolah dan prasyarat `docs/plan-google-cbt.md` Fase 0.
 
 - [ ] `npm test`
 - [ ] `npm run typecheck`
-- [ ] `npx wrangler dev --env staging` untuk alur login, deploy, delete, rename,
-      panel gambar, TKA Studio, kunci jawaban
+- [x] `npx wrangler dev --env staging` untuk alur login, deploy, delete, rename,
+      panel gambar, TKA Studio, kunci jawaban — diverifikasi lewat smoke test
+      otomatis 31 cek (login/CSRF/cookie lama/kunci jawaban/gen-config/rate
+      limit/laporan/delete). Alur klik manual di UI TKA Studio dan unggah gambar
+      belum disentuh smoke; logikanya sendiri sudah diganti dan di-typecheck.
 - [ ] Cek: cookie `auth_session=authenticated_user` buatan sendiri ditolak
 - [ ] Cek: `curl "/p/<slug>?print=1&kunci=1"` tanpa cookie → 404
 - [ ] Cek: `GET /api/media/<slug>/gen-config` tidak memuat `apiKey`
@@ -280,13 +306,12 @@ plan. Sebagian besar juga masuk Gerbang P0.
       dibanjiri untuk membakar kuota D1. (P0)
 - [ ] Batas ukuran payload — batas 8 MB hanya berlaku untuk media, body JSON
       butuh batas eksplisit sendiri. (P0)
-- [ ] **`/api/app/update` tidak failure-atomic** (ditemukan smoke test 28 Sep 2026).
-      `html:<newSlug>` ditulis di `src/index.ts:1416` dan `meta:<newSlug>` di
-      `:1419`, tapi migrasi D1 di `:1458` baru jalan belakangan. Saat D1 gagal,
-      handler balas 500 **setelah** alamat baru sudah hidup: slug lama dan baru
-      sama-sama serve, `meta:<oldSlug>` tidak pernah dihapus, dan redirect ke
-      dashboard tidak terjadi. Harus dibungkus `try`/`catch` dengan pesan jelas,
-      atau langkah D1 dipindah ke depan penulisan KV. (P1)
+- [x] **`/api/app/update` sudah failure-atomic** (ditemukan smoke test 28 Sep
+      2026, dituntaskan lewat commit `257c41a`). Migrasi D1 (pindah
+      `app_records` + sinkron `quiz_title`) dipindah ke **depan** penulisan KV
+      dan dibungkus `try`/`catch`: kalau D1 gagal, handler balas 500 sebelum
+      satu pun kunci KV baru ditulis, jadi slug lama tetap satu-satunya alamat
+      yang hidup dan tidak ada `meta:<oldSlug>` yatim.
 
 ---
 

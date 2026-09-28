@@ -1,6 +1,6 @@
 # Rencana Hardening Autentikasi (Sesi Bertanda Tangan)
 
-Status: **Disetujui - belum diimplementasikan**
+Status: **Selesai diimplementasikan (28 September 2026)** — T1-T9 dikerjakan sesuai dokumen ini, `tests/auth.test.mjs` (55 test) dirangkai ke `npm test`. T0 runtime (pemasangan secret di Cloudflare) dan T10 smoke test manual masih menunggu eksekusi oleh manusia; lihat `docs/checklist.md` bagian 1.
 Target deployment: satu sekolah, sekitar 30 siswa
 Ketersediaan repo: **private** (remote GitHub membalas 404 tanpa autentikasi, dicek 27 Sep 2026)
 Dokumen induk auth/CBT: `docs/plan-google-cbt.md` (tetap sumber kebenaran untuk Fase 0-5)

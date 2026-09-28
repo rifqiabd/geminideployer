@@ -3,7 +3,7 @@
     "hono": "^4.13.8"
   },
   "scripts": {
-    "test": "node tests/quiz.test.mjs && node tests/meta-date.test.mjs && node tests/slug.test.mjs",
+    "test": "node tests/quiz.test.mjs && node tests/meta-date.test.mjs && node tests/slug.test.mjs && node tests/auth.test.mjs",
     "typecheck": "tsc --noEmit",
     "db:schema:local": "wrangler d1 execute gemini-db --local --file schema.sql",
     "db:schema:local:staging": "wrangler d1 execute gemini-db-staging --env staging --local --file schema.sql"

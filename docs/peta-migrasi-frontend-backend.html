@@ -373,6 +373,12 @@
         klien. Kunci jawaban dan pembahasan tidak pernah dikirim ke browser &mdash; penilaian dilakukan di
         server dari spesifikasi di KV. Artinya memindahkan tampilan ke klien <strong>tidak</strong>
         melemahkan anti-kecurangan, asalkan endpoint baru juga tidak mengekspor kunci.</p>
+        <p><strong>Koreksi (28 Sep 2026):</strong> klaim lama bahwa parameter <code>?kunci=1</code>
+        &ldquo;tidak punya auth check&rdquo; sudah tidak berlaku. Sejak hardening auth
+        (<code>docs/plan-hardening-auth.md</code> T6), <code>GET /p/&lt;slug&gt;?print=1&amp;kunci=1</code>
+        tanpa sesi admin valid dijawab <strong>404 di server</strong>; <code>?print=1</code> tanpa
+        <code>kunci</code> tetap publik. Endpoint baru hasil migrasi SPA wajib meniru gerbang ini dan
+        tidak boleh mengekspor kunci jawaban ke klien.</p>
       </div>
     </section>
 

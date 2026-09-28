@@ -1,6 +1,6 @@
 # Rencana Implementasi Google Login & CBT Terdaftar
 
-Status: **Disetujui — belum diimplementasikan**
+Status: **Disetujui — belum diimplementasikan** (prasyarat auth sudah selesai 28 Sep 2026 lewat `docs/plan-hardening-auth.md`; OAuth, ownership, roster, dan attempt di plan ini masih belum dimulai)
 Tanggal: 25 September 2026
 Revisi: 26 September 2026 (verifikasi terhadap codebase, koreksi factual §4, penambahan migration tooling, test harness, endpoint admin, throttle autosave, rollback)
 Target awal: satu sekolah, sekitar 30 siswa
@@ -63,6 +63,13 @@ Target awal: satu sekolah, sekitar 30 siswa
 - Cron Trigger untuk menandai attempt expired. Expired dihitung lazy saat request, bukan oleh scheduler.
 
 ## 4. Kondisi Saat Ini
+
+> **Status per 28 September 2026:** temuan autentikasi di bagian ini sudah
+> ditangani oleh `docs/plan-hardening-auth.md` (sesi HMAC, hapus fallback,
+> CSRF, CORS allowlist, rate limit login, kunci `?kunci=1`, `apiKey` BYOK).
+> Teks asli dipertahankan sebagai konteks historis — jangan dipakai sebagai
+> gambaran kode saat ini. Temuan ownership/attempt (bagian konten, student
+> flow, penyimpanan) masih berlaku dan baru ditutup oleh Fase 1-3 plan ini.
 
 ### Autentikasi
 
@@ -428,18 +435,18 @@ File utama: `src/quiz-page.ts` dan `public/vendor/quiz.css`.
 
 Sebelum mode assigned diaktifkan:
 
-1. Hapus static cookie `authenticated_user` dari `src/auth.ts`.
-2. Hapus fallback password `admin123` dari `index.ts:34`, dan hapus `/api/login` password bersama sepenuhnya.
-3. Satukan semua pemeriksaan admin melalui middleware/session resolver baru. Kelima pembacaan cookie mentah (`index.ts:277,559,1297,1347,1368`) harus hilang, dan `isAuthed` yang tersisa harus versi session-aware.
+1. Hapus static cookie `authenticated_user` dari `src/auth.ts`. **[Selesai 28 Sep 2026 — plan-hardening-auth: cookie statis ditolak, diganti sesi HMAC.]**
+2. Hapus fallback password `admin123` dari `index.ts:34`, dan hapus `/api/login` password bersama sepenuhnya. **[Sebagian selesai 28 Sep 2026 — fallback admin123 sudah dihapus, `SESSION_SECRET`+`APP_PASSWORD` wajib; `/api/login` password masih dipakai sampai Fase 0 ini menggantinya dengan Google OAuth.]**
+3. Satukan semua pemeriksaan admin melalui middleware/session resolver baru. Kelima pembacaan cookie mentah (`index.ts:277,559,1297,1347,1368`) harus hilang, dan `isAuthed` yang tersisa harus versi session-aware. **[Selesai 28 Sep 2026 — plan-hardening-auth: semua pemeriksaan lewat `getSession()`/`requireAdmin`/guard per modul; cookie mentah tidak ada lagi.]**
 4. Jangan menerima role, email, score, atau deadline dari client sebagai authoritative.
-5. Ganti `app.use('/api/*', cors())` (`index.ts:37`) dengan konfigurasi eksplisit: origin allowlist dari env, `allowCredentials` dengan origin konkret (bukan `*`), dan method/header yang dibatasi. Endpoint auth, assessment, dan attempt tidak boleh menerima origin liar.
-6. Tambahkan token CSRF pada tiga form POST yang ada (`/api/deploy`, `/api/delete`, `/api/app/update`) atau ganti ke `fetch` dengan header custom. `SameSite=Lax` sendiri tidak cukup sebagai satu-satunya proteksi.
+5. Ganti `app.use('/api/*', cors())` (`index.ts:37`) dengan konfigurasi eksplisit: origin allowlist dari env, `allowCredentials` dengan origin konkret (bukan `*`), dan method/header yang dibatasi. Endpoint auth, assessment, dan attempt tidak boleh menerima origin liar. **[Selesai 28 Sep 2026 — plan-hardening-auth T5: endpoint publik siswa tetap `*`, sisanya allowlist `ALLOWED_ORIGINS`.]**
+6. Tambahkan token CSRF pada tiga form POST yang ada (`/api/deploy`, `/api/delete`, `/api/app/update`) atau ganti ke `fetch` dengan header custom. `SameSite=Lax` sendiri tidak cukup sebagai satu-satunya proteksi. **[Selesai 28 Sep 2026 — plan-hardening-auth T4: bukan cuma tiga form, semua 10 form + 7 call site fetch kini wajib token CSRF.]**
 7. Validasi ukuran dan format payload di setiap endpoint baru. Batas 8 MB hanya berlaku untuk media; body JSON perlu batas sendiri yang eksplisit.
 8. Hentikan fail-open grading. Pada CBT, kegagalan `gradeSubmission` berarti attempt belum finalized dan submit mengembalikan 503 tanpa menulis row. Perilaku fail-open yang ada di `index.ts:251-253` dipertahankan hanya untuk legacy `/api/save/:slug` dan `/api/submit/:slug`, dan harus dianotasi sebagai legacy di kode.
-9. Kunci `?print=1` dan `?print=1&kunci=1` di `index.ts:167-183` pada mode assigned. Penyesuaian dilakukan di server, bukan dengan menyembunyikan link di dashboard.
+9. Kunci `?print=1` dan `?print=1&kunci=1` di `index.ts:167-183` pada mode assigned. Penyesuaian dilakukan di server, bukan dengan menyembunyikan link di dashboard. **[Lebih ketat sejak 28 Sep 2026 — plan-hardening-auth T6: `kunci=1` tanpa sesi admin dijawab 404 untuk SEMUA mode, jadi mode assigned tinggal mewarisi.]**
 10. Pastikan guru A tidak dapat mengakses report, media, source, assessment, atau attempt guru B. Untuk media, lihat §11 karena route-nya publik.
-11. Hapus `apiKey` plaintext dari response `GET /api/media/:slug/gen-config` (`media-routes.ts:252-267`); cukup kirim flag "sudah terisi" atau bagian tersamar, dan paksa `Cache-Control: no-store` supaya `apiKey` tidak tersimpan di cache browser atau proxy.
-12. Ubah `GET /api/media/:slug/gen-config` menjadi POST-only, karena endpoint yang mengembalikan secret tidak boleh dipicu lewat GET yang bisa di-cache atau di-prerefetch.
+11. Hapus `apiKey` plaintext dari response `GET /api/media/:slug/gen-config` (`media-routes.ts:252-267`); cukup kirim flag "sudah terisi" atau bagian tersamar, dan paksa `Cache-Control: no-store` supaya `apiKey` tidak tersimpan di cache browser atau proxy. **[Selesai 28 Sep 2026 — plan-hardening-auth T7: respons kini `hasKey`, no-store, dan simpan tanpa mengetik ulang kunci mempertahankan kunci lama.]**
+12. Ubah `GET /api/media/:slug/gen-config` menjadi POST-only, karena endpoint yang mengembalikan secret tidak boleh dipicu lewat GET yang bisa di-cache atau di-prerefetch. **[Diputuskan TIDAK dikerjakan — plan-hardening-auth T7: setelah `apiKey` dihapus, respons GET tidak lagi berisi secret, jadi churn POST-only tidak perlu.]**
 13. Escape semua nilai dinamis di report, editor, roster, dan attempt list. Nama siswa dan display name berasal dari input eksternal.
 14. Tambahkan rate limit untuk endpoint public, `/api/login`, OAuth callback, dan endpoint attempt. Mekanisme yang sudah ada (`media-routes.ts:185-196`, key `imggen:<slug>:<minuteBucket>`) dapat dijadikan pola, tetapi fail-open pada KV error harus diubah menjadi fail-closed untuk endpoint auth.
 

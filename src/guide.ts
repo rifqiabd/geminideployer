@@ -104,7 +104,7 @@ export function registerGuideRoute<E extends { Bindings: object }>(app: Hono<E>)
       ${table(
         ['Halaman', 'Alamat', 'Untuk siapa'],
         [
-          ['Dashboard', '<code class="font-mono text-amber-300">/</code>', 'Guru (login dengan kata sandi)'],
+          ['Dashboard', '<code class="font-mono text-amber-300">/</code>', 'Guru (login dengan kata sandi; sesi berlaku 7 hari)'],
           ['Halaman kuis siswa', '<code class="font-mono text-amber-300">/p/&lt;slug&gt;</code>', 'Siswa (tanpa login)'],
           ['Panel gambar soal', '<code class="font-mono text-amber-300">/p/&lt;slug&gt;/media</code>', 'Guru'],
           ['Editor soal', '<code class="font-mono text-amber-300">/p/&lt;slug&gt;/edit</code>', 'Guru'],
@@ -135,7 +135,7 @@ export function registerGuideRoute<E extends { Bindings: object }>(app: Hono<E>)
       <div>${stepHeader('2', 'Publikasikan ke dashboard', 'Tempel JSON dari Gem, lalu tekan Publikasikan.')}</div>
       <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
         <ol class="list-decimal list-inside text-xs text-slate-300 space-y-1.5 leading-relaxed">
-          <li>Buka dashboard (<code class="font-mono text-amber-300">/</code>) dan login dengan kata sandi guru.</li>
+          <li>Buka dashboard (<code class="font-mono text-amber-300">/</code>) dan login dengan kata sandi guru. Sesi berlaku 7 hari; keluar lewat tombol <b>Keluar</b> di sidebar bila pakai komputer bersama.</li>
           <li>Salin seluruh blok JSON dari Gem (dari <code class="font-mono">{</code> sampai <code class="font-mono">}</code>), tempel ke kolom <b>JSON Soal</b>.</li>
           <li>Isi <b>Judul Aplikasi</b> (jadi alamat <code class="font-mono">/p/... </code>). Boleh dikosongkan bila JSON sudah punya <code class="font-mono">title</code>.</li>
           <li>Klik <b>Publikasikan ke URL</b>.</li>

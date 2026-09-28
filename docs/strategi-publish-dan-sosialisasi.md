@@ -194,13 +194,13 @@ Penguatan keamanan adalah bagian dari strategi produk. Jika rilis dilakukan sebe
 
 ### Gerbang P0 — wajib sebelum pilot bersama sekolah
 
-- Ganti cookie statis di `src/auth.ts:9-12` dengan sesi yang benar-benar diverifikasi.
-- Hapus fallback `admin123` di `src/index.ts:537-556` dan pastikan secret tidak pernah di-commit.
-- Batasi akses dashboard, laporan, media, sumber, dan kepemilikan.
-- Validasi serta escape seluruh metadata dan konten dinamis, termasuk title, URL media kaya, dan import TKA.
-- Cegah kebocoran kunci jawaban melalui print atau parameter URL.
-- Tambahkan pembatasan laju pada endpoint publik, pembuatan soal dengan AI, dan callback autentikasi.
-- Tambahkan pengujian rute, autentikasi, KV, dan D1; suite saat ini terutama menguji modul quiz dan helper.
+- [x] Ganti cookie statis di `src/auth.ts:9-12` dengan sesi yang benar-benar diverifikasi. *(Selesai 28 Sep 2026 lewat `docs/plan-hardening-auth.md`: sesi HMAC-SHA256, cookie statis ditolak.)*
+- [x] Hapus fallback `admin123` di `src/index.ts:537-556` dan pastikan secret tidak pernah di-commit. *(Selesai: `SESSION_SECRET` + `APP_PASSWORD` wajib; kosong = halaman 503 berisi instruksi.)*
+- [x] Batasi akses dashboard, laporan, media, sumber, dan kepemilikan. *(Selesai untuk satu akun admin; kepemilikan per guru masih menunggu plan-google-cbt.)*
+- [ ] Validasi serta escape seluruh metadata dan konten dinamis, termasuk title, URL media kaya, dan import TKA.
+- [x] Cegah kebocoran kunci jawaban melalui print atau parameter URL. *(Selesai: `?kunci=1` tanpa sesi → 404 di server.)*
+- [ ] Tambahkan pembatasan laju pada endpoint publik, pembuatan soal dengan AI, dan callback autentikasi. *(Login sudah ber-rate-limit fail-closed; endpoint publik `/api/save` dan AI generation belum.)*
+- [ ] Tambahkan pengujian rute, autentikasi, KV, dan D1; suite saat ini terutama menguji modul quiz dan helper. *(Helper sesi sudah teruji di `tests/auth.test.mjs`; harness HTTP untuk route masih belum.)*
 - Tetapkan data minimum, retensi, hak akses, ekspor, dan penghapusan data.
 
 ### Gerbang P1 — wajib sebelum perluasan multi-sekolah

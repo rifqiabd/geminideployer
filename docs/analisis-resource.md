@@ -21,8 +21,8 @@
 | # | Temuan | Dampak | Prioritas |
 | - | ------ | ------ | --------- |
 | 1 | Sesi login = cookie statis berisi string literal `authenticated_user` | Akses admin bisa dipalsukan siapa pun yang tahu nilainya | **Kritis** |
-| 2 | Password admin hardcoded `admin123` dan tidak dibaca dari env | Semua sekolah berbagi satu kredensial | **Kritis** |
-| 3 | Stored XSS di halaman rekap (`payload_json` + `user_id` tanpa escape) | Siswa bisa menjalankan skrip di browser guru | **Kritis** |
+| 2 | ~~Password admin hardcoded `admin123` dan tidak dibaca dari env~~ **RESOLVED (28 Sep 2026, plan-hardening-auth):** password kini dibaca dari env `APP_PASSWORD` dan wajib; fallback dihapus dari kode | Semua sekolah berbagi satu kredensial | **Kritis** |
+| 3 | ~~Stored XSS di halaman rekap (`payload_json` + `user_id` tanpa escape)~~ **RESOLVED:** `escapeHtml()` dipakai pada `created_at`, `user_id`, `summary`, dan `JSON.stringify(payload)` di halaman rekap | Siswa bisa menjalankan skrip di browser guru | **Kritis** |
 | 4 | Slug global dari judul → tabrakan antar guru/sekolah | Data kuis bisa tertimpa tanpa peringatan | Tinggi |
 | 5 | Query D1 tanpa `LIMIT`, analitik dihitung ulang tiap request | Lambat + mahal begitu ada ribuan kiriman | Tinggi |
 | 6 | Indeks aplikasi dibaca dari `KV list` + `get()` berurutan | Dashboard O(N), mentok ~1000 key, kena konsistensi eventual | Tinggi |

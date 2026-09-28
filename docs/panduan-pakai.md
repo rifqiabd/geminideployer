@@ -16,7 +16,7 @@ Aplikasi ini mengubah **teks** (kisi-kisi, materi, atau daftar soal) menjadi **a
 
 | Halaman | Alamat | Untuk siapa |
 | --- | --- | --- |
-| Dashboard | `/` | Guru (login dengan kata sandi) |
+| Dashboard | `/` | Guru (login dengan kata sandi; sesi berlaku 7 hari) |
 | Halaman kuis siswa | `/p/<slug>` | Siswa (tanpa login) |
 | Panel gambar soal | `/p/<slug>/media` | Guru |
 | Editor soal | `/p/<slug>/edit` | Guru |
@@ -61,7 +61,12 @@ Aplikasi ini mengubah **teks** (kisi-kisi, materi, atau daftar soal) menjadi **a
 
 ## Langkah 2: Publikasikan ke dashboard
 
-1. Buka dashboard aplikasi (`/`) dan login dengan kata sandi guru.
+1. Buka dashboard aplikasi (`/`) dan login dengan kata sandi guru. Sesi login
+   berlaku **7 hari**; setelah itu dashboard meminta login ulang. Untuk keluar
+   di komputer bersama, klik **Keluar** di bagian bawah sidebar — sesi langsung
+   dihapus dari peramban. Lima kali salah password dalam satu menit mengunci
+   percobaan login selama beberapa saat (setelah 10 kegagalan, terkunci 15
+   menit).
 2. **Salin seluruh blok JSON** dari Gem (mulai `{` sampai `}`) lalu tempel ke kolom **JSON Soal**. Tidak ada pilihan mode lain lagi: seluruh fitur kuis (identitas siswa, penilaian di server, rekap nilai, analisis butir soal, editor soal, koreksi esai) sudah otomatis dibuatkan dari JSON itu.
 3. Isi **Judul Aplikasi** (jadi alamat `/p/...`). Boleh dikosongkan kalau JSON sudah punya `title`.
 4. Klik **Publikasikan ke URL**.

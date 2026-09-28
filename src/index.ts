@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { QuizError, escapeHtml, gradeSubmission, mediaBaseFor, parseQuizJson, parseQuizSpec, parseStamp, randomSlugSuffix, relTime, renderPrintSheet, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
@@ -11,7 +11,23 @@ import { registerEssayGradingRoutes } from './quiz-essay';
 import { deleteAllMedia, moveAllMedia } from './media';
 import { registerGuideRoute, GEM_URL } from './guide';
 import { registerTkaStudioRoutes } from './tka-studio';
-import { safeSlug } from './auth';
+import {
+  SESSION_COOKIE_NAME,
+  PRE_COOKIE_NAME,
+  csrfFor,
+  isAuthed,
+  missingSecrets,
+  randomNpc,
+  requireAdmin,
+  safeEqual,
+  safeSlug,
+  secretSetupPage,
+  signPreSession,
+  signSession,
+  verifyCsrfFromRequest,
+  getSession,
+  verifyPreSession,
+} from './auth';
 
 type Bindings = {
   STORAGE: KVNamespace;
@@ -24,17 +40,68 @@ type Bindings = {
   // "Generate AI" untuk membuat gambar slot langsung dari prompt.
   IMGGEN_API_URL?: string;
   IMGGEN_API_KEY?: string;
-  // Opsional: master password login dashboard. Kalau kosong, fallback
-  // FALLBACK_PASSWORD di bawah. Wajib diganti sebelum produksi!
+  // Wajib sejak hardening auth: kalau kosong, login admin menolak boot dengan
+  // halaman instruksi (503), BUKAN memakai password bawaan.
   APP_PASSWORD?: string;
+  // Wajib: kunci HMAC untuk cookie sesi admin dan token CSRF. Kalau kosong,
+  // semua sesi tidak bisa diverifikasi dan login ditolak (503).
+  SESSION_SECRET?: string;
+  // Opsional: allowlist origin (dipisah koma) untuk CORS endpoint admin.
+  // Kosong = tidak ada header Access-Control-Allow-Origin sama sekali.
+  ALLOWED_ORIGINS?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
-// Master password login dashboard (fallback kalau env APP_PASSWORD kosong).
-const FALLBACK_PASSWORD = 'admin123';
 
-// Aktifkan CORS agar endpoint save aman diakses
-app.use('/api/*', cors());
+// Masa berlaku cookie sesi admin: 7 hari.
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+
+/* --------------------------------------------------------------------------
+ * CORS dua lapis (T5):
+ *  - Endpoint publik siswa (/api/save, /api/submit, /media) tetap origin '*'
+ *    tanpa kredensial — halaman kuis tidak memakai cookie.
+ *  - Endpoint admin: allowlist dari ALLOWED_ORIGINS (dipisah koma). Default
+ *    kosong berarti TANPA header Access-Control-Allow-Origin sama sekali.
+ *    Header X-CSRF-Token wajib ada di Allow-Headers supaya jalur fetch tidak
+ *    gagal saat preflight.
+ * ------------------------------------------------------------------------ */
+app.use('/api/save/*', cors({ origin: '*', credentials: false }));
+app.use('/api/submit/*', cors({ origin: '*', credentials: false }));
+app.use('/media/*', cors({ origin: '*', credentials: false }));
+app.use('/studio/*', adminCors); // halaman HTML — hanya OPTIONS/prefetch lintas domain yang perlu ditolak
+app.use('/api/*', adminCors);
+
+async function adminCors(c: Context<{ Bindings: Bindings }>, next: () => Promise<void>): Promise<Response | void> {
+  if (c.req.method === 'OPTIONS') {
+    const origin = c.req.header('Origin');
+    const allowed = adminOriginAllowed(c.env.ALLOWED_ORIGINS, origin);
+    if (allowed) {
+      c.header('Access-Control-Allow-Origin', origin as string);
+      c.header('Access-Control-Allow-Credentials', 'true');
+      c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      c.header('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token');
+      c.header('Access-Control-Max-Age', '600');
+    }
+    return c.body(null, 204);
+  }
+  await next();
+  // Header hanya dipasang untuk origin yang terdaftar; selain itu tidak ada
+  // Access-Control-Allow-Origin sama sekali, jadi browser menolak membacanya.
+  const origin = c.req.header('Origin');
+  if (origin && adminOriginAllowed(c.env.ALLOWED_ORIGINS, origin)) {
+    c.header('Access-Control-Allow-Origin', origin);
+    c.header('Access-Control-Allow-Credentials', 'true');
+  }
+}
+
+function adminOriginAllowed(allowlist: string | undefined, origin: string | undefined): boolean {
+  if (!origin || !allowlist) return false;
+  return allowlist
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+    .includes(origin);
+}
 
 // Unggah/sajikan gambar soal + panel guru di /p/:slug/media
 registerMediaRoutes(app);
@@ -144,13 +211,18 @@ app.get('/p/:slug', async (c) => {
   // Aplikasi lama yang dulu dipublish sebagai HTML/React tidak punya spec
   // terstruktur, jadi permintaan cetakinya dilewati dan halamannya tampil biasa.
   if (c.req.query('print') === '1') {
+    // Kunci jawaban hanya lewat sesi admin (T6). 404, bukan 403 — 403    // mengonfirmasi bahwa kunci memang ada. `?print=1` tanpa `kunci` tetap    // publik: mencetak naskah soal bukan kebocoran.
+    const wantsKunci = c.req.query('kunci') === '1';
+    if (wantsKunci && !(await isAuthed(c))) {
+      return c.text('Aplikasi tidak ditemukan!', 404);
+    }
     const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
     if (specRaw) {
       try {
         const spec = JSON.parse(specRaw) as QuizSpec;
         return c.html(
           renderPrintSheet(spec, slug, {
-            showKunci: c.req.query('kunci') === '1',
+            showKunci: wantsKunci,
             layout: c.req.query('layout') === '2col' ? '2col' : '1col',
             auto: c.req.query('auto') === '1',
           })
@@ -253,7 +325,7 @@ app.post('/api/submit/:slug', saveRecordHandler);
 // 2. HALAMAN REKAP DATA PER APLIKASI (ADMIN)
 // ==========================================
 app.get('/p/:slug/data', async (c) => {
-  if (getCookie(c, 'auth_session') !== 'authenticated_user') {
+  if (!(await isAuthed(c))) {
     return c.redirect('/');
   }
 
@@ -513,29 +585,150 @@ app.get('/p/:slug/data', async (c) => {
 // ==========================================
 // 3. AUTHENTICATION & DASHBOARD ADMIN
 // ==========================================
-app.post('/api/login', async (c) => {
-  const body = await c.req.parseBody();
-  const expected = c.env.APP_PASSWORD || FALLBACK_PASSWORD;
-  if (body.password === expected) {
-    setCookie(c, 'auth_session', 'authenticated_user', {
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-      maxAge: 60 * 60 * 24 * 7,
-    });
-    return c.redirect('/');
+/* --------------------------------------------------------------------------
+ * Guard admin untuk route aksi (T2/T4): sesi valid + token CSRF cocok.
+ * Mengembalikan Response bila ditolak, atau null bila boleh lanjut.
+ * parseBody() di Hono di-cache per request, jadi membacanya di sini untuk CSRF
+ * lalu lagi di handler tidak mengonsumsi body dua kali.
+ * ------------------------------------------------------------------------ */
+async function denyAdminRequest(c: Context<{ Bindings: Bindings }>): Promise<Response | null> {
+  const session = await getSession(c);
+  if (!session) {
+    const accept = c.req.header('Accept') ?? '';
+    if (accept.includes('text/html')) return c.redirect('/');
+    return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
   }
-  return c.html(errorPage('Password salah', 'Master password yang dimasukkan tidak cocok. Coba lagi dari halaman depan.'), 401);
+  if (!(await verifyCsrfFromRequest(c, session, c.env.SESSION_SECRET ?? ''))) {
+    return c.html(errorPage('Token keamanan tidak valid', 'Muat ulang halaman, lalu ulangi aksinya. Permintaan ditolak karena token CSRF tidak cocok.'), 403);
+  }
+  return null;
+}
+
+/* --------------------------------------------------------------------------
+ * Rate limit /api/login (T3) — fail-closed: kalau KV gagal, login DITOLAK.
+ * IP di-hash supaya tidak tersimpan mentah sebagai key KV.
+ * ------------------------------------------------------------------------ */
+const LOGIN_RATE_PER_MINUTE = 5;
+const LOGIN_LOCK_THRESHOLD = 10;
+const LOGIN_LOCK_SECONDS = 15 * 60;
+
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function clientIp(c: Context<{ Bindings: Bindings }>): string {
+  return c.req.header('CF-Connecting-IP') ?? c.req.header('x-forwarded-for') ?? 'unknown';
+}
+
+app.post('/api/login', async (c) => {
+  // T0: tanpa secret wajib, login menolak boot dengan instruksi — bukan
+  // memakai password bawaan.
+  if (missingSecrets(c.env).length) return c.html(secretSetupPage(), 503);
+
+  // Rate limit diperiksa SEBELUM password dibandingkan supaya timing brute
+  // force tidak bergantung pada benar/salahnya password.
+  const ipHash = await sha256Hex(clientIp(c));
+  const minuteBucket = Math.floor(Date.now() / 60000);
+  const failKey = `loginfail:${ipHash}:${minuteBucket}`;
+  const lockKey = `loginlock:${ipHash}`;
+  try {
+    const lockedUntil = Number((await c.env.STORAGE.get(lockKey)) ?? '0');
+    if (lockedUntil > Math.floor(Date.now() / 1000)) {
+      c.header('Retry-After', String(Math.max(1, lockedUntil - Math.floor(Date.now() / 1000))));
+      return c.html(errorPage('Login dikunci sementara', 'Terlalu banyak percobaan gagal. Coba lagi setelah 15 menit.'), 429);
+    }
+    const used = Number((await c.env.STORAGE.get(failKey)) ?? '0');
+    if (used >= LOGIN_RATE_PER_MINUTE) {
+      c.header('Retry-After', '60');
+      return c.html(errorPage('Terlalu banyak percobaan', 'Batas 5 percobaan per menit tercapai. Tunggu sebentar, lalu coba lagi.'), 429);
+    }
+  } catch {
+    // Berbeda dari panel generate AI yang sengaja fail-open, di sini KV gagal
+    // berarti pengaman login tidak bisa dihitung → tolak (fail-closed).
+    return c.html(errorPage('Layanan sedang tidak tersedia', 'Pemeriksaan batas percobaan login tidak bisa dijalankan. Coba lagi sebentar.'), 503);
+  }
+
+  // Login CSRF: token diturunkan dari cookie auth_pre yang dipasang saat
+  // GET / tanpa sesi. Tanpa itu, form dibuat sebelum pembaruan ini.
+  const secret = c.env.SESSION_SECRET ?? '';
+  const preValue = getCookie(c, PRE_COOKIE_NAME);
+  const pre = preValue ? await verifyPreSession(preValue, secret) : null;
+  const body = await c.req.parseBody();
+  const providedToken = typeof body._csrf === 'string' ? body._csrf : '';
+  if (!pre || !providedToken || !safeEqual(providedToken, await csrfFor(pre.npc, secret))) {
+    return c.html(errorPage('Sesi login kedaluwarsa', 'Muat ulang halaman depan, lalu masukkan password sekali lagi.'), 403);
+  }
+
+  const password = typeof body.password === 'string' ? body.password : '';
+  const expected = c.env.APP_PASSWORD ?? '';
+  if (!expected || !safeEqual(password, expected)) {
+    // Catat kegagalan; setelah 10 kegagalan kunci 15 menit. TTL 120 detik
+    // menutup bucket menit berjalan + satu bucket berikutnya.
+    try {
+      const fails = Number((await c.env.STORAGE.get(failKey)) ?? '0') + 1;
+      await c.env.STORAGE.put(failKey, String(fails), { expirationTtl: 120 });
+      if (fails >= LOGIN_LOCK_THRESHOLD) {
+        await c.env.STORAGE.put(lockKey, String(Math.floor(Date.now() / 1000) + LOGIN_LOCK_SECONDS), { expirationTtl: LOGIN_LOCK_SECONDS });
+      }
+    } catch {
+      // KV gagal saat mencatat: percobaan ini tetap ditolak di atas, jadi aman.
+    }
+    return c.html(errorPage('Password salah', 'Master password yang dimasukkan tidak cocok. Coba lagi dari halaman depan.'), 401);
+  }
+
+  // Sukses: bersihkan penghitung gagal, pasang sesi bertanda tangan, buang
+  // pra-sesi (nonce-nya sudah terpakai dan tidak boleh dipakai login lagi).
+  try {
+    await c.env.STORAGE.delete(failKey);
+  } catch {
+    // Penghitung gagal tinggal; TTL 120 detik menghapusnya sendiri.
+  }
+  const cookieValue = await signSession(secret, SESSION_TTL_SECONDS);
+  setCookie(c, SESSION_COOKIE_NAME, cookieValue, {
+    path: '/',
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    maxAge: SESSION_TTL_SECONDS,
+  });
+  deleteCookie(c, PRE_COOKIE_NAME, { path: '/' });
+  return c.redirect('/');
 });
 
 app.get('/api/logout', (c) => {
-  deleteCookie(c, 'auth_session', { path: '/' });
+  deleteCookie(c, SESSION_COOKIE_NAME, { path: '/' });
+  deleteCookie(c, PRE_COOKIE_NAME, { path: '/' });
   return c.redirect('/');
 });
 
 app.get('/', async (c) => {
-  const isAuth = getCookie(c, 'auth_session') === 'authenticated_user';
+  // T0: tanpa secret wajib, tampilkan halaman instruksi 503 daripada form
+  // login yang pasti ditolak — supaya lockout tidak butuh tebakan.
+  if (missingSecrets(c.env).length) return c.html(secretSetupPage(), 503);
+
+  const secret = c.env.SESSION_SECRET ?? '';
+  const session = await getSession(c);
+  const isAuth = session !== null;
+
+  // Pra-sesi login (T2): dipasang saat GET / tanpa sesi supaya form login
+  // punya token CSRF tanpa penyimpanan server. TTL 30 menit.
+  let loginCsrf = '';
+  if (!isAuth) {
+    const existing = getCookie(c, PRE_COOKIE_NAME);
+    const pre = existing ? await verifyPreSession(existing, secret) : null;
+    const npc = pre?.npc ?? randomNpc();
+    setCookie(c, PRE_COOKIE_NAME, await signPreSession(secret, 30 * 60, undefined, npc), {
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      maxAge: 30 * 60,
+    });
+    loginCsrf = await csrfFor(npc, secret);
+  }
+  // Token CSRF sesi: dibaca inline JS lewat meta tag di bawah.
+  const authCsrf = session ? await csrfFor(session.npc, secret) : '';
 
   let projects: any[] = [];
   if (isAuth) {
@@ -798,6 +991,7 @@ return c.html(`<!DOCTYPE html>
     }
     @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   </style>
+  ${isAuth ? `<meta name="csrf-token" content="${authCsrf}">` : ''}
 </head>
 <body>
   ${!isAuth ? `
@@ -810,6 +1004,7 @@ return c.html(`<!DOCTYPE html>
         <h2 class="auth-title">Login Diperlukan</h2>
         <p class="auth-sub">Masukkan master password untuk mengelola aplikasi.</p>
         <form method="POST" action="/api/login" class="auth-form">
+          <input type="hidden" name="_csrf" value="${loginCsrf}">
           <div class="field">
             <label for="master-pw">Master Password</label>
             <input id="master-pw" class="form-input" type="password" name="password" required placeholder="••••••••" autocomplete="current-password">
@@ -863,6 +1058,7 @@ return c.html(`<!DOCTYPE html>
           <div class="sidebar-item-actions">
             <button class="sidebar-item-btn" title="Buka" onclick="event.stopPropagation(); window.open('/p/${p.slug}','_blank')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
             <form method="POST" action="/api/delete" onsubmit="event.stopPropagation(); return confirm('Hapus aplikasi ini?')">
+              <input type="hidden" name="_csrf" value="${authCsrf}">
               <input type="hidden" name="slug" value="${p.slug}">
               <button class="sidebar-item-btn danger" title="Hapus" onclick="event.stopPropagation()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
             </form>
@@ -928,6 +1124,7 @@ return c.html(`<!DOCTYPE html>
               </div>
             </div>
             <form method="POST" action="/api/deploy">
+              <input type="hidden" name="_csrf" value="${authCsrf}">
               <div class="form-row">
                 <label class="form-label" for="deployTitleInput">Judul Aplikasi <span style="color:var(--text-faint);font-weight:400">(jadi alamat /p/...)</span></label>
                 <input class="form-input" id="deployTitleInput" type="text" name="title" placeholder="Contoh: Kuis Akidah Akhlak Kelas 1">
@@ -1009,6 +1206,7 @@ return c.html(`<!DOCTYPE html>
         </button>
       </div>
       <form method="POST" action="/api/app/update" id="edit-form">
+        <input type="hidden" name="_csrf" value="${authCsrf}">
         <input type="hidden" name="slug" id="edit-old-slug">
         <div class="opt-group">
           <label class="opt-cap" for="edit-title">Judul aplikasi</label>
@@ -1063,6 +1261,7 @@ return c.html(`<!DOCTYPE html>
   </div>
   <script>
   var APPDATA = ${appDataJson};
+  var CSRF = ${JSON.stringify(authCsrf).replace(/</g, '\\u003c')};
 
   function toggleSidebar() {
     var s = document.getElementById('sidebar');
@@ -1130,7 +1329,7 @@ return c.html(`<!DOCTYPE html>
     html += '<a class="detail-action" href="/p/' + app.slug + '/data">' + cell(icons.log) + 'Log Data</a>';
     html += '<button type="button" class="detail-action" data-edit-btn="' + app.slug + '">' + cell(icons.tag) + 'Judul &amp; Slug</button>';
     if (app.type === 'json') html += '<button type="button" class="detail-action" data-print-btn="' + app.slug + '">' + cell(icons.print) + 'Cetak PDF</button>';
-    html += '<form method="POST" action="/api/delete" onsubmit="return confirm(&quot;Hapus aplikasi ini?&quot;)"><input type="hidden" name="slug" value="' + app.slug + '"><button type="submit" class="detail-action danger">' + cell(icons.del) + 'Hapus</button></form>';
+    html += '<form method="POST" action="/api/delete" onsubmit="return confirm(&quot;Hapus aplikasi ini?&quot;)"><input type="hidden" name="_csrf" value="' + CSRF + '"><input type="hidden" name="slug" value="' + app.slug + '"><button type="submit" class="detail-action danger">' + cell(icons.del) + 'Hapus</button></form>';
     act.innerHTML = html;
 
     if (window.innerWidth < 1024) toggleSidebar();
@@ -1267,9 +1466,8 @@ return c.html(`<!DOCTYPE html>
 // 4. ACTION HANDLERS
 // ==========================================
 app.post('/api/deploy', async (c) => {
-  if (getCookie(c, 'auth_session') !== 'authenticated_user') {
-    return c.text('Unauthorized', 401);
-  }
+  const denied = await denyAdminRequest(c);
+  if (denied) return denied;
 
   const body = await c.req.parseBody();
   const formTitle = (body.title as string || '').trim();
@@ -1317,9 +1515,8 @@ app.post('/api/deploy', async (c) => {
 });
 
 app.post('/api/delete', async (c) => {
-  if (getCookie(c, 'auth_session') !== 'authenticated_user') {
-    return c.text('Unauthorized', 401);
-  }
+  const denied = await denyAdminRequest(c);
+  if (denied) return denied;
 
   const body = await c.req.parseBody();
   const slug = body.slug as string;
@@ -1338,9 +1535,8 @@ app.post('/api/delete', async (c) => {
 // 5. UBAH JUDUL ATAU SLUG APLIKASI
 // ==========================================
 app.post('/api/app/update', async (c) => {
-  if (getCookie(c, 'auth_session') !== 'authenticated_user') {
-    return c.text('Unauthorized', 401);
-  }
+  const denied = await denyAdminRequest(c);
+  if (denied) return denied;
 
   const body = await c.req.parseBody();
   const oldSlug = safeSlug((body.slug as string) || '');

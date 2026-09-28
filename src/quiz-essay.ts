@@ -13,7 +13,7 @@
  * ========================================================================== */
 
 import type { Hono } from 'hono';
-import { isAuthed, safeSlug } from './auth';
+import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth';
 import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz';
 import type { GradeResult, GradedDetail, QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
@@ -37,7 +37,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
   /* Halaman koreksi                                                     */
   /* ------------------------------------------------------------------ */
   app.get('/p/:slug/essay', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    if (!(await getSession(c))) return c.redirect('/');
 
     const slug = safeSlug(c.req.param('slug'));
     const metaRaw = await c.env.STORAGE.get(`meta:${slug}`);
@@ -63,6 +63,9 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
     }
 
     const showAll = c.req.query('show') === 'all';
+    // Token CSRF untuk inline JS koreksi esai (T4) — header X-CSRF-Token.
+    const essaySession = (await getSession(c))!;
+    const csrfToken = await csrfFor(essaySession.npc, c.env.SESSION_SECRET ?? '');
     const { results } = await c.env.DB.prepare(
       'SELECT * FROM app_records WHERE app_slug = ? ORDER BY created_at ASC'
     )
@@ -143,6 +146,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Koreksi Esai - ${escapeHtml(meta.title ?? slug)}</title>
+  <meta name="csrf-token" content="${csrfToken}">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -265,7 +269,11 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
   /* Simpan nilai esai                                                   */
   /* ------------------------------------------------------------------ */
   app.post('/api/quiz/:slug/essay', async (c) => {
-    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
+    const session = await getSession(c);
+    if (!session) return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
+    if (!(await verifyCsrfFromRequest(c, session, c.env.SESSION_SECRET ?? ''))) {
+      return c.json({ status: 'error', message: 'Token keamanan tidak valid. Muat ulang halaman koreksi esai.' }, 403);
+    }
 
     const slug = safeSlug(c.req.param('slug'));
     const body = (await c.req.json().catch(() => null)) as { id?: unknown; scores?: Record<string, unknown> } | null;

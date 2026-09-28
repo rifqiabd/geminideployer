@@ -820,7 +820,10 @@ if (type === 'true_false') {
 
     fetch('/api/quiz/' + encodeURIComponent(SLUG) + '/save', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': (document.querySelector('meta[name=\"csrf-token\"]') || {}).content || ''
+      },
       body: JSON.stringify({ source: JSON.stringify(state) })
     })
       .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })

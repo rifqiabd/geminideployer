@@ -9,8 +9,8 @@
  *      mengganti foto tidak perlu publish ulang).
  * ========================================================================== */
 
-import type { Hono } from 'hono';
-import { isAuthed, safeSlug } from './auth.ts';
+import type { Hono, Context } from 'hono';
+import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth.ts';
 import { collectMediaSlotsFromStored, escapeHtml, mediaContextFromRaw, mediaSlotContext, mediaSlotContextFull, parseQuizSpec, sanitizeMediaName } from './quiz.ts';
 import { buildGeminiPrompt, generateImage, mediaGenConfig, saveGeneratedMedia, IMGGEN_MODELS } from './media-gen.ts';
 import type { MediaGenConfig, MediaGenSettings } from './media-gen.ts';
@@ -32,6 +32,22 @@ import type { MediaBindings } from './media.ts';
 // tidak ketemu saat disajikan.
 function safeMediaName(raw: string): string {
   return sanitizeMediaName(String(raw ?? '').replace(/^media:\s*/i, ''));
+}
+
+/**
+ * Guard admin untuk endpoint media (T4): sesi valid + token CSRF cocok
+ * (header X-CSRF-Token dari inline JS, atau field _csrf dari form).
+ * Mengembalikan Response bila ditolak, atau null bila boleh lanjut.
+ * parseBody() di Hono di-cache per request, jadi membacanya dua kali (di sini
+ * untuk CSRF, lalu di handler untuk payload) tidak mengonsumsi body dua kali.
+ */
+async function denyMediaRequest<E extends { Bindings: MediaBindings }>(c: Context<E>): Promise<Response | null> {
+  const session = await getSession(c);
+  if (!session) return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
+  if (!(await verifyCsrfFromRequest(c, session, c.env.SESSION_SECRET ?? ''))) {
+    return c.json({ status: 'error', message: 'Token keamanan tidak valid. Muat ulang halaman panel gambar.' }, 403);
+  }
+  return null;
 }
 
 /**
@@ -95,7 +111,8 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   /* 2. Unggah gambar                                                    */
   /* ------------------------------------------------------------------ */
   app.post('/api/media/:slug', async (c) => {
-    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
+    const denied = await denyMediaRequest(c);
+    if (denied) return denied;
 
     const slug = safeSlug(c.req.param('slug'));
     if (!slug) return c.json({ status: 'error', message: 'Slug aplikasi tidak valid.' }, 400);
@@ -151,7 +168,8 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   /* 3. Hapus gambar                                                     */
   /* ------------------------------------------------------------------ */
   app.post('/api/media/:slug/delete', async (c) => {
-    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
+    const denied = await denyMediaRequest(c);
+    if (denied) return denied;
 
     const slug = safeSlug(c.req.param('slug'));
     const body = await c.req.json().catch(() => null);
@@ -172,7 +190,8 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   // karena ini hanya proteksi kenyamanan, bukan keamanan.
   const GEN_LIMIT_PER_MINUTE = 6;
   app.post('/api/media/:slug/generate', async (c) => {
-    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
+    const denied = await denyMediaRequest(c);
+    if (denied) return denied;
 
     const slug = safeSlug(c.req.param('slug'));
     if (!slug) return c.json({ status: 'error', message: 'Aplikasi tidak ditemukan.' }, 404);
@@ -251,46 +270,79 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   /* ------------------------------------------------------------------ */
   /* 3c. Pengaturan API gambar sendiri (BYOK) per aplikasi               */
   /* ------------------------------------------------------------------ */
-  // Membaca pengaturan BYOK: dipakai panel untuk mengisi formulir. Kunci API
-  // milik admin (env) sengaja TIDAK dibocorkan ke sana.
+  // Membaca pengaturan BYOK untuk panel. Kunci TIDAK pernah dikirim balik
+  // (T7): panel hanya menerima flag `hasKey`, jadi kunci guru tidak tersimpan
+  // di DOM dan tidak bisa diambil lewat devtools. Respons memakai no-store
+  // karena isinya konfigurasi internal per aplikasi.
   app.get('/api/media/:slug/gen-config', async (c) => {
-    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
+    const session = await getSession(c);
+    if (!session) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
     const slug = safeSlug(c.req.param('slug'));
     if (!slug) return c.json({ status: 'error', message: 'Aplikasi tidak ditemukan.' }, 404);
     const resolved = await resolveGenConfig(c.env, slug);
+    c.header('Cache-Control', 'no-store');
     if (!resolved) return c.json({ status: 'success', config: null });
     return c.json({
       status: 'success',
       config: {
         source: resolved.source,
         apiUrl: resolved.settings?.apiUrl ?? '',
-        apiKey: resolved.settings?.apiKey ?? '',
+        hasKey: Boolean(resolved.settings?.apiKey),
         model: resolved.model ?? '',
       },
     });
   });
 
-  // Menyimpan pengaturan BYOK untuk aplikasi ini. Kirim { apiUrl:'', apiKey:'' }
-  // untuk kembali memakai konfigurasi bawaan admin.
+  // Menyimpan pengaturan BYOK untuk aplikasi ini (T7):
+  //   { apiUrl:'', apiKey:'' }            -> hapus, kembali ke konfigurasi admin
+  //   { apiUrl terisi, apiKey kosong }    -> perbarui URL/model, JAGA kunci lama
+  //   { apiKey terisi }                   -> ganti kunci (validasi https + panjang)
+  // Tanpa semantik "jaga kunci", kunci guru hilang diam-diam begitu panel
+  // dibuka lalu disimpan, karena kunci tidak lagi dikirim balik ke form.
   app.post('/api/media/:slug/gen-config', async (c) => {
-    if (!isAuthed(c)) return c.json({ status: 'error', message: 'Sesi login habis.' }, 401);
+    const denied = await denyMediaRequest(c);
+    if (denied) return denied;
     const slug = safeSlug(c.req.param('slug'));
     if (!slug) return c.json({ status: 'error', message: 'Aplikasi tidak ditemukan.' }, 404);
 
     const body = (await c.req.json().catch(() => null)) as { apiUrl?: unknown; apiKey?: unknown; model?: unknown } | null;
     const apiUrl = String(body?.apiUrl ?? '').trim();
     const apiKey = String(body?.apiKey ?? '').trim();
+    const model = String(body?.model ?? '').trim().slice(0, 80) || undefined;
     if (!apiUrl && !apiKey) {
+      // Keduanya kosong: kembali ke konfigurasi bawaan admin.
       await c.env.STORAGE.delete(`imggencfg:${slug}`);
       return c.json({ status: 'success', message: 'Sekarang pakai konfigurasi bawaan (admin).' });
+    }
+    if (!apiUrl) {
+      return c.json({ status: 'error', message: 'Alamat API harus diisi.' }, 400);
     }
     if (!/^https:\/\//i.test(apiUrl)) {
       return c.json({ status: 'error', message: 'Alamat API harus diawali https:// (kunci tidak dikirim ke koneksi tak terenkripsi).' }, 400);
     }
+    if (!apiKey) {
+      // Kunci tidak diketik ulang: pertahankan kunci yang tersimpan agar
+      // membuka panel lalu menyimpan tidak menghapus kunci BYOK diam-diam.
+      let oldKey = '';
+      try {
+        const raw = await c.env.STORAGE.get(`imggencfg:${slug}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { apiKey?: unknown };
+          oldKey = String(parsed.apiKey ?? '').trim();
+        }
+      } catch {
+        // KV rusak: diperlakukan seperti tidak ada kunci lama.
+      }
+      if (!oldKey) {
+        return c.json({ status: 'error', message: 'API key masih kosong. Isi kunci minimal 6 karakter, atau hapus pengaturan ini untuk kembali ke konfigurasi admin.' }, 400);
+      }
+      const settings: MediaGenSettings = { apiUrl, apiKey: oldKey, model };
+      await c.env.STORAGE.put(`imggencfg:${slug}`, JSON.stringify(settings));
+      return c.json({ status: 'success', message: 'Pengaturan API gambar tersimpan (kunci lama dipertahankan).' });
+    }
     if (apiKey.length < 6) {
       return c.json({ status: 'error', message: 'API key terlalu pendek (minimal 6 karakter).' }, 400);
     }
-    const model = String(body?.model ?? '').trim().slice(0, 80) || undefined;
     const settings: MediaGenSettings = { apiUrl, apiKey, model };
     await c.env.STORAGE.put(`imggencfg:${slug}`, JSON.stringify(settings));
     return c.json({ status: 'success', message: 'Pengaturan API gambar tersimpan untuk aplikasi ini.' });
@@ -300,7 +352,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   /* 4. Panel guru: atur gambar tiap soal                                */
   /* ------------------------------------------------------------------ */
   app.get('/p/:slug/media', async (c) => {
-    if (!isAuthed(c)) return c.redirect('/');
+    if (!(await getSession(c))) return c.redirect('/');
 
     const slug = safeSlug(c.req.param('slug'));
     const metaRaw = await c.env.STORAGE.get(`meta:${slug}`);
@@ -335,6 +387,10 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     }
 
     const isJsonQuiz = meta.type === 'json';
+    // Token CSRF untuk seluruh inline JS panel gambar (T4). Session dijamin
+    // ada — guard redirect di atas baris pertama handler sudah lolos.
+    const panelSession = (await getSession(c))!;
+    const csrfToken = await csrfFor(panelSession.npc, c.env.SESSION_SECRET ?? '');
     const items = await listMedia(c.env, slug);
     const uploaded = new Map(items.map((item) => [item.name, item]));
     const missing = slots.filter((name) => !uploaded.has(name));
@@ -653,6 +709,8 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script>
 (function () {
+  var CSRF = ${JSON.stringify(csrfToken).replace(/</g, '\\u003c')};
+  var CSRF = ${JSON.stringify(csrfToken).replace(/</g, '\\u003c')};
   var SLUG = ${JSON.stringify(slug)};
 
   var MAX_SIDE = 1600;
@@ -699,7 +757,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
       var form = new FormData();
       form.append('file', payload, 'unggahan.webp');
       form.append('name', name);
-      fetch('/api/media/' + encodeURIComponent(SLUG), { method: 'POST', body: form })
+      fetch('/api/media/' + encodeURIComponent(SLUG), { method: 'POST', headers: { 'X-CSRF-Token': CSRF }, body: form })
         .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
         .then(function (result) {
           if (!result.ok || !result.data || result.data.status !== 'success') {
@@ -718,7 +776,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     if (!window.confirm('Hapus gambar "' + name + '"? Soal yang memakainya akan menampilkan kotak placeholder.')) return;
     fetch('/api/media/' + encodeURIComponent(SLUG) + '/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
       body: JSON.stringify({ name: name })
     })
       .then(function (res) { return res.json(); })
@@ -753,7 +811,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     statusEl.textContent = 'Membuat gambar dengan AI (10\u201330 detik), jangan tutup halaman...';
     fetch('/api/media/' + encodeURIComponent(SLUG) + '/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
       body: JSON.stringify({ name: name, prompt: prompt || '', model: currentModel() })
     })
       .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
@@ -814,9 +872,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     setTimeout(function () {
       if (byokStatus && byokStatus.textContent === text) byokStatus.textContent = '';
     }, 4000);
-  }
-
-  fetch('/api/media/' + encodeURIComponent(SLUG) + '/gen-config', { method: 'GET' })
+  }    fetch('/api/media/' + encodeURIComponent(SLUG) + '/gen-config', { method: 'GET' })
     .then(function (res) { return res.json().catch(function () { return null; }); })
     .then(function (data) {
       var cfg = data && data.config;
@@ -826,7 +882,12 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
         var url = document.getElementById('gen-url');
         var key = document.getElementById('gen-key');
         if (url) url.value = cfg.apiUrl || '';
-        if (key) key.value = cfg.apiKey || '';
+        if (key) {
+          // Kunci tidak pernah dikirim balik ke browser (anti-bocor). Yang
+          // tampil hanya penanda bahwa kunci sudah tersimpan.
+          key.value = '';
+          key.placeholder = cfg.hasKey ? 'Kunci tersimpan — biarkan kosong untuk mempertahankan' : '';
+        }
       }
       if (cfg.model && modelSelect) {
         // Simpan sebagai model bawaan yang tampil di dropdown.
@@ -853,7 +914,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
       byokMsg('Menyimpan...', true);
       fetch('/api/media/' + encodeURIComponent(SLUG) + '/gen-config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
         body: JSON.stringify({ apiUrl: url ? url.value.trim() : '', apiKey: key ? key.value.trim() : '', model: model })
       })
         .then(function (res) { return res.json(); })
@@ -876,7 +937,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
       byokMsg('Menghapus...', true);
       fetch('/api/media/' + encodeURIComponent(SLUG) + '/gen-config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
         body: JSON.stringify({ apiUrl: '', apiKey: '' })
       })
         .then(function (res) { return res.json(); })
