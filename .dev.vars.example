@@ -14,3 +14,10 @@ SESSION_SECRET=ganti-dengan-32-byte-acak
 # ( Workers AI gratis sampai 100rb panggilan/hari ), lalu isi di sini:
 # IMGGEN_API_URL=https://<nama-worker>.<subdomain>.workers.dev
 # IMGGEN_API_KEY=your-secret-api-key
+
+# OPSIONAL - ajakan PPDB 2027/2028 di banner dashboard.
+# Tombol "Daftar Sekarang" selalu tampil. Isi nomor WhatsApp panitia (format
+# internasional tanpa tanda +, mis. 6281234567890) agar tombolnya langsung
+# menuju chat admin; kalau kosong, WhatsApp terbuka dengan pesan siap kirim
+# dan panitia dipilih manual.
+PPDB_WHATSAPP=

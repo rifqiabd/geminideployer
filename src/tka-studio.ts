@@ -421,6 +421,10 @@ function renderStudioPage(data: StudioData): string {
     .x-btn:hover{background:var(--surface-2);color:var(--text)}
 
     @media(max-width:640px){.topbar-actions .btn{font-size:0}.topbar-actions .btn i{margin:0;font-size:13px}}
+
+    /* Mode embed: halaman di-iframe dashboard (tab "Prompt Engine") — chrome
+       topbar disembunyikan via klien agar tidak dobel dengan topbar dashboard. */
+    html.embedded .brand,html.embedded .back,html.embedded .topbar-actions{display:none}
   </style>
 </head>
 <body>
@@ -898,6 +902,7 @@ function renderStudioPage(data: StudioData): string {
   </div>
 
   <script>window.TKA_DATA = ${embedded};</script>
+  <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
   <script src="/vendor/tka-studio.js"></script>
 </body>
 </html>`;

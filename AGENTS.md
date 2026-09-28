@@ -2,7 +2,7 @@
 
 ## Project shape
 - This is a single Cloudflare Worker using Hono; the entrypoint is `src/index.ts`.
-- `src/quiz.ts` is a barrel for the quiz modules. Route registrars live in `src/media-routes.ts`, `src/quiz-editor.ts`, `src/quiz-essay.ts`, `src/guide.ts`, and `src/tka-studio.ts`.
+- `src/index.ts` is wiring only (bindings type, CORS middleware, registrar mounting). `src/quiz.ts` is a barrel for the quiz modules. Route registrars live in `src/media-routes.ts`, `src/quiz-editor.ts`, `src/quiz-essay.ts`, `src/guide.ts`, `src/tka-studio.ts`, `src/public-app.ts`, `src/records.ts`, `src/auth-routes.ts`, `src/dashboard.ts`, and `src/actions.ts`; shared admin helpers (`errorPage`, `denyAdminRequest`) live in `src/admin-shared.ts`.
 - `public/vendor/` contains browser-side editor, report, stylesheet, and font assets; it is not a generated `dist/` directory.
 - User-facing UI and documentation are primarily Indonesian.
 
@@ -29,6 +29,7 @@
 - `/api/login` is rate-limited fail-closed via KV (5/min, 15-min lockout after 10 failures). Keep it fail-closed; the imggen counter is intentionally fail-open.
 - Keep secrets in the gitignored `.dev.vars`; use `.dev.vars.example` as the shape. Do not read, print, or commit real secret values.
 - `IMGGEN_API_URL` and `IMGGEN_API_KEY` are optional image-generation settings. `global_fetch_strictly_public` is required by the configured image proxy path; test proxy changes locally before removing it.
+- `PPDB_WHATSAPP` (public `vars`, not a secret) is the WhatsApp number for the dashboard banner's PPDB 2027/2028 call-to-action. The "Daftar Sekarang" button always renders; the number only makes it target the admin directly (without it, WhatsApp opens with the message ready and the sender picks the contact).
 - Preserve public behavior at `/p/:slug`. `/api/save/:slug` and `/api/submit/:slug` are aliases, and submissions for JSON quizzes are regraded server-side from `quiz:<slug>` before being stored in D1.
 - Keep legacy KV key formats and `app_records` payload compatibility when changing dashboard, editor, media, or report flows.
 

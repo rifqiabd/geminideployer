@@ -27,6 +27,13 @@
 	// 		"bucket_name": "gemini-media"
 	// 	}
 	// ],
+	// Ajakan PPDB 2027/2028 di banner dashboard. Tombol "Daftar Sekarang" selalu
+	// tampil; nomor WhatsApp panitia (format internasional tanpa "+", mis.
+	// 6281234567890) membuatnya langsung menuju chat admin. Kalau kosong,
+	// WhatsApp terbuka dengan pesan siap kirim lalu panitia dipilih manual.
+	"vars": {
+		"PPDB_WHATSAPP": ""
+	},
 	"kv_namespaces": [
 		{
 			"binding": "STORAGE",
