@@ -1346,6 +1346,26 @@ const timerHtml = renderQuizApp(timerSpec, 'uji-timer');
 check('render: kotak timer ada saat durasi diset', timerHtml.includes('id="quiz-timer"'), true);
 check('render: form identitas dua kolom ada', timerHtml.includes('id="student-class"'), true);
 
+// Gerbang mulai: modal petunjuk + identitas. Timer TIDAK menyala saat halaman
+// dibuka — hanya setelah tombol Mulai Mengerjakan (startTimerNow) ditekan.
+check('gerbang: modal petunjuk dirender', timerHtml.includes('id="start-gate"'), true);
+check('gerbang: tombol mulai ada', timerHtml.includes('id="gate-start"'), true);
+check('gerbang: judul aplikasi di modal', timerHtml.includes('id="gate-title"'), true);
+check('gerbang: input nama di modal', timerHtml.includes('id="gate-name"'), true);
+check('gerbang: input kelas di modal (name_class)', timerHtml.includes('id="gate-class"'), true);
+const noTimerGateHtml = renderQuizApp(
+  parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', questions: [{ type: 'short', question: 'a', answer: ['a'] }] })),
+  'uji-gate-tanpa-timer'
+);
+check('gerbang: input nama ikut mode name', noTimerGateHtml.includes('id="gate-name"'), true);
+check('gerbang: tanpa kelas di modal (mode name)', !noTimerGateHtml.includes('id="gate-class"'), true);
+check('gerbang: tersembunyi saat load (anti kedip)', /id="start-gate"[^>]*hidden/.test(timerHtml), true);
+check('gerbang: ketentuan durasi disebut', timerHtml.includes('Waktu pengerjaan'), true);
+check('gerbang: tanpa durasi tetap ada ketentuan', noTimerGateHtml.includes('Tidak ada batas waktu'), true);
+check('gerbang: timer start lewat tombol, bukan load', timerHtml.includes("startTimerNow() dari gerbang mulai") || timerHtml.includes('function startTimerNow'), true);
+check('gerbang: tidak ada setInterval langsung di init', !/timerBox\.style\.display = '';\s*\n\s*tickTimer\(\);\s*\n\s*setInterval/.test(timerHtml), true);
+check('gerbang: petunjuk esai muncul saat ada esai', (() => { const spec = parseQuizSpec(JSON.stringify({ title: 'E', questions: [{ type: 'essay', question: 'x', points: 10 }] })); return renderQuizApp(spec, 'uji-esai').includes('dikoreksi oleh guru'); })(), true);
+
 // Header siswa: timer + Cetak + zoom dikelompokkan dalam satu cluster kanan
 // (.q-header-tools), jadi timer selalu sebelahan tombol Cetak.
 const headerBlock = timerHtml.slice(timerHtml.indexOf('q-header-inner'), timerHtml.indexOf('</header>'));

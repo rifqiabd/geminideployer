@@ -569,6 +569,40 @@ body {
   .q-zoom button { width: 25px; height: 25px; }
 }
 
+/* ---------- Gerbang mulai: petunjuk pengerjaan + identitas ---------- */
+.q-gate {
+  position: fixed; inset: 0; z-index: 80;
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+  background: rgba(15, 23, 42, .55);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.q-gate-card {
+  background: var(--q-surface); border: 1px solid var(--q-border);
+  border-radius: 16px; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .45);
+  width: min(520px, 100%); max-height: min(640px, 92vh); overflow-y: auto;
+  padding: 22px 22px 20px;
+}
+.q-gate-badge {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--q-brand-dark); background: var(--q-brand-soft);
+  border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+}
+.q-gate-head h2 { margin: 0; font-size: 18px; line-height: 1.3; }
+.q-gate-rules { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 7px; }
+.q-gate-rules li { font-size: 13.5px; line-height: 1.55; color: var(--q-text); }
+.q-gate-rules b { color: var(--q-brand-dark); }
+.q-gate-id { margin-top: 16px; }
+#gate-start { width: 100%; margin-top: 16px; padding: 12px 16px; font-size: 15px; }
+#gate-start:disabled { opacity: .6; cursor: not-allowed; }
+/* Awal: modal disembunyikan (tanpa FOUC), skrip membukanya bila perlu. */
+.q-gate[hidden] { display: none; }
+body.q-gate-open { overflow: hidden; }
+
+@media (max-width: 520px) {
+  .q-gate-card { padding: 18px 16px 16px; }
+  .q-gate-head h2 { font-size: 16px; }
+}
+
 /* ---------- Timer latihan (opsional, dari duration_minutes) ---------- */
 /* Kini anggota .q-header-tools: tampil sebelahan tombol Cetak dan zoom. */
 .q-timer {

@@ -303,6 +303,23 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
 
   const description = quiz.description ? `<p class="q-hint">${renderRichText(quiz.description, features, mediaBase)}</p>` : '';
 
+  // Petunjuk pengerjaan untuk modal gerbang mulai. Daftar ketentuan + baris
+  // info soal (jumlah, bobot, KKM). Tanpa durasi, baris durasi tidak ditulis.
+  const gateLines: string[] = [
+    `<li>Isi <b>nama${(quiz.identityFields ?? 'name') === 'name_class' ? ' dan kelas' : ''}</b> dengan benar sebelum mulai.</li>`,
+    `<li>Kerjakan <b>${quiz.questions.length} soal</b>${objectivePoints ? ` (bobot objektif ${objectivePoints} poin)` : ''}${essayCount ? ` • ${essayCount} soal esai dikoreksi guru` : ''}. Soal yang dijawab tersimpan otomatis di perangkat ini.</li>`,
+    `<li>Nilai minimal lulus <b>${quiz.passingScore}</b>.</li>`,
+  ];
+  if (quiz.durationMinutes) {
+    gateLines.splice(1, 0, `<li>Waktu pengerjaan <b>${quiz.durationMinutes} menit</b>. Timer baru berjalan setelah kamu menekan <b>Mulai Mengerjakan</b>, dan tidak ikut berhenti saat halaman di-refresh.</li>`);
+  } else {
+    gateLines.push('<li>Tidak ada batas waktu pengerjaan.</li>');
+  }
+  if (essayCount) {
+    gateLines.push('<li>Jawaban esai akan dinilai dan dikoreksi oleh guru setelah dikirim.</li>');
+  }
+  gateLines.push('<li>Tekan tombol <b>Kirim Jawaban</b> di bawah halaman setelah selesai.</li>');
+
   return `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -405,6 +422,41 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
       </aside>
     </div>
   </main>
+
+  <!-- Gerbang mulai: petunjuk pengerjaan + identitas. Timer baru jalan
+       setelah tombol Mulai Mengerjakan ditekan. Siswa yang pernah mengerjakan
+       (identitas tersimpan) langsung diteruskan tanpa modal oleh skrip bawah. -->
+  <div class="q-gate q-no-print" id="start-gate" hidden aria-hidden="true">
+    <div class="q-gate-card" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+      <div class="q-gate-head">
+        <span class="q-gate-badge">Petunjuk Pengerjaan</span>
+        <h2 id="gate-title">${escapeHtml(quiz.title || 'Kuis')}</h2>
+      </div>
+      <ul class="q-gate-rules">
+        ${gateLines.join('\n        ')}
+      </ul>
+      <div class="q-gate-id">
+        ${
+          (quiz.identityFields ?? 'name') === 'name_class'
+            ? `
+        <div class="q-id-row">
+          <div class="q-id-cell">
+            <label class="q-idlabel" for="gate-name">Nama siswa</label>
+            <input class="q-input" id="gate-name" type="text" autocomplete="off" placeholder="Nama lengkap">
+          </div>
+          <div class="q-id-cell">
+            <label class="q-idlabel" for="gate-class">Kelas</label>
+            <input class="q-input" id="gate-class" type="text" autocomplete="off" placeholder="Contoh: 7A">
+          </div>
+        </div>`
+            : `
+        <label class="q-idlabel" for="gate-name">Nama siswa</label>
+        <input class="q-input" id="gate-name" type="text" autocomplete="off" placeholder="Tulis nama lengkap dan kelas...">`
+        }
+      </div>
+      <button type="button" class="q-btn q-btn-primary" id="gate-start">Mulai Mengerjakan</button>
+    </div>
+  </div>
 
   <button type="button" class="q-nav-fab q-no-print" id="nav-fab" aria-label="Buka daftar nomor soal">Soal</button>
 
@@ -791,37 +843,118 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
     });
   }
 
+  /* --- Gerbang mulai: petunjuk + identitas, lalu timer baru jalan ---------
+   * Modal #start-gate selalu dirender server (CSS menyembunyikannya lewat
+   * [hidden]) agar tidak berkedip; skrip di bawah menampilkan kembali hanya
+   * bila belum ada identitas tersimpan. Timer hanya dimulai setelah tombol
+   * Mulai Mengerjakan ditekan — bukan saat halaman dibuka. Siswa yang
+   * melanjutkan attempt lama / sudah punya identitas langsung lewat.
+   * ---------------------------------------------------------------------- */
+  var gate = document.getElementById('start-gate');
+  var gateName = document.getElementById('gate-name');
+  var gateClass = document.getElementById('gate-class');
+  var gateStart = document.getElementById('gate-start');
+  var GATE_KEY = 'quiz-started:' + CFG.slug;
+
+  function gateHasIdentity() {
+    var has = Boolean(gateName && gateName.value.trim());
+    if (has && CFG.identityFields === 'name_class') has = Boolean(gateClass && gateClass.value.trim());
+    return has;
+  }
+
+  function startTimerNow() {
+    try {
+      timerDeadline = Number(localStorage.getItem(TIMER_KEY)) || 0;
+      if (!timerDeadline || timerDeadline < Date.now()) {
+        timerDeadline = Date.now() + CFG.durationMinutes * 60000;
+        try { localStorage.setItem(TIMER_KEY, String(timerDeadline)); } catch (err) {}
+      }
+    } catch (err) {
+      timerDeadline = Date.now() + CFG.durationMinutes * 60000;
+    }
+    if (timerBox) timerBox.style.display = '';
+    tickTimer();
+    if (!timerInterval) timerInterval = setInterval(tickTimer, 1000);
+  }
+
+  function closeGate() {
+    if (!gate) return;
+    gate.setAttribute('hidden', '');
+    gate.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('q-gate-open');
+  }
+
+  function startQuizFromGate() {
+    if (!gateHasIdentity()) {
+      if (gateName && !gateName.value.trim()) { gateName.focus(); return; }
+      if (gateClass && !gateClass.value.trim()) { gateClass.focus(); return; }
+      return;
+    }
+    // Salin identitas dari modal ke form asli + simpan (aturan penulisan nama
+    // yang sama dengan submit: setItem dengan kunci yang benar).
+    nameInput.value = gateName.value.trim();
+    try { localStorage.setItem(NAME_KEY, gateName.value.trim()); } catch (err) {}
+    if (gateClass && classInput) {
+      classInput.value = gateClass.value.trim();
+      try { localStorage.setItem(CLASS_KEY, gateClass.value.trim()); } catch (err) {}
+    }
+    try { localStorage.setItem(GATE_KEY, '1'); } catch (err) {}
+    try { store(ATTEMPT_KEY, { name: nameInput.value, student_class: classInput ? classInput.value.trim() : '', answers: readAnswers(), flags: flags }); } catch (err) {}
+    closeGate();
+    if (CFG.durationMinutes >= 1) startTimerNow();
+    refresh();
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  if (gate) {
+    var alreadyStarted = false;
+    try { alreadyStarted = localStorage.getItem(GATE_KEY) === '1'; } catch (err) {}
+    var savedIdentity = false;
+    try { savedIdentity = Boolean(localStorage.getItem(NAME_KEY)); } catch (err) {}
+    // Prefill dari localStorage supaya siswa yang berpindah halaman tidak
+    // mengetik dua kali. Attempt lama menimpa prefill (sumber lebih akurat).
+    if (gateName) {
+      try { gateName.value = localStorage.getItem(NAME_KEY) || gateName.value; } catch (err) {}
+    }
+    if (gateClass) {
+      try { gateClass.value = localStorage.getItem(CLASS_KEY) || gateClass.value; } catch (err) {}
+    }
+    if (resumeBox && !resumeBox.classList.contains('q-hidden')) {
+      closeGate();
+    } else if (alreadyStarted || savedIdentity) {
+      closeGate();
+      if (CFG.durationMinutes >= 1) startTimerNow();
+    } else {
+      // Tampilkan gerbang, blokir scroll di belakangnya.
+      gate.removeAttribute('hidden');
+      document.body.classList.add('q-gate-open');
+    }
+    if (gateStart) gateStart.addEventListener('click', startQuizFromGate);
+    if (gateName) {
+      gateName.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); (gateClass || gateStart).focus(); if (gateClass) return; startQuizFromGate(); }
+      });
+    }
+    if (gateClass) {
+      gateClass.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') { ev.preventDefault(); startQuizFromGate(); }
+      });
+    }
+  }
+
   /* --- Timer latihan (opsional, sisi klien) --------------------------------
    * Durasi dari spec (CFG.durationMinutes). Hanya pengingat: siswa yang paham
    * DevTools bisa melewatkannya. Pengawasan ujian sungguhan menunggu mode CBT
    * terdaftar (deadline server-side, plan-google-cbt Fase 3).
+   * Dimulai lewat startTimerNow() dari gerbang mulai — BUKAN saat halaman
+   * dibuka — jadi waktu tidak berjalan saat siswa masih membaca petunjuk.
    * ---------------------------------------------------------------------- */
   var timerBox = document.getElementById('quiz-timer');
   var timerClock = document.getElementById('timer-clock');
   var timerDeadline = 0;
   var timerFinished = false;
+  var timerInterval = null;
   var TIMER_KEY = 'quiz-deadline:' + CFG.slug;
-
-  if (timerBox && CFG.durationMinutes >= 1) {
-    try {
-      // Deadline disimpan supaya refresh halaman TIDAK mengulang waktu — ini
-      // yang membedakan dari timer latihan biasa yang gampang di-reset.
-      timerDeadline = Number(localStorage.getItem(TIMER_KEY)) || 0;
-      if (!timerDeadline || timerDeadline < Date.now()) {
-        // Mulai baru hanya bila belum ada (deadline lewat tetap dipertahankan
-        // supaya refresh sesaat sebelum auto-submit tidak menambah waktu).
-        if (!timerDeadline) {
-          timerDeadline = Date.now() + CFG.durationMinutes * 60000;
-          localStorage.setItem(TIMER_KEY, String(timerDeadline));
-        }
-      }
-    } catch (err) {
-      timerDeadline = Date.now() + CFG.durationMinutes * 60000;
-    }
-    timerBox.style.display = '';
-    tickTimer();
-    setInterval(tickTimer, 1000);
-  }
 
   function tickTimer() {
     if (!timerClock) return;
