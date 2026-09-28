@@ -1239,7 +1239,10 @@ check(
 
 /* --- Dokumen prompt Gem: semua contoh JSON harus tetap valid -------------- */
 const promptDoc = readFileSync(new URL('../docs/gemini-gem-prompt-full.md', import.meta.url), 'utf8');
-const jsonBlocks = [...promptDoc.matchAll(/```json\n([\s\S]*?)```/g)].map((match) => match[1]);
+// Pagarnya harus toleran CRLF: repo ini bisa di-checkout dengan line ending Windows,
+// dan regex yang hardcode `\n` akan mengembalikan 0 blok sehingga semua test di bawah
+// ini lulus tanpa benar-benar memeriksa apa pun.
+const jsonBlocks = [...promptDoc.matchAll(/```json[ \t]*\r?\n([\s\S]*?)```/g)].map((match) => match[1]);
 check('dokumen prompt: ada contoh JSON', jsonBlocks.length > 5, true);
 const brokenBlocks = jsonBlocks.filter((block) => {
   try {

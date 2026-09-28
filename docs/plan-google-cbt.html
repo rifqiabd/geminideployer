@@ -131,6 +131,7 @@
     <p>Satu backend Cloudflare Worker untuk guru dan siswa: guru mengelola kuiz miliknya, siswa mengikuti CBT berdasarkan email Google yang terdaftar.</p>
     <div class="meta">
       <span>Tanggal: 25 September 2026</span>
+      <span>Revisi: 26 September 2026</span>
       <span>Target: ±30 siswa</span>
       <span>Auth: satu Worker</span>
       <span>Legacy: tetap public</span>
@@ -147,6 +148,8 @@
       <div class="card"><h4>Milik guru</h4><p>Guru mengelola assessment baru yang dibuat atau di-generate olehnya.</p></div>
       <div class="card"><h4>Legacy public</h4><p>Kuiz lama tetap public dan tidak dipindahkan menjadi milik guru.</p></div>
       <div class="card ok"><h4>CBT ketat</h4><p>Satu attempt, timer server, autosave, submit idempotent, dan hasil dikendalikan guru.</p></div>
+      <div class="card warn"><h4>Kill switch</h4><p>Mode baru default <code>public</code>. Assigned mode diaktifkan eksplisit per assessment, jadi satu kegagalan tidak menjatuhkan kuiz lain.</p></div>
+      <div class="card info"><h4>JWT terverifikasi</h4><p>Verifikasi ID token memakai library <code>jose</code>, bukan implementasi sendiri. Session disimpan di D1 dan dapat dicabut.</p></div>
     </div>
   </section>
 
@@ -168,11 +171,15 @@
       <li>Ownership assessment baru dan namespace KV.</li>
       <li>Roster email per assessment dan dua mode public/assigned.</li>
       <li>D1 migration untuk auth, assessment, roster, attempt, dan draft.</li>
-      <li>Timer server, autosave, resume, expiry, dan submit idempotent.</li>
+      <li>Timer server, autosave ber-throttle, resume, expiry, dan submit idempotent.</li>
       <li>UI login, pengaturan akses, laporan, dan tes auth/CBT.</li>
+      <li>Migration tooling: direktori <code>migrations/</code> dan dua npm script.</li>
+      <li>Harness tes HTTP dengan mock KV dan mock D1.</li>
+      <li>Endpoint admin untuk manajemen role guru dan escape hatch bootstrap.</li>
     </ul>
     <h3>Tidak termasuk fase pertama</h3>
     <p>Proctoring kamera, billing multi-sekolah, pemindahan owner massal untuk kuiz lama, fitur berbagi antar guru, collaboration real-time, serta konversi aplikasi HTML/React lama menjadi CBT.</p>
+    <p>Multi-attempt untuk siswa (<code>max_attempts</code> di-constraint ke <code>1</code>), dan Cron Trigger untuk menandai attempt expired. Expired dihitung lazy saat request.</p>
   </section>
 
   <section class="section" id="kondisi">
@@ -182,14 +189,24 @@
       <table>
         <thead><tr><th>Area</th><th>Baseline</th><th>Dampak</th></tr></thead>
         <tbody>
-          <tr><td>Auth admin</td><td><code>src/auth.ts:9-12</code> memakai cookie literal <code>authenticated_user</code>.</td><td>Cookie dapat dipalsukan dan tidak membawa identitas.</td></tr>
-          <tr><td>Password</td><td><code>src/index.ts:537-556</code> masih memiliki fallback <code>admin123</code>.</td><td>Admin lama tidak aman untuk deployment publik.</td></tr>
-          <tr><td>Identitas siswa</td><td><code>src/quiz-page.ts:329-330</code> meminta nama bebas dari browser.</td><td>Identitas dapat dikarang dan tidak terkait auth.</td></tr>
-          <tr><td>Submit</td><td><code>src/index.ts:194-271</code> membuat UUID baru pada setiap request.</td><td>Double-click/retry dapat membuat hasil ganda.</td></tr>
+          <tr><td>Auth admin</td><td><code>src/auth.ts:11-13</code> memakai cookie literal <code>authenticated_user</code>, dipakai bersama semua orang.</td><td>Cookie dapat dipalsukan dan tidak membawa identitas, role, atau expiry.</td></tr>
+          <tr><td>Password</td><td><code>src/index.ts:537-556</code> masih memiliki fallback <code>admin123</code> di <code>index.ts:34</code>.</td><td>Admin lama tidak aman untuk deployment publik.</td></tr>
+          <tr><td>Pemeriksaan auth</td><td>Tidak ada middleware. 13 route memakai <code>isAuthed</code>, 5 route membaca cookie mentah di <code>index.ts:277,559,1297,1347,1368</code>.</td><td>Perilaku tidak konsisten: redirect, 401 teks, atau boolean.</td></tr>
+          <tr><td>CORS</td><td><code>app.use('/api/*', cors())</code> di <code>index.ts:37</code> tanpa argumen.</td><td><code>origin: '*'</code> berlaku untuk seluruh admin API yang rely cookie.</td></tr>
+          <tr><td>CSRF</td><td><code>/api/deploy</code>, <code>/api/delete</code>, <code>/api/app/update</code> adalah form biasa tanpa token.</td><td>Hanya <code>SameSite=Lax</code> yang melindungi.</td></tr>
+          <tr><td>Identitas siswa</td><td><code>src/quiz-page.ts:329-330</code> meminta nama bebas, dan nama itu menjadi <code>user_id</code> dari body di <code>index.ts:205</code>.</td><td>Identitas dapat dikarang dan tidak terkait auth.</td></tr>
+          <tr><td>Submit</td><td><code>src/index.ts:196-268</code> membuat UUID baru di <code>:204</code> dan <code>INSERT</code> tanpa upsert di <code>:256-259</code>.</td><td>Double-click/retry dapat membuat hasil ganda.</td></tr>
+          <tr><td>Grading</td><td>Sudah dihitung ulang di server (<code>index.ts:215-216</code>), tetapi fail-open di <code>:251-253</code>.</td><td>Spec gagal parse tersimpan tanpa nilai, seolah berhasil.</td></tr>
           <tr><td>Timer</td><td>Tidak ada <code>started_at</code>, deadline, atau attempt server.</td><td>Browser tidak boleh menjadi sumber waktu.</td></tr>
-          <tr><td>Ownership</td><td>Key KV global seperti <code>quiz:&lt;slug&gt;</code>.</td><td>Tidak ada batas kuiz antar guru.</td></tr>
-          <tr><td>Kunci</td><td><code>?print=1&amp;kunci=1</code> dapat dipanggil public.</td><td>Tidak boleh digunakan pada assigned mode.</td></tr>
-          <tr><td>D1</td><td><code>schema.sql:1-9</code> hanya memiliki <code>app_records</code>.</td><td>Belum ada user, session, roster, attempt, atau draft.</td></tr>
+          <tr><td>Ownership</td><td>Key KV global seperti <code>quiz:&lt;slug&gt;</code>; <code>meta:</code> tanpa owner (<code>index.ts:94-106</code>).</td><td>Tidak ada batas kuiz antar guru.</td></tr>
+          <tr><td>Kunci</td><td><code>?print=1&amp;kunci=1</code> dilayani <code>GET /p/:slug</code> (<code>index.ts:167-183</code>) tanpa auth check.</td><td>Link dashboard bukan gate; bocor di assigned mode.</td></tr>
+          <tr><td>Media</td><td><code>GET /media/:slug/:name</code> (<code>media-routes.ts:69-91</code>) publik tanpa auth, dengan cache publik.</td><td>Route publik yang harus jadi mode-aware; cache bersama ikut menyimpan.</td></tr>
+          <tr><td>Batas media</td><td><code>MAX_MEDIA_PER_APP = 200</code> (<code>media.ts:30</code>) hanya limit <code>list()</code>, bukan write cap.</td><td>Upload ke-201+ sukses lalu orphan dari delete dan move.</td></tr>
+          <tr><td>Secret BYOK</td><td><code>GET /api/media/:slug/gen-config</code> (<code>media-routes.ts:252-267</code>) mengirim <code>apiKey</code> plaintext.</td><td>Bocor ke cache browser atau proxy.</td></tr>
+          <tr><td>D1</td><td><code>schema.sql:1-9</code> hanya <code>app_records</code>. Tidak ada <code>migrations/</code> dan tidak ada runner.</td><td>Belum ada user, session, roster, attempt, atau draft.</td></tr>
+          <tr><td>Query D1</td><td>Tidak ada foreign key, transaksi, atau batch; semua write <code>prepare().run()</code> tunggal.</td><td>Unique constraint dan conditional update akan jadi pemakaian pertama.</td></tr>
+          <tr><td>Storage lokal</td><td><code>STORAGE</code> memakai <code>remote: true</code> di kedua env (<code>wrangler.jsonc:34,51</code>).</td><td><code>wrangler dev</code> menulis ke KV production; D1 lokal adalah store ketiga.</td></tr>
+          <tr><td>Test</td><td>Tidak ada HTTP harness. <code>tests/quiz.test.mjs</code> hanya mengimpor modul pure.</td><td>Seluruh test auth/CBT baru butuh mock KV dan D1 dari nol.</td></tr>
         </tbody>
       </table>
     </div>
@@ -232,21 +249,29 @@ Cloudflare Worker (Hono)
 
   <section class="section" id="data">
     <h2><span class="num">05</span>Model Data D1</h2>
-    <p class="deck">Migration baru akan dibuat di <code>migrations/0001_auth_cbt.sql</code> dan diterapkan lokal, staging, lalu production.</p>
+    <p class="deck">Migration baru dibuat di <code>migrations/</code> dan diterapkan lokal, staging, lalu production.</p>
+    <h3>Migration tooling</h3>
+    <ul>
+      <li><code>migrations/</code> menjadi sumber kebenaran skema. <code>schema.sql</code> tetap baseline legacy <code>app_records</code> dan tidak diedit manual.</li>
+      <li>Dua file: <code>0001_auth_cbt.sql</code> (users, auth_sessions, assessments) dan <code>0002_cbt_runtime.sql</code> (roster, attempts, drafts), agar auth bisa di-rollback tanpa menyentuh runtime CBT.</li>
+      <li>Dua npm script: <code>db:migrate:local</code> dan <code>db:migrate:remote</code>. Melacak migration yang sudah diterapkan, jadi aman dijalankan berulang.</li>
+      <li>Migration tidak pernah menghapus atau mengubah tabel <code>app_records</code>.</li>
+    </ul>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Tabel</th><th>Kolom penting</th><th>Fungsi</th></tr></thead>
         <tbody>
           <tr><td><code>users</code></td><td><code>id</code>, <code>google_sub</code>, <code>email</code>, <code>display_name</code>, <code>role</code></td><td>Identitas stabil dan role guru/admin/siswa.</td></tr>
-          <tr><td><code>auth_sessions</code></td><td><code>token_hash</code>, <code>user_id</code>, <code>scope</code>, <code>expires_at</code>, <code>revoked_at</code></td><td>Session opaque yang dapat dicabut.</td></tr>
+          <tr><td><code>auth_sessions</code></td><td><code>token_hash</code>, <code>user_id</code>, <code>scope</code>, <code>expires_at</code>, <code>revoked_at</code></td><td>Session opaque yang dapat dicabut. Tiap request terautentikasi menambah satu D1 read.</td></tr>
           <tr><td><code>assessments</code></td><td><code>owner_user_id</code>, <code>slug</code>, <code>mode</code>, <code>content_prefix</code>, <code>content_version</code></td><td>Metadata, owner, mode, dan operational policy.</td></tr>
           <tr><td><code>assessment_students</code></td><td><code>assessment_id</code>, <code>email</code>, <code>display_name</code>, <code>class_name</code>, <code>active</code></td><td>Roster email yang boleh mengakses CBT.</td></tr>
-          <tr><td><code>quiz_attempts</code></td><td><code>assessment_id</code>, <code>user_id</code>, <code>status</code>, <code>started_at</code>, <code>expires_at</code></td><td>Lifecycle dan hasil attempt server.</td></tr>
-          <tr><td><code>quiz_drafts</code></td><td><code>attempt_id</code>, <code>answers_json</code>, <code>flags_json</code>, <code>revision</code></td><td>Autosave dan konflik multi-tab.</td></tr>
+          <tr><td><code>quiz_attempts</code></td><td><code>assessment_id</code>, <code>user_id</code>, <code>status</code>, <code>started_at</code>, <code>expires_at</code>, <code>result_json</code></td><td>Lifecycle dan hasil attempt server. Unique pada <code>(assessment_id, user_id, attempt_number)</code>.</td></tr>
+          <tr><td><code>quiz_drafts</code></td><td><code>attempt_id</code>, <code>answers_json</code>, <code>flags_json</code>, <code>revision</code></td><td>Autosave dan konflik multi-tab. <code>answers_json</code> dibatasi 512 KB.</td></tr>
         </tbody>
       </table>
     </div>
-    <div class="callout info"><strong>Legacy tetap dibaca</strong><p><code>app_records</code> tetap digunakan untuk public/legacy submission. Data CBT authoritative berada di <code>quiz_attempts</code>; laporan dan essay grading akan membaca kedua sumber.</p></div>
+    <div class="callout info"><strong>Legacy tetap dibaca</strong><p><code>app_records</code> tetap digunakan untuk public/legacy submission. Data CBT authoritative berada di <code>quiz_attempts</code>; laporan dan essay grading membaca kedua sumber, dan <code>result_json</code> sengaja berbentuk sama dengan payload <code>app_records</code> agar <code>computeItemAnalysis</code> dipakai utuh.</p></div>
+    <div class="callout warn"><strong>Dua aturan yang mudah salah</strong><p><code>show_result = false</code> berarti endpoint result mengembalikan 403, bukan skor kosong. Status <code>expired</code> tidak pernah ditulis scheduler: dihitung lazy saat request, dengan grace window 5 menit untuk memfinalisasi jawaban terakhir.</p></div>
   </section>
 
   <section class="section" id="auth">
@@ -258,9 +283,11 @@ Cloudflare Worker (Hono)
     </div>
     <h3>Kontrol akses</h3>
     <ul>
-      <li><code>ADMIN_EMAILS</code> menjadi bootstrap role admin.</li>
+      <li><code>ADMIN_EMAILS</code> dibaca dari env dan hanya menentukan role admin saat user pertama kali dibuat.</li>
+      <li>Escape hatch wajib ada, karena <code>ADMIN_EMAILS</code> yang salah akan mengunci semua orang dari dashboard: promote manual lewat <code>wrangler d1 execute</code>.</li>
       <li>Admin dapat menambah email guru melalui panel internal.</li>
       <li>Login Google tidak otomatis memberi role guru.</li>
+      <li>Role <code>student</code> tidak pernah ditulis dari client; roster adalah satu-satunya sumber kebenaran.</li>
       <li>Email dinormalisasi lowercase dan dibandingkan persis.</li>
       <li>Cookie session menggunakan <code>HttpOnly</code>, <code>Secure</code>, dan <code>SameSite=Lax</code>.</li>
     </ul>
@@ -286,10 +313,14 @@ Cloudflare Worker (Hono)
           <tr><td><code>PATCH /api/attempts/:id/draft</code></td><td>Pemilik attempt</td><td>Autosave draft.</td></tr>
           <tr><td><code>POST /api/attempts/:id/submit</code></td><td>Pemilik attempt</td><td>Finalisasi idempotent.</td></tr>
           <tr><td><code>GET /api/assessments/:id/results</code></td><td>Owner/Admin</td><td>Laporan hasil.</td></tr>
+          <tr><td><code>GET /api/teachers</code></td><td>Admin</td><td>Daftar user role guru.</td></tr>
+          <tr><td><code>POST /api/users/:id/role</code></td><td>Admin</td><td>Ubah role user.</td></tr>
+          <tr><td><code>DELETE /api/assessments/:id</code></td><td>Owner/Admin</td><td>Hapus assessment baru beserta attempt-nya.</td></tr>
         </tbody>
       </table>
     </div>
     <div class="callout warn"><strong>Route legacy</strong><p><code>/api/save/:slug</code> dan <code>/api/submit/:slug</code> hanya boleh untuk public/legacy. Assigned CBT tidak boleh membuat attempt melalui route tersebut.</p></div>
+    <div class="callout info"><strong>Dua jalur delete</strong><p><code>/api/delete</code> yang ada (<code>index.ts:1346</code>) tetap global tanpa owner check, hanya untuk legacy, dan hanya menerima slug yang tidak terdaftar di <code>assessments</code>. Assessment baru memakai <code>DELETE /api/assessments/:id</code> yang owner-scoped dan ikut membersihkan roster, attempt, dan draft. Untuk legacy, <code>app_records</code> tetap tidak ikut terhapus.</p></div>
   </section>
 
   <section class="section" id="cbt">
@@ -301,14 +332,22 @@ Cloudflare Worker (Hono)
       <li>Siswa login Google dan lolos pemeriksaan roster.</li>
       <li>Worker membuat attempt dengan <code>started_at</code> dan <code>expires_at</code>.</li>
       <li>Browser menghitung countdown dari server time, bukan jam lokal.</li>
-      <li>Answers di-autosave ke local cache dan D1.</li>
+      <li>Answers di-autosave ke local cache setiap perubahan, dan ke D1 secara ber-throttle.</li>
       <li>Setiap request memeriksa session, attempt, deadline, dan revision.</li>
       <li>Conditional update memastikan submit hanya berhasil satu kali.</li>
       <li>Retry submit mengembalikan hasil yang sama tanpa record kedua.</li>
-      <li>Setelah deadline, attempt expired dan tidak dapat diedit.</li>
+      <li>Setelah deadline, attempt expired dan jawaban terakhir hanya bisa difinalisasi dalam grace window 5 menit.</li>
       <li>Guru dapat membuka hasil setelah policy mengizinkan.</li>
     </ol>
-    <div class="callout danger"><strong>Tidak mempercayai client</strong><p>Email, role, attempt number, score, deadline, dan status tidak pernah dipercaya dari request body atau browser clock.</p></div>
+    <h3>Throttle autosave</h3>
+    <ul>
+      <li>Debounce 3 detik setelah perubahan terakhir, plus flush saat <code>blur</code>, <code>visibilitychange</code>, dan <code>pagehide</code>. Bukan per keystroke.</li>
+      <li>Key draft lokal memuat attempt ID, bukan slug saja, sehingga draft lama tidak terbaca sebagai attempt sekarang.</li>
+      <li>Setiap flush mengirim <code>revision</code> monoton; revision lebih rendah diabaikan dan draft lokal di-merge.</li>
+      <li>Gagal jaringan memicu status di UI dan retry dengan backoff; draft lokal tetap sumber pemulihan.</li>
+      <li>Setelah submit sukses, localStorage dibersihkan di blok <code>finally</code>, bukan hanya di jalur sukses.</li>
+    </ul>
+    <div class="callout danger"><strong>Tidak mempercayai client</strong><p>Email, role, attempt number, score, deadline, dan status tidak pernah dipercaya dari request body atau browser clock. <code>max_attempts</code> di-constraint ke <code>1</code> pada fase pertama.</p></div>
   </section>
 
   <section class="section" id="frontend">
@@ -322,9 +361,10 @@ Cloudflare Worker (Hono)
     </div>
     <ul>
       <li>Public quiz tetap mempertahankan flow lama.</li>
-      <li>Assigned CBT tidak menampilkan name field bebas sebagai identitas.</li>
+      <li>Assigned CBT tidak menampilkan name field bebas sebagai identitas; display name diambil dari <code>users</code> dan roster.</li>
       <li>Kunci jawaban disembunyikan pada assigned mode sebelum policy guru.</li>
       <li>Local storage hanya cache draft, bukan otorisasi attempt.</li>
+      <li>Perbaiki bug <code>KEY</code> undefined di <code>quiz-page.ts:746</code>, yang membuat nama gagal tersimpan saat submit.</li>
     </ul>
   </section>
 
@@ -337,34 +377,41 @@ Cloudflare Worker (Hono)
       <li>Guru tidak dapat mengakses atau mengubah assessment guru lain.</li>
       <li>Slug global menjadi fallback khusus legacy public.</li>
       <li>Transfer ownership dapat menjadi fase berikutnya; tidak diperlukan untuk MVP satu guru.</li>
+      <li>Media assessment baru memakai prefix yang memuat assessment ID. Key <code>media:&lt;slug&gt;:&lt;name&gt;</code> yang ada tidak diubah dan tetap dibaca untuk legacy.</li>
     </ul>
+    <h3>Media pada mode assigned</h3>
+    <p><code>GET /media/:slug/:name</code> hari ini sengaja publik supaya halaman kuis siswa bisa meng-embed gambar. Pada mode assigned, route ini harus resolve slug ke assessment lebih dulu: assessment public atau slug legacy dilayani seperti sekarang, sedangkan assessment assigned memerlukan session yang lolos gate roster dan mengirim <code>Cache-Control: private, no-store</code>. Karena itu slug assigned sebaiknya tidak pernah memakai slug yang sudah pernah dipakai public.</p>
   </section>
 
   <section class="section" id="security">
     <h2><span class="num">11</span>Hardening Wajib</h2>
     <p class="deck">Prasyarat sebelum assigned CBT boleh dipakai oleh siswa.</p>
     <ol class="checklist">
-      <li>Hapus static cookie <code>authenticated_user</code>.</li>
-      <li>Hapus fallback password <code>admin123</code>.</li>
-      <li>Satukan pemeriksaan admin melalui middleware/session resolver.</li>
-      <li>Validasi CORS, payload, email, dan ownership setiap request.</li>
-      <li>Fail closed ketika grading atau parsing CBT gagal.</li>
-      <li>Kunci print/kunci pada assigned mode.</li>
-      <li>Cegah guru A mengakses report/media/source assessment guru B.</li>
-      <li>Escape semua nilai dinamis di halaman admin.</li>
-      <li>Tambahkan rate limit endpoint public dan OAuth callback.</li>
+      <li>Hapus static cookie <code>authenticated_user</code> di <code>src/auth.ts</code>.</li>
+      <li>Hapus fallback password <code>admin123</code> di <code>index.ts:34</code> dan hapus route <code>/api/login</code> password bersama.</li>
+      <li>Satukan semua pemeriksaan admin melalui middleware/session resolver baru. Kelima pembacaan cookie mentah di <code>index.ts:277,559,1297,1347,1368</code> harus hilang.</li>
+      <li>Validasi CORS, payload, email, ownership setiap request. Ganti <code>app.use('/api/*', cors())</code> dengan allowlist <code>ALLOWED_ORIGINS</code>.</li>
+      <li>Tambahkan token CSRF pada tiga form POST lama (<code>/api/deploy</code>, <code>/api/delete</code>, <code>/api/app/update</code>) atau ganti ke <code>fetch</code> dengan header custom.</li>
+      <li>Validasi ukuran body JSON dan harden rate limit. Fail closed untuk endpoint auth saat KV error.</li>
+      <li>Fail closed ketika grading atau parsing CBT gagal; fail-open hanya untuk legacy <code>/api/save/:slug</code> dan <code>/api/submit/:slug</code>.</li>
+      <li>Kunci print/kunci pada assigned mode di <code>index.ts:167-183</code>. Tidak bergantung pada link di dashboard.</li>
+      <li>Cegah guru A mengakses report/media/source/assessment/attempt guru B. Jadikan <code>GET /media/:slug/:name</code> mode-aware.</li>
+      <li>Hapus <code>apiKey</code> plaintext dari <code>GET /api/media/:slug/gen-config</code> (<code>media-routes.ts:252-267</code>), paksa <code>Cache-Control: no-store</code>, dan pertimbangkan ubah ke POST-only.</li>
+      <li>Escape semua nilai dinamis di halaman admin, roster, dan laporan.</li>
+      <li>Tambahkan rate limit untuk endpoint public, <code>/api/login</code>, OAuth callback, dan endpoint attempt.</li>
     </ol>
   </section>
 
   <section class="section" id="fase">
+
     <h2><span class="num">12</span>Fase Implementasi</h2>
     <p class="deck">Urutan implementasi agar perubahan tetap dapat divalidasi di tiap tahap.</p>
-    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 0</span><h3>Fondasi auth</h3><span class="badge info">Mulai</span></div><div class="phase-body"><ul><li>Session helper dan normalisasi user.</li><li>Google OAuth, state, nonce, PKCE, ID token/JWKS.</li><li>Ganti password login lama dan pasang secret.</li><li>Tambah tabel users dan auth_sessions.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> guru dapat login dan dashboard lama tetap hidup.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 0</span><h3>Tooling &amp; fondasi auth</h3><span class="badge info">Mulai</span></div><div class="phase-body"><ul><li>Tambah <code>migrations/</code> dan npm script <code>db:migrate:local</code> / <code>db:migrate:remote</code>.</li><li>Bangun harness tes HTTP (mock KV &amp; D1) di <code>tests/helpers/</code>.</li><li>Tambah dependency <code>jose</code> untuk verifikasi ID token &amp; JWKS.</li><li>Session helper, resolusi user, normalisasi email, Google OAuth dengan PKCE, state, nonce.</li><li>Hapus password login lama, satukan auth lewat middleware, perbaiki CORS dan CSRF.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> login via Google, dashboard lama tetap hidup, test HTTP siap.</div></div></div>
     <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 1</span><h3>Ownership assessment</h3><span class="badge info">Milik</span></div><div class="phase-body"><ul><li>Tambah assessments dan owner lookup.</li><li>Namespace KV konten baru.</li><li>Batasi dashboard/mutations ke owner/admin.</li><li>Legacy public tetap fallback.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> guru hanya melihat dan mengelola kuiznya sendiri.</div></div></div>
-    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 2</span><h3>Roster dan access gate</h3></div><div class="phase-body"><ul><li>Tambah assessment_students.</li><li>Tambah form roster dan validasi email.</li><li>Arahkan link assigned ke Google login.</li><li>Tolak email yang tidak terdaftar.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> hanya siswa terdaftar yang dapat memulai CBT.</div></div></div>
-    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 3</span><h3>Attempt lifecycle</h3></div><div class="phase-body"><ul><li>Tambah quiz_attempts dan quiz_drafts.</li><li>Start/resume, duration, deadline, autosave, expiry.</li><li>Conditional submit dan idempotent retry.</li><li>Adaptasi grading, essay, dan reports.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> satu siswa memiliki satu attempt CBT canonical.</div></div></div>
-    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 4</span><h3>UI dan kompatibilitas</h3></div><div class="phase-body"><ul><li>Login page, session state, timer, autosave UI.</li><li>Perbaiki localStorage retry/cleanup.</li><li>Pertahankan public legacy.</li><li>Filter dan pagination report.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> alur guru dan siswa berjalan end-to-end.</div></div></div>
-    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 5</span><h3>Validasi dan rollout</h3></div><div class="phase-body"><ul><li>Migration lokal dan staging.</li><li>Google OAuth callback production/staging.</li><li>Uji dua guru dan 30 siswa.</li><li>Smoke test public legacy lalu deploy production.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> assigned CBT aktif bertahap setelah semua acceptance criteria lulus.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 2</span><h3>Roster dan access gate</h3></div><div class="phase-body"><ul><li>Tambah <code>assessment_students</code> dan form roster dengan validasi email.</li><li>Arahkan link assigned ke Google login, tolak email tidak terdaftar sebelum attempt dibuat.</li><li>Kunci <code>?print=1</code> dan <code>?print=1&amp;kunci=1</code> pada mode assigned.</li><li>Jadikan <code>GET /media/:slug/:name</code> mode-aware dengan cache privat untuk assigned.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> hanya siswa terdaftar yang dapat memulai CBT.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 3</span><h3>Attempt lifecycle</h3></div><div class="phase-body"><ul><li>Tambah <code>quiz_attempts</code> dan <code>quiz_drafts</code> dengan unique constraint per siswa.</li><li>Start/resume, duration, deadline, autosave ber-throttle, lazy expiry dengan grace window.</li><li>Conditional submit dan idempotent retry.</li><li>Dual-read laporan dan essay grading dari <code>app_records</code> dan <code>quiz_attempts</code>.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> satu siswa memiliki satu attempt CBT canonical.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 4</span><h3>UI dan kompatibilitas</h3></div><div class="phase-body"><ul><li>Login page, session state, timer, autosave UI.</li><li>Perbaiki localStorage retry/cleanup dan bug <code>KEY</code> undefined.</li><li>Endpoint admin role guru, escape hatch, dan delete owner-scoped.</li><li>Pertahankan public legacy, filter dan pagination report.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> alur guru dan siswa berjalan end-to-end.</div></div></div>
+    <div class="phase"><div class="phase-head"><span class="phase-tag">Fase 5</span><h3>Validasi dan rollout</h3></div><div class="phase-body"><ul><li>Migration lokal, lalu staging via <code>db:migrate:remote</code> pada env staging.</li><li>Google OAuth callback production dan staging dengan client terpisah.</li><li>Uji dua guru dan 30 siswa di staging; data uji tidak menyentuh KV production.</li><li>Smoke test public legacy, pasang secret production, baru deploy production.</li></ul><div class="phase-outcome"><strong>Hasil:</strong> assigned CBT aktif bertahap setelah semua acceptance criteria lulus.</div></div></div>
   </section>
 
   <section class="section" id="setup">
@@ -374,27 +421,45 @@ Cloudflare Worker (Hono)
 GOOGLE_CLIENT_SECRET
 SESSION_SECRET
 ADMIN_EMAILS
+ALLOWED_ORIGINS
 APP_URL</code></pre>
-    <p>Callback yang diharapkan adalah <code>/auth/google/callback</code>. Production dan staging sebaiknya memakai registration OAuth terpisah.</p>
+    <ul>
+      <li><code>GOOGLE_CLIENT_ID</code> / <code>GOOGLE_CLIENT_SECRET</code> per environment; production dan staging memakai registration OAuth terpisah.</li>
+      <li><code>SESSION_SECRET</code> untuk menandatangani cookie opaque session.</li>
+      <li><code>ADMIN_EMAILS</code> hanya mem-bootstrap role admin saat user pertama dibuat, bukan grant permanen. Pastikan benar sebelum deploy, dan siapkan escape manual bila salah.</li>
+      <li><code>ALLOWED_ORIGINS</code> menggantikan CORS wildcard untuk admin API.</li>
+      <li><code>APP_URL</code> untuk callback dan redirect yang tidak menebak origin dari header.</li>
+    </ul>
+    <p>Callback yang diharapkan adalah <code>/auth/google/callback</code>. Semua secret masuk lewat <code>wrangler secret put</code> atau <code>.dev.vars</code> yang gitignored, mengikuti bentuk <code>.dev.vars.example</code>.</p>
+    <div class="callout warn"><strong>Storage development</strong><p><code>STORAGE</code> memakai <code>remote: true</code> di kedua environment, jadi <code>wrangler dev</code> menulis ke KV production sementara D1 masih lokal. Data uji hanya lewat staging, dan <code>db:migrate:local</code> hanya untuk iterasi lokal.</p></div>
   </section>
 
   <section class="section" id="tes">
     <h2><span class="num">14</span>Pengujian</h2>
     <p class="deck">Validasi lokal harus dilakukan sebelum migration atau deploy remote.</p>
     <pre><code>npm test
-npm run typecheck</code></pre>
+npm run typecheck
+npm run db:migrate:local</code></pre>
+    <h3>Harness</h3>
+    <p><code>tests/quiz.test.mjs</code> sekarang hanya mengimpor modul pure, jadi route auth/CBT baru tidak punya jalur uji. Tambah harness di <code>tests/helpers/</code> dengan mock KV dan mock D1 yang cukup untuk membuat <code>app.fetch(request, env)</code> berjalan, lalu pitakan sebagai entry kedua di suite yang sama.</p>
     <h3>Minimum test cases</h3>
     <ul>
       <li>State, nonce, PKCE, signature, issuer, audience, expiry, dan <code>email_verified</code>.</li>
-      <li>Guru A tidak dapat membaca atau mengubah assessment guru B.</li>
-      <li>Legacy public quiz tetap dapat dibuka dan disubmit.</li>
-      <li>Email Google di luar roster ditolak dari CBT.</li>
-      <li>Guru hanya melihat assessment miliknya.</li>
+      <li>Session cookie <code>HttpOnly</code> + <code>SameSite</code>, logout mencabut, dan session kedaluwarsa ditolak.</li>
+      <li>Email Google di luar roster ditolak dari CBT dan tidak membuat attempt.</li>
+      <li>Guru A tidak dapat membaca, mengubah, atau menghapus assessment guru B (report, media, source, attempt).</li>
+      <li>Guru hanya melihat assessment miliknya di dashboard.</li>
+      <li>Role admin tidak naik dari client; hanya <code>ADMIN_EMAILS</code> dan endpoint admin.</li>
+      <li>Legacy public quiz tetap dapat dibuka dan disubmit, termasuk fail-open grading yang lama.</li>
+      <li>Assigned mode menolak <code>?print=1&amp;kunci=1</code> dan media privat memakai <code>Cache-Control: private</code>.</li>
       <li>Timer tidak reset setelah reload dan jam browser tidak dapat menggeser deadline.</li>
-      <li>Draft ditolak setelah submit atau deadline.</li>
+      <li>Draft ditolak setelah submit atau setelah deadline, kecuali dalam grace window.</li>
+      <li>Revision monoton mencegah draft lama menimpa draft baru.</li>
       <li>Dua submit bersamaan menghasilkan satu final attempt.</li>
-      <li>Retry submit mengembalikan hasil yang sama.</li>
+      <li>Retry submit mengembalikan hasil yang sama dan tidak menambah record.</li>
       <li>Kunci jawaban tidak bocor pada assigned mode.</li>
+      <li>Body lebih dari 512 KB ditolak dan spec gagal parse menghasilkan 502, bukan skor kosong.</li>
+      <li><code>show_result = false</code> mengembalikan 403, bukan hasil kosong.</li>
     </ul>
   </section>
 
@@ -404,12 +469,14 @@ npm run typecheck</code></pre>
     <div class="grid two">
       <div class="card ok"><h4>Guru</h4><ul><li>Login Google berhasil.</li><li>Dapat membuat dan mengelola assessment miliknya.</li><li>Dapat mengatur roster dan aturan CBT.</li><li>Tidak dapat mengakses assessment guru lain.</li></ul></div>
       <div class="card ok"><h4>Siswa</h4><ul><li>Login Google berhasil.</li><li>Hanya email roster yang dapat mulai CBT.</li><li>Timer server dan autosave bekerja.</li><li>Submit ganda tidak menghasilkan nilai ganda.</li></ul></div>
-      <div class="card info"><h4>Legacy</h4><ul><li>Link public lama tetap terbuka.</li><li>Public submit lama tetap kompatibel.</li><li>Report lama tetap dapat dibaca.</li></ul></div>
-      <div class="card warn"><h4>Rollout</h4><ul><li>Migration lokal dan staging lulus.</li><li>Uji dua guru dan 30 siswa.</li><li>Secret production terpasang.</li><li>Deploy dilakukan setelah smoke test.</li></ul></div>
+      <div class="card info"><h4>Legacy</h4><ul><li>Link public lama tetap terbuka.</li><li>Public submit lama tetap kompatibel.</li><li>Report lama tetap dapat dibaca.</li><li>Mode baru default <code>public</code>, jadi satu kegagalan tidak menjatuhkan kuiz lain.</li></ul></div>
+      <div class="card info"><h4>Tooling</h4><ul><li>Migration versioning jalan di lokal dan staging.</li><li>Test suite punya jalur HTTP dengan mock KV dan D1.</li><li>Semua test auth dan CBT lulus.</li></ul></div>
+      <div class="card warn"><h4>Rollout</h4><ul><li>Migration lokal dan staging lulus.</li><li>Uji dua guru dan 30 siswa di staging.</li><li>Secret production terpasang dan <code>ADMIN_EMAILS</code> sudah diverifikasi.</li><li>Deploy dilakukan setelah smoke test.</li></ul></div>
+      <div class="card danger"><h4>Rollback</h4><ul><li>Migration tidak menghapus <code>app_records</code>.</li><li>Assessment bisa diturunkan ke <code>public</code> atau dinonaktifkan per assessment.</li><li>Tidak ada langkah yang bergantung pada Cron Trigger, sehingga tidak ada timer yang harus dibatalkan saat rollback.</li><li>Perubahan mode dapat dianulikan tanpa deploy ulang.</li></ul></div>
     </div>
   </section>
 
-  <p class="foot">Rencana ini dibuat untuk implementasi bertahap. Belum ada perubahan kode aplikasi pada dokumen ini.</p>
+  <p class="foot">Companion ringkas dari <code>plan-google-cbt.md</code>, yang menjadi source of truth. Ringkasan ini boleh memadatkan, tetapi tidak boleh bertentangan dengan keputusan di plan utama. Belum ada perubahan kode aplikasi untuk rencana ini.</p>
 </main>
 </div>
 </body>

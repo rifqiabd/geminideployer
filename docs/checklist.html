@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checklist Gabungan Semua Rencana - gemini-deployer</title>
+<style>
+  :root{
+    --bg:#f5f6f8;
+    --card:#ffffff;
+    --text:#0f172a;
+    --muted:#5b6678;
+    --border:#e3e7ee;
+    --border-strong:#cfd6e0;
+    --accent:#c2410c;
+    --accent-soft:#fff6ee;
+    --danger:#c02626;
+    --danger-soft:#fdf1f1;
+    --warn:#a16207;
+    --warn-soft:#fdf8ec;
+    --ok:#047857;
+    --ok-soft:#eefaf4;
+    --info:#1d4ed8;
+    --info-soft:#eff4ff;
+    --code-bg:#f2f4f7;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+    font-size:15.5px;
+    line-height:1.68;
+    -webkit-font-smoothing:antialiased;
+  }
+  code,pre,.mono{
+    font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    font-size:0.875em;
+  }
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+
+  /* ---------- Layout ---------- */
+  .wrap{max-width:1220px;margin:0 auto;padding:0 22px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:38px;align-items:start;}
+  .toc{
+    position:sticky;top:24px;
+    margin-top:34px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px 14px;
+    font-size:13px;
+    align-self:start;
+    max-height:calc(100vh - 48px);
+    overflow-y:auto;
+  }
+  .toc h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px;font-weight:700;}
+  .toc ol{list-style:none;margin:0;padding:0;}
+  .toc li{margin:0 0 2px;}
+  .toc a{display:block;padding:5px 8px;border-radius:8px;color:#3f4a5a;line-height:1.35;}
+  .toc a:hover{background:var(--accent-soft);color:var(--accent);text-decoration:none;}
+  .toc .sub{padding-left:8px;}
+  .toc .sub a{font-size:12.5px;color:var(--muted);padding:3px 8px;}
+  .toc .cnt{float:right;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;}
+
+  main{min-width:0;padding-bottom:80px;}
+
+  /* ---------- Header ---------- */
+  header.hero{
+    margin-top:34px;
+    background:linear-gradient(135deg,#1b2432 0%,#232f42 55%,#2f3d52 100%);
+    color:#fff;
+    border-radius:20px;
+    padding:34px 34px 30px;
+    position:relative;
+    overflow:hidden;
+  }
+  header.hero::after{
+    content:"";position:absolute;right:-90px;top:-90px;width:320px;height:320px;border-radius:50%;
+    background:radial-gradient(circle at center,rgba(234,88,12,.42),transparent 65%);
+  }
+  header.hero .kicker{
+    display:inline-block;font-size:11px;letter-spacing:.11em;text-transform:uppercase;font-weight:700;
+    color:#fed7aa;background:rgba(234,88,12,.18);border:1px solid rgba(249,115,22,.35);
+    padding:4px 11px;border-radius:999px;margin-bottom:14px;
+  }
+  header.hero h1{margin:0 0 10px;font-size:29px;line-height:1.25;letter-spacing:-.01em;font-weight:750;}
+  header.hero p.lead{margin:0;color:#c8d2e0;max-width:70ch;font-size:15px;}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;position:relative;z-index:1;}
+  .hero-meta span{
+    font-size:12px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);
+    padding:5px 11px;border-radius:999px;color:#e5ebf3;
+  }
+  .hero-meta span b{color:#fff;}
+
+  /* ---------- Sections ---------- */
+  section{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:26px 28px;
+    margin-top:22px;
+  }
+  section > h2{
+    margin:0 0 6px;font-size:21px;letter-spacing:-.01em;font-weight:730;
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  }
+  section > h2 .num{
+    font-size:12px;font-weight:800;color:var(--accent);
+    background:var(--accent-soft);border:1px solid #f2d5bd;border-radius:7px;padding:2px 8px;
+    letter-spacing:.04em;flex:none;
+  }
+  section > p.deck{margin:0 0 20px;color:var(--muted);font-size:14px;border-bottom:1px solid var(--border);padding-bottom:16px;}
+  h3{font-size:16.5px;margin:26px 0 8px;font-weight:700;letter-spacing:-.005em;}
+  h3:first-of-type{margin-top:6px;}
+  h4{font-size:14px;margin:20px 0 6px;font-weight:700;color:#26313f;}
+  p{margin:0 0 12px;}
+  ul,ol{margin:0 0 14px;padding-left:22px;}
+  li{margin-bottom:6px;}
+  li > ul,li > ol{margin-top:6px;}
+
+  /* ---------- Progress bar ---------- */
+  .bar{height:7px;border-radius:999px;background:#e9edf3;overflow:hidden;margin:0 0 16px;display:flex;}
+  .bar i{display:block;height:100%;background:var(--ok);}
+  .bar-line{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);margin:0 0 6px;}
+  .bar-line b{color:var(--text);font-variant-numeric:tabular-nums;}
+
+  /* ---------- Tables ---------- */
+  .table-scroll{overflow-x:auto;margin:0 0 18px;border:1px solid var(--border);border-radius:11px;}
+  table{border-collapse:collapse;width:100%;font-size:13.6px;min-width:520px;}
+  thead th{
+    background:#f8fafc;text-align:left;padding:10px 13px;font-weight:700;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.06em;color:#475569;border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody td{padding:10px 13px;border-bottom:1px solid #eef1f6;vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:nth-child(even){background:#fcfdfe;}
+  td code{background:var(--code-bg);padding:1.5px 5px;border-radius:5px;white-space:nowrap;}
+
+  /* ---------- Badges ---------- */
+  .badge{
+    display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    padding:3px 8px;border-radius:6px;white-space:nowrap;
+  }
+  .b-crit{background:var(--danger-soft);color:var(--danger);border:1px solid #f3cdcd;}
+  .b-high{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bb;}
+  .b-med{background:var(--info-soft);color:var(--info);border:1px solid #d3e0fb;}
+  .b-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c9ecdc;}
+
+  /* ---------- Callouts ---------- */
+  .callout{
+    border-radius:11px;padding:14px 16px;margin:16px 0;font-size:14px;
+    border:1px solid var(--border);background:#fbfcfe;
+  }
+  .callout p:last-child{margin-bottom:0;}
+  .callout .ttl{font-weight:700;margin-bottom:5px;display:block;font-size:13.5px;}
+  .c-crit{background:var(--danger-soft);border-color:#f3cdcd;}
+  .c-crit .ttl{color:var(--danger);}
+  .c-warn{background:var(--warn-soft);border-color:#f0e0bb;}
+  .c-warn .ttl{color:var(--warn);}
+  .c-ok{background:var(--ok-soft);border-color:#c9ecdc;}
+  .c-ok .ttl{color:var(--ok);}
+  .c-info{background:var(--info-soft);border-color:#d3e0fb;}
+  .c-info .ttl{color:var(--info);}
+
+  /* ---------- Code ---------- */
+  pre{
+    background:#1b2432;color:#e2e8f0;border-radius:11px;padding:16px 18px;overflow-x:auto;
+    line-height:1.6;margin:0 0 16px;font-size:12.5px;
+  }
+  p > code,li > code{background:var(--code-bg);padding:2px 6px;border-radius:5px;border:1px solid #e6eaf1;}
+
+  /* ---------- Phase blocks ---------- */
+  .phase{
+    border:1px solid var(--border);border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;
+  }
+  .phase > .head{
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:13px 17px;background:#f8fafc;
+    border-bottom:1px solid var(--border);
+  }
+  .phase > .head .tag{
+    font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 9px;border-radius:6px;background:#e8edf4;color:#334155;white-space:nowrap;
+  }
+  .phase > .head .tag.p0{background:var(--danger-soft);color:var(--danger);border:1px solid #f3cdcd;}
+  .phase > .head .tag.ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c9ecdc;}
+  .phase > .head h4{margin:0;font-size:15px;flex:1;min-width:180px;}
+  .phase > .head .score{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .phase > .body{padding:15px 17px 6px;}
+
+  /* ---------- Checklist ---------- */
+  .chk{list-style:none;padding-left:0;margin:0 0 8px;}
+  .chk > li{
+    position:relative;padding-left:28px;font-size:14px;margin-bottom:9px;color:#33404f;
+  }
+  .chk > li::before{
+    content:"";position:absolute;left:2px;top:5px;width:14px;height:14px;border-radius:4px;
+    border:1.6px solid var(--border-strong);background:#fff;
+  }
+  .chk > li::after{
+    content:"";position:absolute;left:6.2px;top:8.2px;width:5.4px;height:9px;
+    border:solid var(--ok);border-width:0 2px 2px 0;transform:rotate(42deg);
+    opacity:0;
+  }
+  .chk > li.done{color:#8b95a3;}
+  .chk > li.done::before{background:var(--ok);border-color:var(--ok);}
+  .chk > li.done::after{opacity:1;}
+  .chk > li.done code{opacity:.75;}
+  .chk > li:last-child{margin-bottom:0;}
+  .note{font-size:13px;color:var(--muted);margin:2px 0 0;padding-left:28px;}
+
+  /* ---------- Cards / grids ---------- */
+  .grid{display:grid;gap:14px;}
+  .grid.two{grid-template-columns:repeat(auto-fit,minmax(255px,1fr));}
+  .grid.three{grid-template-columns:repeat(auto-fit,minmax(215px,1fr));}
+  .card{
+    border:1px solid var(--border);border-radius:12px;padding:16px 17px;background:#fcfdfe;
+  }
+  .card h4{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:7px;}
+  .card p{font-size:13.6px;color:#3f4a5a;margin-bottom:0;}
+  .card ul{font-size:13.6px;color:#3f4a5a;margin-bottom:0;padding-left:19px;}
+
+  .stat{
+    border:1px solid var(--border);border-radius:12px;padding:15px 16px;background:#fcfdfe;
+  }
+  .stat .n{font-size:25px;font-weight:760;line-height:1.1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:3px;}
+
+  footer.doc{
+    margin-top:26px;text-align:center;color:var(--muted);font-size:12.5px;
+    padding:22px 0 10px;border-top:1px solid var(--border);
+  }
+
+  @media (max-width:960px){
+    .wrap{grid-template-columns:1fr;gap:0;}
+    .toc{position:static;margin-top:20px;order:2;max-height:none;}
+    main{order:1;}
+    header.hero{padding:26px 22px;}
+    header.hero h1{font-size:23px;}
+    section{padding:20px 18px;}
+  }
+  @media print{
+    body{background:#fff;font-size:11pt;}
+    .wrap{display:block;max-width:none;padding:0;}
+    .toc{display:none;}
+    section{break-inside:avoid;border:none;padding:0;margin-top:20px;}
+    header.hero{background:#1b2432 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    pre{background:#f2f4f7 !important;color:#0f172a !important;}
+    a{color:#0f172a;}
+    .phase{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= TOC ================= -->
+  <nav class="toc" aria-label="Daftar isi">
+    <h2>Daftar Isi</h2>
+    <ol>
+      <li><a href="#ringkasan">Ringkasan</a></li>
+      <li><a href="#urutan">Urutan Kerja Berikutnya</a></li>
+      <li><a href="#selesai">0. Sudah Selesai <span class="cnt">25/26</span></a></li>
+      <li><a href="#auth">1. Hardening Auth <span class="cnt">0/86</span></a>
+        <div class="sub">
+          <a href="#t0">T0 - Env &amp; urutan deploy</a>
+          <a href="#t1">T1 - src/auth.ts</a>
+          <a href="#t2">T2 - src/index.ts</a>
+          <a href="#t3">T3 - Rate limit login</a>
+          <a href="#t4">T4 - CSRF</a>
+          <a href="#t5">T5 - CORS</a>
+          <a href="#t6">T6 - Kunci jawaban</a>
+          <a href="#t7">T7 - apiKey gen-config</a>
+          <a href="#t8">T8 - Test</a>
+          <a href="#t9">T9 - Dokumentasi</a>
+          <a href="#t10">T10 - Verifikasi</a>
+          <a href="#ac-auth">Acceptance Criteria</a>
+        </div>
+      </li>
+      <li><a href="#temuan">2. Temuan Luar Auth <span class="cnt">0/8</span></a></li>
+      <li><a href="#cbt0">3. Google CBT Fase 0 <span class="cnt">0/10</span></a></li>
+      <li><a href="#cbt15">4. Google CBT Fase 1-5 <span class="cnt">0/30</span></a></li>
+      <li><a href="#gerbang">5. Gerbang Rilis <span class="cnt">0/18</span></a></li>
+      <li><a href="#tahap1">6. Tahap 1 <span class="cnt">0/6</span></a></li>
+      <li><a href="#tunda">7. Ditunda <span class="cnt">0/2</span></a></li>
+      <li><a href="#dok">8. Konsistensi Dokumen <span class="cnt">0/4</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <!-- ================= HERO ================= -->
+    <header class="hero">
+      <span class="kicker">Checklist Proyek</span>
+      <h1>Gabungan Semua Rencana<br>gemini-deployer</h1>
+      <p class="lead">
+        Satu daftar kerja yang menyatukan seluruh dokumen rencana di repo ini, diurutkan
+        menurut prioritas dan dependensi &mdash; bukan menurut dokumen asalnya. Setiap item
+        yang muncul di dua dokumen ditulis sekali saja supaya tidak terhitung dua kali.
+      </p>
+      <div class="hero-meta">
+        <span><b>190</b> item total</span>
+        <span><b>25</b> selesai</span>
+        <span><b>165</b> belum</span>
+        <span><b>5</b> dokumen sumber</span>
+        <span>status repo dicek <b>28 September 2026</b></span>
+      </div>
+    </header>
+
+    <!-- ================= RINGKASAN ================= -->
+    <section id="ringkasan">
+      <h2><span class="num">Ringkasan</span> Di mana Kita Berdiri</h2>
+      <p class="deck">Kondisi repo dipecah menjadi dua kelompok: yang sudah selesai, dan yang masih jadi beban kerja.</p>
+
+      <div class="grid three" style="margin-bottom:18px;">
+        <div class="stat">
+          <div class="n" style="color:var(--ok);">25</div>
+          <div class="l">item selesai (slaw, tanggal sidebar, docs, verifikasi)</div>
+        </div>
+        <div class="stat">
+          <div class="n" style="color:var(--accent);">86</div>
+          <div class="l">item hardening auth &mdash; prasyarat pilot sekolah</div>
+        </div>
+        <div class="stat">
+          <div class="n" style="color:var(--muted);">78</div>
+          <div class="l">item lain (CBT Fase 0-5, gerbang rilis, Tahap 1, ditunda)</div>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Bagian</th><th>Sumber</th><th>Selesai</th><th>Belum</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>0. Sudah selesai</td>
+              <td>Commit <code>e212039</code>, <code>f1885a2</code>, <code>b396798</code>, <code>d3df0ad</code></td>
+              <td>25</td><td>1</td>              <td><span class="badge b-ok">Hampir selesai</span></td>
+            </tr>
+            <tr>
+              <td>1. Hardening auth</td>
+              <td><code>docs/plan-hardening-auth.md</code></td>
+              <td>0</td><td>86</td>
+              <td><span class="badge b-crit">Belum jalan</span></td>
+            </tr>
+            <tr>
+              <td>2. Temuan luar auth</td>
+              <td><code>docs/plan-hardening-auth.md:129</code></td>
+              <td>0</td><td>8</td>
+              <td><span class="badge b-high">Sebagian P0</span></td>
+            </tr>
+            <tr>
+              <td>3. Google CBT Fase 0</td>
+              <td><code>docs/plan-google-cbt.md</code></td>
+              <td>0</td><td>10</td>
+              <td><span class="badge b-high">Menunggu auth</span></td>
+            </tr>
+            <tr>
+              <td>4. Google CBT Fase 1-5</td>
+              <td><code>docs/plan-google-cbt.md</code></td>
+              <td>0</td><td>30</td>
+              <td><span class="badge b-med">Tertunda</span></td>
+            </tr>
+            <tr>
+              <td>5. Gerbang rilis P0/P1/P2</td>
+              <td><code>docs/strategi-publish-dan-sosialisasi.md</code></td>
+              <td>0</td><td>18</td>
+              <td><span class="badge b-high">P0 wajib</span></td>
+            </tr>
+            <tr>
+              <td>6. Tahap 1</td>
+              <td><code>docs/analisis-resource.md</code></td>
+              <td>0</td><td>6</td>
+              <td><span class="badge b-med">Seri setelah Tahap 0</span></td>
+            </tr>
+            <tr>
+              <td>7. Ditunda</td>
+              <td><code>docs/plan/panel-konteks-soal-di-slot-gambar.md</code></td>
+              <td>0</td><td>2</td>
+              <td><span class="badge b-med">Ditunda</span></td>
+            </tr>
+            <tr>
+              <td>8. Konsistensi dokumen</td>
+              <td>Semua dokumen rencana</td>
+              <td>0</td><td>4</td>
+              <td><span class="badge b-high">Mudah terlupa</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout c-info">
+        <span class="ttl">Dokumen sumber</span>
+        <p>Checklist ini menghimpun <span class="mono">docs/plan-hardening-auth.md</span>,
+        <span class="mono">docs/plan-google-cbt.md</span>,
+        <span class="mono">docs/analisis-resource.md</span>,
+        <span class="mono">docs/strategi-publish-dan-sosialisasi.md</span>, dan
+        <span class="mono">docs/plan/panel-konteks-soal-di-slot-gambar.md</span>.
+        Sumber kebenaran tiap keputusan tetap dokumen asalnya, bukan file ini.</p>
+      </div>
+    </section>
+
+    <!-- ================= URUTAN ================= -->
+    <section id="urutan">
+      <h2><span class="num">Urutan</span> Urutan Kerja Berikutnya</h2>
+      <p class="deck">Urutan ini tidak boleh diacak. Langkah 1 sampai 11 adalah isi <code>docs/plan-hardening-auth.md</code> dan totalnya sekitar 3,5 hari kerja.</p>
+
+      <ol style="font-size:14.5px;">
+        <li>Kerjakan auth T0 sampai T10 (bagian 1 di bawah).</li>
+        <li>Smoke test di staging.</li>
+        <li>Barulah pertimbangkan Fase 0 Google CBT.</li>
+        <li>Item lain (bagian 3&ndash;6) menunggu keputusan apakah CBT terdaftar benar-benar dibutuhkan untuk pilot sekolah pertama.</li>
+      </ol>
+
+      <div class="callout c-warn">
+        <span class="ttl">T0 tidak bisa dilewati</span>
+        <p>Kode akan menolak boot login kalau <code>SESSION_SECRET</code> atau
+        <code>APP_PASSWORD</code> belum diset. Urutan pasang secret wajib selesai
+        sebelum kode T1&ndash;T2 di-deploy, atau dashboard akan 503 sampai secret dipasang.
+        Halaman 503 sudah memuat dua perintah <code>wrangler secret put</code> supaya
+        tidak ada lockout yang butuh tebakan.</p>
+      </div>
+    </section>
+
+    <!-- ================= 0. SUDAH SELESAI ================= -->
+    <section id="selesai">
+      <h2><span class="num">0</span> Sudah Selesai</h2>
+      <p class="deck">
+        <span class="badge b-ok">25 selesai</span>
+        <span class="badge b-high">1 belum</span>
+        &nbsp;Empat commit terakhir sudah diverifikasi lewat <code>npm test</code>,
+        <code>npm run typecheck</code>, dan <code>wrangler deploy --dry-run</code>.
+      </p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>25</b> / 26</span></div>
+      <div class="bar"><i style="width:96%"></i></div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag ok">Selesai</span>
+          <h4>Slug, publish, dan jalur publish JSON-only</h4>
+          <span class="score">9 / 9</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li class="done"><code>randomSlugSuffix()</code> di <code>src/quiz-util.ts</code> &mdash; sufiks acak 4 karakter, huruf pertama, tanpa <code>i l o 0 1</code>.</li>
+            <li class="done"><code>uniqueSlug()</code> di <code>src/index.ts</code> &mdash; enam percobaan, cek <code>meta:&lt;candidate&gt;</code>, cadangan timestamp base36.</li>
+            <li class="done"><code>POST /api/deploy</code> mengecek bentrok slug sebelum menyimpan.</li>
+            <li class="done"><code>quiz.slug</code> ditulis ulang ke slug final supaya penilaian server dan editor tidak menyimpang dari URL.</li>
+            <li class="done">Publish dialihkan ke <code>/?app=&lt;slug&gt;</code> dan dashboard membuka panel detail.</li>
+            <li class="done">Jalur publish HTML/React dihapus total: form mode, pill jenis kode, <code>cleanGeminiMarkdown()</code>, <code>wrapReactComponent()</code>, dan branch <code>/api/deploy</code>.</li>
+            <li class="done">App lawas <code>akidah-akhlak-kelas-1</code> dibiarkan jalan: <code>/p/:slug</code> tetap menyajikan <code>html:&lt;slug&gt;</code>, rename tetap menyalin kodenya, tombol Edit Soal dan Koreksi Esai disembunyikan.</li>
+            <li class="done"><code>POST /api/app/update</code> tetap menolak slug bentrok (400), bukan auto-suffix.</li>
+            <li class="done"><code>tests/slug.test.mjs</code> dibuat dan dirangkai ke <code>npm test</code>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag ok">Selesai</span>
+          <h4>Tanggal sidebar</h4>
+          <span class="score">6 / 6</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li class="done"><code>parseStamp()</code> menolak tanggal lama dan ISO penuh.</li>
+            <li class="done"><code>relTime()</code> &mdash; &ldquo;Hari ini&rdquo;, &ldquo;Kemarin&rdquo;, &ldquo;N hari lalu&rdquo;, plus label tanggal.</li>
+            <li class="done"><code>stampNow()</code> dipakai di <code>updated_at</code> rename dan editor soal.</li>
+            <li class="done"><code>created_at</code> tidak lagi di-reset saat publish ulang.</li>
+            <li class="done"><code>tests/meta-date.test.mjs</code> dibuat dan dirangkai.</li>
+            <li class="done">Tanggal dibuat disembunyikan permanen di sidebar dan hanya muncul saat hover, di sebelah kiri tombol aksi (<code>margin-right:62px</code> supaya tidak tertutup). Label &ldquo;Diubah &hellip;&rdquo; dipindah dari span inline ke tooltip <code>title="Dibuat &hellip; &middot; Diubah &hellip;"</code>. <code>modSpan()</code> dihapus; <code>modTitle()</code> kini menyusun kedua label dan menolak app yang dua stempelnya kosong. <em>Belum di-commit.</em></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag ok">Selesai</span>
+          <h4>Dokumen dan threat model</h4>
+          <span class="score">5 / 5</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li class="done"><code>docs/plan-hardening-auth.md</code> ditulis (sesi HMAC, hapus fallback, CSRF, kunci jawaban, BYOK).</li>
+            <li class="done">Model ancaman realistis untuk pilot satu sekolah, plus koreksi 30+ referensi <code>file:line</code> yang bergeser.</li>
+            <li class="done"><code>docs/gemini-gem-prompt-full.md</code> &mdash; bagian MODE B dihapus, bagian 7 (kontrak penilaian di server) masuk sebagai gantinya.</li>
+            <li class="done"><code>docs/gemini-gem-prompt.md</code> &mdash; tabel gambar dan aturan HTML/React dihapus.</li>
+            <li class="done"><code>docs/panduan-pakai.md</code> dan <code>src/guide.ts</code> &mdash; alur publish ditulis ulang JSON-only, ditambah penjelasan bentrok slug.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag ok">Selesai</span>
+          <h4>Verifikasi</h4>
+          <span class="score">3 / 3</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li class="done"><code>npm test</code> &mdash; tiga suite lulus.</li>
+            <li class="done"><code>npm run typecheck</code> &mdash; bersih.</li>
+            <li class="done"><code>npx wrangler deploy --dry-run</code> &mdash; bundle 432,99 KiB tanpa error.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag p0">Belum</span>
+          <h4>Housekeeping</h4>
+          <span class="score">1 / 2</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li class="done">Tiga file dirty bawaan di worktree tidak ikut ter-stage dan tidak di-revert: <code>docs/plan-google-cbt.html</code>, <code>docs/plan-google-cbt.md</code>, <code>tests/quiz.test.mjs</code>.</li>
+            <li class="done"><strong>Smoke test staging dijalankan</strong> lewat <code>npx wrangler dev --env staging</code> (port 8791), lalu server dimatikan dan semua artefak test dihapus. Lolos: collision slug (3 publish dengan slug sama &rarr; <code>smoke-kolisi</code>, <code>smoke-kolisi-hc6y</code>, <code>smoke-kolisi-n9z9</code>, semua 302 ke <code>/?app=&lt;slug&gt;</code>), spec di <code>quiz:&lt;slug&gt;</code> ikut slug final, <code>quizsource:&lt;slug&gt;</code> tetap menyimpan slug mentah guru, app legacy <code>/p/</code> tetap 200 dengan <code>?print=1</code> dilewati, rename legacy menyalin <code>html</code> apa adanya lalu link lama 404, rename ke slug bentrok 400, submit lewat <code>/api/save</code> dan <code>/api/submit</code> dua-duanya regrading di server (<code>score: 100</code>, <code>lulus: true</code>), dan laporan <code>/p/:slug/data</code> menampilkan 2 rekaman plus analisis butir soal.</li>
+            <li><strong>D1 lokal belum ada skema saat smoke test.</strong> <code>wrangler dev</code> memakai KV remote (ada flag <code>remote: true</code>) tapi D1 <strong>lokal</strong>, karena binding <code>DB</code> tidak punya flag itu. Semua route yang menyentuh D1 gagal dengan <code>D1_ERROR: no such table: app_records</code> sampai skema diterapkan. Perbaikannya satu perintah, tapi harus diketahui orang lain sebelum tes: <code>npx wrangler d1 execute gemini-db-staging --env staging --local --file schema.sql</code> (nama database di bawah <code>--env staging</code> adalah <code>gemini-db-staging</code>; <code>gemini-db</code> tidak resolve di env itu).</li>
+          </ul>
+          <div class="callout c-crit">
+            <span class="ttl">Jangan pakai <code>wrangler dev</code> polos</span>
+            <p><code>STORAGE</code> memakai <code>remote: true</code> di kedua env, jadi
+            <code>npx wrangler dev</code> tanpa flag menulis ke namespace <b>production</b>.
+            Smoke test yang menyentuh data auth harus lewat
+            <code>npx wrangler dev --env staging</code>. Killing <code>wrangler dev</code>
+            di PowerShell juga perlu <code>taskkill /PID &lt;pid&gt; /T /F</code> &mdash;
+            proses <code>workerd</code> diivoalkan ulang supervisor sehingga hanya
+            PID wrapper yang mati tidak cukup.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 1. AUTH ================= -->
+    <section id="auth">
+      <h2><span class="num">1</span> Hardening Auth &mdash; <span class="mono" style="font-size:15px;">docs/plan-hardening-auth.md</span></h2>
+      <p class="deck">
+        Status dokumen: <b>Disetujui, belum diimplementasikan</b>. Ini prasyarat sebelum pilot sekolah
+        dan prasyarat <code>docs/plan-google-cbt.md</code> Fase 0. Total estimasi 3,5 hari kerja.
+      </p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 86</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <div class="phase" id="t0">
+        <div class="head">
+          <span class="tag p0">WAJIB sebelum T1</span>
+          <h4>T0 &mdash; Env dan urutan deploy</h4>
+          <span class="score">0 / 5</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>npx wrangler secret put SESSION_SECRET</code> (nilai dari <code>openssl rand -base64 32</code>)</li>
+            <li><code>npx wrangler secret put APP_PASSWORD</code> (hapus <code>admin123</code>)</li>
+            <li>Ulangi keduanya dengan <code>--env staging</code></li>
+            <li>Tambah <code>SESSION_SECRET</code> ke <code>.dev.vars.example</code> (tanpa nilai nyata) dan ke <code>.dev.vars</code> lokal</li>
+            <li>Halaman 503 saat secret kosong memuat dua perintah <code>wrangler secret put</code> dalam bahasa Indonesia, supaya tidak ada lockout yang butuh tebakan</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t1">
+        <div class="head">
+          <span class="tag">T1</span>
+          <h4><code>src/auth.ts</code></h4>
+          <span class="score">0 / 10</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>signSession(secret, ttlSeconds, now)</code></li>
+            <li><code>verifySession(value, secret, now)</code></li>
+            <li><code>csrfFor(npc, secret)</code></li>
+            <li><code>verifyCsrfFromRequest(c, session, secret)</code></li>
+            <li><code>safeEqual(a, b)</code> waktu-tetap</li>
+            <li><code>isAuthed(c)</code> berubah dari sync ke async</li>
+            <li><code>requireAdmin(c)</code> &mdash; 401 JSON, atau redirect untuk request HTML</li>
+            <li>Hapus ekspor <code>AUTH_SESSION</code>, perbarui semua import lama</li>
+            <li><code>safeSlug(raw)</code> tidak berubah</li>
+            <li>base64url + HMAC ditulis manual dengan <code>crypto.subtle</code> (tanpa <code>jose</code>)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t2">
+        <div class="head">
+          <span class="tag">T2</span>
+          <h4><code>src/index.ts</code></h4>
+          <span class="score">0 / 6</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Hapus <code>FALLBACK_PASSWORD</code> (`:33-34`)</li>
+            <li>Ganti kelima pembacaan cookie mentah dengan <code>requireAdmin</code>/<code>isAuthed</code> (`:256`, `:538`, `:1270`, `:1315`, `:1336`)</li>
+            <li><code>/api/login</code>: 503 kalau konfigurasi kosong, verifikasi CSRF, <code>safeEqual</code>, pasang <code>auth_session</code> dari <code>signSession</code> (`:516-530`)</li>
+            <li><code>/api/logout</code> tetap <code>GET</code>, hapus <code>auth_session</code> dan <code>auth_pre</code> (`:532-535`)</li>
+            <li>Sisipkan <code>&lt;meta name="csrf-token"&gt;</code> sebelum <code>&lt;/head&gt;</code> cabang authed</li>
+            <li>Sisipkan <code>_csrf</code> di lima form (`:811`, `:865`, `:930`, `:1011`, `:1133`)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t3">
+        <div class="head">
+          <span class="tag">T3</span>
+          <h4>Rate limit <code>/api/login</code>, fail-closed</h4>
+          <span class="score">0 / 7</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>loginfail:&lt;sha256(ip)&gt;:&lt;minuteBucket&gt;</code> TTL 120 d, cap 5/menit</li>
+            <li><code>loginlock:&lt;sha256(ip)&gt;</code> TTL 900 d, diset setelah 10 kegagalan</li>
+            <li><code>ip</code> dari <code>CF-Connecting-IP</code>, fallback <code>x-forwarded-for</code></li>
+            <li><code>sha256(ip)</code> lewat <code>crypto.subtle.digest</code> supaya IP tidak tersimpan mentah</li>
+            <li>Rate limit diperiksa <strong>sebelum</strong> membandingkan password</li>
+            <li>KV gagal &rarr; login ditolak 503 (fail-closed, bukan fail-open seperti <code>src/media-routes.ts:197-199</code>)</li>
+            <li>Respons 429 memuat header <code>Retry-After</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t4">
+        <div class="head">
+          <span class="tag">T4</span>
+          <h4>CSRF</h4>
+          <span class="score">0 / 7</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Lima form di <code>src/index.ts</code></li>
+            <li>Lima form di <code>src/tka-studio.ts</code></li>
+            <li><code>src/index.ts:1133</code> &mdash; form delete dibangun dari string JS, token harus masuk ke string itu</li>
+            <li><code>src/tka-studio.ts:747</code> &mdash; <code>multipart/form-data</code>, field <code>_csrf</code> tetap jalan</li>
+            <li>Lima call site POST di <code>src/media-routes.ts:702,719,754,854,877</code> via header <code>X-CSRF-Token</code> di inline JS</li>
+            <li><code>src/media-routes.ts:819</code> adalah GET baca, tidak perlu token</li>
+            <li><code>public/vendor/quiz-report.js</code> tidak memanggil <code>fetch</code>, tidak tersentuh</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t5">
+        <div class="head">
+          <span class="tag">T5</span>
+          <h4>CORS</h4>
+          <span class="score">0 / 4</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Publik <code>/api/save/:slug</code>, <code>/api/submit/:slug</code>, <code>/media/:slug/:name</code> tetap <code>origin: '*'</code> dengan <code>allowCredentials: false</code></li>
+            <li>Admin sisanya pakai allowlist <code>ALLOWED_ORIGINS</code> (koma), default tanpa header <code>Access-Control-Allow-Origin</code> sama sekali</li>
+            <li><code>allowCredentials: true</code>, methods <code>GET, POST, OPTIONS</code></li>
+            <li>Allow-Headers memuat <code>Content-Type</code> <strong>dan</strong> <code>X-CSRF-Token</code>, kalau tidak jalur <code>fetch</code> gagal saat preflight</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t6">
+        <div class="head">
+          <span class="tag">T6</span>
+          <h4>Kunci <code>?kunci=1</code></h4>
+          <span class="score">0 / 4</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>kunci=1</code> tanpa sesi &rarr; 404, bukan 403 (403 mengonfirmasi kunci memang ada)</li>
+            <li><code>kunci=1</code> dengan sesi tetap seperti sekarang</li>
+            <li><code>?print=1</code> tanpa <code>kunci</code> tetap publik</li>
+            <li>3 baris di <code>src/index.ts:140-153</code>, sebelum <code>renderPrintSheet</code></li>
+          </ul>
+          <p class="note">Effort 3 baris. Tidak perlu mode assigned untuk menutupnya.</p>
+        </div>
+      </div>
+
+      <div class="phase" id="t7">
+        <div class="head">
+          <span class="tag">T7</span>
+          <h4>Hapus <code>apiKey</code> dari <code>gen-config</code></h4>
+          <span class="score">0 / 6</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Respons <code>GET /api/media/:slug/gen-config</code> kirim <code>hasKey: true</code>, bukan <code>apiKey</code></li>
+            <li>Tambah <code>Cache-Control: no-store</code></li>
+            <li>Semantik server: <code>apiUrl</code> terisi + <code>apiKey</code> kosong &rarr; <strong>jaga</strong> kunci lama</li>
+            <li><code>apiUrl</code> kosong + <code>apiKey</code> kosong &rarr; hapus <code>imggencfg:&lt;slug&gt;</code>, kembali ke konfigurasi admin</li>
+            <li><code>apiKey</code> terisi &rarr; ganti kunci (validasi <code>https://</code> + panjang)</li>
+            <li>UI <code>src/media-routes.ts:829</code> diisi placeholder &ldquo;tersimpan&rdquo; + indikator <code>hasKey</code>, bukan <code>cfg.apiKey</code></li>
+          </ul>
+          <div class="callout c-crit">
+            <span class="ttl">Regresi yang hanya muncul saat dipakai</span>
+            <p>Tanpa perubahan semantik server, kunci BYOK guru hilang diam-diam begitu panel
+            dibuka lalu disimpan. <code>resolveGenConfig</code> akan jatuh kembali ke konfigurasi
+            admin karena <code>apiKey</code> kosong tidak memenuhi syarat.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase" id="t8">
+        <div class="head">
+          <span class="tag">T8</span>
+          <h4>Test</h4>
+          <span class="score">0 / 11</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>tests/auth.test.mjs</code> baru</li>
+            <li><code>tests/quiz.test.mjs</code> <strong>tidak boleh disentuh</strong> (dirty worktree + dipakai memverifikasi <code>docs/gemini-gem-prompt-full.md</code>)</li>
+            <li>Cookie legacy <code>authenticated_user</code> ditolak &mdash; regression guard terpenting</li>
+            <li>Token bertanda tangan rusak ditolak</li>
+            <li>Token yang ditandatangani <code>SESSION_SECRET</code> salah ditolak</li>
+            <li><code>exp</code> lewat ditolak; <code>iat</code> di masa depan ditolak di luar toleransi 60 d</li>
+            <li><code>v</code> selain 1 ditolak</li>
+            <li><code>signSession</code> &rarr; <code>verifySession</code> berhasil pada TTL normal, gagal setelah <code>exp</code></li>
+            <li><code>csrfFor</code> deterministik per <code>npc</code>, berbeda antar <code>npc</code></li>
+            <li><code>verifyCsrf</code> menerima field <code>_csrf</code>, menerima header <code>X-CSRF-Token</code>, menolak keduanya salah</li>
+            <li><code>safeEqual</code> benar untuk sama panjang, beda isi, beda panjang, string kosong</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t9">
+        <div class="head">
+          <span class="tag">T9</span>
+          <h4>Dokumentasi</h4>
+          <span class="score">0 / 8</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>AGENTS.md:26</code> &mdash; baris fallback <code>admin123</code> jadi tidak valid</li>
+            <li><code>docs/panduan-pakai.md:19,64</code> &mdash; masa berlaku sesi 7 hari + cara logout</li>
+            <li><code>src/guide.ts:107,138</code> &mdash; sama, harus sinkron dengan markdown-nya</li>
+            <li><code>docs/plan-google-cbt.md</code> bagian 4 dan 12 &mdash; tandai item auth selesai</li>
+            <li><code>docs/analisis-resource.md:24</code> &mdash; tandai resolved, sudah tidak akurat karena password sudah dibaca dari env sejak <code>src/index.ts:538</code></li>
+            <li><code>docs/analisis-resource.md:25</code> &mdash; tandai resolved, <code>escapeHtml()</code> sudah dipakai di <code>src/index.ts:490-496</code></li>
+            <li><code>docs/strategi-publish-dan-sosialisasi.md</code> bagian 8 &mdash; centang Gerbang P0</li>
+            <li><code>docs/peta-migrasi-frontend-backend.html:370-376</code> &mdash; koreksi klaim bahwa <code>kunci=1</code> tidak punya auth check</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="t10">
+        <div class="head">
+          <span class="tag">T10</span>
+          <h4>Verifikasi</h4>
+          <span class="score">0 / 7</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>npm test</code></li>
+            <li><code>npm run typecheck</code></li>
+            <li><code>npx wrangler dev --env staging</code> untuk alur login, deploy, delete, rename, panel gambar, TKA Studio, kunci jawaban</li>
+            <li>Cek: cookie <code>auth_session=authenticated_user</code> buatan sendiri ditolak</li>
+            <li>Cek: <code>curl "/p/&lt;slug&gt;?print=1&amp;kunci=1"</code> tanpa cookie &rarr; 404</li>
+            <li>Cek: <code>GET /api/media/&lt;slug&gt;/gen-config</code> tidak memuat <code>apiKey</code></li>
+            <li>Cek: <code>POST /api/deploy</code> tanpa <code>_csrf</code> &rarr; 403</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase" id="ac-auth">
+        <div class="head">
+          <span class="tag p0">Gerbang</span>
+          <h4>Acceptance Criteria auth</h4>
+          <span class="score">0 / 11</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Cookie <code>auth_session=authenticated_user</code> buatan sendiri tidak memberi akses</li>
+            <li>Mengganti satu byte pada cookie membuat sesi tidak valid</li>
+            <li>Memalsukan <code>exp</code> atau <code>iat</code> tidak memperpanjang sesi</li>
+            <li><code>SESSION_SECRET</code> salah membuat seluruh sesi tidak valid</li>
+            <li><code>admin123</code> tidak pernah diterima, tidak ada konstanta fallback di kode</li>
+            <li><code>/api/login</code> menolak setelah 5/menit, mengunci 15 menit setelah 10 gagal</li>
+            <li><code>/p/&lt;slug&gt;?print=1&amp;kunci=1</code> tanpa sesi &rarr; 404; <code>?print=1</code> tetap publik</li>
+            <li><code>gen-config</code> tidak pernah memuat <code>apiKey</code>, dan menyimpan panel tanpa mengetik ulang kunci tidak menghapus kunci tersimpan</li>
+            <li>10 form + 7 call site menolak POST tanpa token</li>
+            <li><code>/api/*</code> admin tidak lagi mengirim <code>Access-Control-Allow-Origin: *</code></li>
+            <li><code>tests/auth.test.mjs</code> benar-benar dieksekusi oleh <code>npm test</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 2. TEMUAN ================= -->
+    <section id="temuan">
+      <h2><span class="num">2</span> Temuan Terverifikasi di Luar Cakupan Auth</h2>
+      <p class="deck">
+        Terverifikasi di <code>docs/plan-hardening-auth.md:129-138</code>. Tidak ditutup oleh auth plan.
+        Sebagian besar juga masuk Gerbang P0.
+      </p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 8</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <ul class="chk">
+        <li><code>KEY</code> tidak terdefinisi di <code>src/quiz-page.ts:746</code> &mdash; <code>localStorage.setItem(KEY, name)</code> error tertelan <code>catch</code> kosong, jadi nama siswa tidak tersimpan saat submit.</li>
+        <li>Batas media hanya saat <code>list()</code> di <code>src/media.ts:137,146</code> &mdash; <code>MAX_MEDIA_PER_APP = 200</code> dipakai sebagai <code>limit</code>, bukan write cap; upload ke-201 dan seterusnya sukses tapi tak terlihat.</li>
+        <li>Query rekap tanpa <code>LIMIT</code> di <code>src/index.ts:264</code> dan <code>src/quiz-essay.ts:67</code> &mdash; <code>SELECT *</code> penuh, analitik dihitung ulang tiap request.</li>
+        <li><code>app_records</code> yatim di <code>src/index.ts:1314-1334</code> &mdash; <code>/api/delete</code> menghapus KV dan media, tidak pernah menyentuh D1.</li>
+        <li>Grading fail-open di <code>src/index.ts:230-232</code> &mdash; spec yang gagal parse disimpan tanpa grading.</li>
+        <li>Rate limit <code>/api/save/:slug</code> &mdash; endpoint terbuka tanpa rate limit, bisa dibanjiri untuk membakar kuota D1. <span class="badge b-crit">P0</span></li>
+        <li>Batas ukuran payload &mdash; batas 8 MB hanya berlaku untuk media, body JSON butuh batas eksplisit sendiri. <span class="badge b-crit">P0</span></li>
+        <li><strong><code>/api/app/update</code> tidak failure-atomic</strong> (ditemukan smoke test 28 Sep 2026). <code>html:&lt;newSlug&gt;</code> ditulis di <code>src/index.ts:1416</code> dan <code>meta:&lt;newSlug&gt;</code> di <code>:1419</code>, tapi migrasi D1 di <code>:1458</code> baru jalan belakangan. Saat D1 gagal, handler balas 500 <strong>setelah</strong> alamat baru sudah hidup: slug lama dan baru sama-sama serve, <code>meta:&lt;oldSlug&gt;</code> tidak pernah dihapus, dan redirect ke dashboard tidak terjadi. Harus dibungkus <code>try</code>/<code>catch</code> dengan pesan jelas, atau langkah D1 dipindah ke depan penulisan KV. <span class="badge b-high">P1</span></li>
+      </ul>
+    </section>
+
+    <!-- ================= 3. CBT FASE 0 ================= -->
+    <section id="cbt0">
+      <h2><span class="num">3</span> Google CBT &mdash; Fase 0</h2>
+      <p class="deck">
+        <span class="mono" style="font-size:14px;">docs/plan-google-cbt.md</span> &mdash; status dokumen:
+        <b>Disetujui, belum diimplementasikan</b>. Menunggu auth plan selesai lebih dulu.
+      </p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 10</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <div class="callout c-info">
+        <span class="ttl">Kenapa harus menunggu</span>
+        <p>Fase 0 menyusut drastis setelah T0&ndash;T10, karena sesi HMAC, CORS, dan CSRF sudah
+        menjadi fondasinya. Membangun OAuth di atas cookie statis berarti membongkar
+        foundational work dua kali.</p>
+      </div>
+
+      <ul class="chk">
+        <li>Direktori <code>migrations/</code> + npm script <code>db:migrate:local</code> dan <code>db:migrate:remote</code>, jalankan yang lokal</li>
+        <li>Harness tes HTTP di <code>tests/helpers/</code> &mdash; mock KV (get/put/delete/list dengan dukungan <code>prefix</code> dan cursor) + mock D1 (prepare/bind/run/first/all plus simulasi unique constraint) + helper <code>callRoute(app, method, path, body, cookie)</code></li>
+        <li><code>jose</code> sebagai dependency tunggal untuk ID token + JWKS (verifikasi JWT tidak ditulis tangan)</li>
+        <li>Helper session, resolusi user, normalisasi email</li>
+        <li>Google OAuth authorization-code flow dengan PKCE, <code>state</code>, dan <code>nonce</code> server-side (KV TTL 10 menit) atau cookie HttpOnly bertanda tangan</li>
+        <li>Verifikasi ID token: signature via JWKS, <code>iss</code>, <code>aud</code>, <code>exp</code>, <code>nonce</code>, <code>email_verified</code></li>
+        <li>Hapus <code>/api/login</code> password bersama sepenuhnya</li>
+        <li>Satukan auth lewat middleware baru</li>
+        <li>Tabel <code>users</code> dan <code>auth_sessions</code> lewat <code>migrations/0001_auth_cbt.sql</code></li>
+        <li>CORS + CSRF <em>(sudah dikerjakan di auth T4/T5)</em></li>
+      </ul>
+    </section>
+
+    <!-- ================= 4. CBT FASE 1-5 ================= -->
+    <section id="cbt15">
+      <h2><span class="num">4</span> Google CBT &mdash; Fase 1 sampai 5 (Tertunda)</h2>
+      <p class="deck">Hanya relevan kalau mode CBT terdaftar benar-benar dipakai. Tidak perlu untuk pilot dengan link publik.</p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 30</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 1</span>
+          <h4>Ownership assessment</h4>
+          <span class="score">0 / 5</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Tabel <code>assessments</code> + owner lookup</li>
+            <li>Namespace KV untuk konten baru</li>
+            <li>Batasi dashboard dan mutation ke owner/admin</li>
+            <li>Tampilkan assessment legacy public tanpa memindahkan owner</li>
+            <li><code>DELETE /api/assessments/:id</code> yang owner-scoped dan membersihkan attempt</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 2</span>
+          <h4>Roster dan assigned gate</h4>
+          <span class="score">0 / 6</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Tabel <code>assessment_students</code></li>
+            <li>Form roster + validasi email</li>
+            <li>Login gate pada link assigned</li>
+            <li>Tolak akun Google yang emailnya tidak terdaftar</li>
+            <li>Kunci <code>?print=1</code> dan <code>?kunci=1</code> pada mode assigned</li>
+            <li><code>GET /media/:slug/:name</code> mode-aware dengan cache privat untuk assigned</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 3</span>
+          <h4>Attempt lifecycle</h4>
+          <span class="score">0 / 7</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Tabel <code>quiz_attempts</code> dan <code>quiz_drafts</code></li>
+            <li>Start/resume, duration, deadline, autosave ber-throttle, lazy expiry, submit idempotent</li>
+            <li>Simpan content version saat attempt dimulai</li>
+            <li>Ubah fail-open grading: kegagalan = attempt belum finalized</li>
+            <li>Dual-read laporan: <code>GET /p/:slug/data</code> dan <code>GET /p/:slug/essay</code> membaca <code>quiz_attempts</code> untuk assigned dan <code>app_records</code> untuk public</li>
+            <li><code>POST /api/quiz/:slug/essay</code> menulis <code>result_json</code> dengan conditional update</li>
+            <li><code>result_json</code> berbentuk sama dengan payload <code>app_records</code> supaya <code>computeItemAnalysis</code> dipakai utuh</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 4</span>
+          <h4>UI dan kompatibilitas</h4>
+          <span class="score">0 / 5</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Halaman login + status session</li>
+            <li>Timer/autosave UI sesuai aturan throttle</li>
+            <li>Perbaiki cleanup localStorage (termasuk bug <code>KEY</code> undefined) + retry submit</li>
+            <li>Pertahankan public quiz flow dan legacy report</li>
+            <li>Filter/pagination report</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Fase 5</span>
+          <h4>Validasi dan rollout</h4>
+          <span class="score">0 / 7</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li><code>npm test</code> + <code>npm run typecheck</code></li>
+            <li><code>db:migrate:local</code>, lalu <code>db:migrate:remote</code> untuk staging</li>
+            <li>Daftarkan redirect URI Google untuk production dan staging</li>
+            <li>Uji dengan dua guru dan 30 siswa</li>
+            <li>Pastikan guru hanya melihat assessment miliknya</li>
+            <li>Pastikan link public lama tetap terbuka</li>
+            <li>Aktifkan assigned mode bertahap setelah smoke test</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 5. GERBANG ================= -->
+    <section id="gerbang">
+      <h2><span class="num">5</span> Gerbang Rilis &mdash; <span class="mono" style="font-size:15px;">docs/strategi-publish-dan-sosialisasi.md</span></h2>
+      <p class="deck">Penguatan keamanan adalah bagian dari strategi produk. Kalau rilis dilakukan sebelum gerbang ini, risiko reputasi dan data ikut tersebar bersama link.</p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 18</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag p0">Wajib sebelum pilot</span>
+          <h4>Gerbang P0</h4>
+          <span class="score">0 / 8</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Sesi diverifikasi, bukan cookie statis <em>(&rarr; auth T1/T2)</em></li>
+            <li>Fallback <code>admin123</code> dihapus, secret tidak pernah di-commit <em>(&rarr; auth T0/T2)</em></li>
+            <li>Batasi akses dashboard, laporan, media, sumber, kepemilikan</li>
+            <li>Validasi + escape seluruh metadata dan konten dinamis &mdash; title, URL media kaya, import TKA (sebagian sudah beres; audit ulang)</li>
+            <li>Cegah kebocoran kunci jawaban lewat print atau parameter URL <em>(&rarr; auth T6)</em></li>
+            <li>Rate limit endpoint publik, pembuatan soal AI, callback auth <em>(&rarr; auth T3 untuk login; sisanya belum)</em></li>
+            <li>Pengujian rute, autentikasi, KV, D1 <em>(&rarr; auth T8 sebagian; harness HTTP belum)</em></li>
+            <li>Tetapkan data minimum, retensi, hak akses, ekspor, penghapusan data <em>(belum ada sama sekali)</em></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Gerbang P1</span>
+          <h4>Wajib sebelum perluasan multi-sekolah</h4>
+          <span class="score">0 / 6</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Identitas guru + kepemilikan asesmen</li>
+            <li>Namespace konten baru per pemilik atau asesmen</li>
+            <li>Pembagian halaman, index, query laporan yang tidak membaca seluruh histori</li>
+            <li>R2 untuk media, atau strategi fallback yang jelas dan terukur</li>
+            <li>Pantau error, biaya, latensi, pemakaian AI</li>
+            <li>SOP dukungan, insiden, pencadangan, pemulihan</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="head">
+          <span class="tag">Gerbang P2</span>
+          <h4>Untuk mode CBT terdaftar</h4>
+          <span class="score">0 / 4</span>
+        </div>
+        <div class="body">
+          <ul class="chk">
+            <li>Google OAuth dengan state, nonce, PKCE, verifikasi token</li>
+            <li>Roster siswa + sesi sisi server</li>
+            <li>Timer server + percobaan yang tidak bisa diubah dari klien</li>
+            <li>Autosave, melanjutkan, submit idempotent, hasil sesuai kebijakan rilis</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 6. TAHAP 1 ================= -->
+    <section id="tahap1">
+      <h2><span class="num">6</span> Tahap 1 &mdash; <span class="mono" style="font-size:15px;">docs/analisis-resource.md</span></h2>
+      <p class="deck">Seri dan wajib setelah Tahap 0. Butuh keputusan tenant lebih dulu.</p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 6</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <ul class="chk">
+        <li>Skema multi-tenant: <code>schools &rarr; users(role) &rarr; classes &rarr; students &rarr; assessments &rarr; attempts &rarr; attempt_answers</code>, semua baris ada <code>school_id</code></li>
+        <li>Middleware tenant: setiap query disaring <code>school_id</code> dari sesi, jangan bergantung pada slug di URL</li>
+        <li>Pisahkan identitas dan URL: UUID untuk kunci KV (<code>quiz:&lt;school&gt;/&lt;id&gt;</code>), slug hanya untuk alamat enak dibaca, cek keunikan sebelum simpan</li>
+        <li>Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination</li>
+        <li><code>LIMIT</code> di semua query rekap; analitik butir soal dihitung saat submit</li>
+        <li>R2 untuk media dengan kunci <code>school_id/assessment_id/slot</code></li>
+      </ul>
+    </section>
+
+    <!-- ================= 7. DITUNDA ================= -->
+    <section id="tunda">
+      <h2><span class="num">7</span> Ditunda</h2>
+      <p class="deck">Disimpan sebagai rencana saja, tidak dikerjakan sekarang.</p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 2</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <ul class="chk">
+        <li><code>docs/plan/panel-konteks-soal-di-slot-gambar.md</code> &mdash; panel &ldquo;Konteks soal&rdquo; mengambang per kartu slot di <code>/p/&lt;slug&gt;/media</code>. Hanya menyentuh markup dan inline JS di <code>src/media-routes.ts</code>. Tidak bersinggungan dengan auth plan.</li>
+        <li>Pemecahan admin jadi SPA (<code>docs/peta-migrasi-frontend-backend.html</code>) &mdash; ditunda sesuai keputusan.</li>
+      </ul>
+    </section>
+
+    <!-- ================= 8. KONSISTENSI DOKUMEN ================= -->
+    <section id="dok">
+      <h2><span class="num">8</span> Konsistensi Dokumen</h2>
+      <p class="deck">Tertunda sampai auth plan selesai, tapi paling mudah terlupa karena tidak terlihat dari kode.</p>
+
+      <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 4</span></div>
+      <div class="bar"><i style="width:0%"></i></div>
+
+      <ul class="chk">
+        <li>Status di header <code>docs/plan-hardening-auth.md</code> dan <code>docs/plan-google-cbt.md</code> diperbarui dari &ldquo;belum diimplementasikan&rdquo;</li>
+        <li><code>docs/plan-hardening-auth.md:443</code> &mdash; semua sitasi <code>file:line</code> diverifikasi terhadap 27 September 2026. Kalau <code>src/index.ts</code> atau <code>src/media-routes.ts</code> berubah lagi, hitung ulang.</li>
+        <li><code>docs/plan-google-cbt.md</code> bagian 4, 12, dan 19 &mdash; bagian 19 menyatakan plan itu sumber kebenaran, jadi status basi di dokumen lain akan menyesatkan</li>
+        <li>Tiga file dirty worktree (<code>docs/plan-google-cbt.html</code>, <code>docs/plan-google-cbt.md</code>, <code>tests/quiz.test.mjs</code>) masih belum di-commit. Putuskan dulu: commit terpisah atau buang.</li>
+      </ul>
+    </section>
+
+    <footer class="doc">
+      Checklist gabungan <span class="mono">gemini-deployer</span> &middot; 28 September 2026<br>
+      Versi markdown: <span class="mono">docs/checklist.md</span> &middot; 190 item, 25 selesai, 165 belum
+    </footer>
+  </main>
+</div>
+</body>
+</html>
