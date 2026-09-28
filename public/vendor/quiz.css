@@ -624,21 +624,28 @@ body.q-gate-open { overflow: hidden; }
 .q-timer-danger .q-timer-ico,
 .q-timer-danger .q-timer-label { color: inherit; }
 
-/* Header di layar sempit: tetap SATU baris — label "Sisa waktu" disembunyikan
-   (tinggal ikon jam + angka), zoom-val menyusut, jadi timer tetap sebelahan
-   tombol Cetak tanpa wrap. */
+/* Header di layar sempit: DUA baris yang terkontrol. Baris 1 = logo + judul,
+   baris 2 (order 5) = timer + Cetak + zoom tetap SEBELAHAN — timer melebar
+   mengisi sisa ruang supaya angkanya besar dan mudah dibaca. Tanpa ini,
+   flex-wrap bebas membuat tiap tombol turun sendiri-sendiri. */
 @media (max-width: 640px) {
-  .q-header-inner { gap: 8px; }
+  .q-header-inner { gap: 6px 8px; }
+  .q-header-title { flex: 1 1 120px; }
   .q-header-tools,
-  .q-header-controls { gap: 6px; }
-  .q-timer { padding: 7px 10px; }
-  .q-timer-label { display: none; }
-  .q-btn-mini { padding: 6px 10px; }
-  .q-zoom-val { min-width: 34px; }
+  .q-header-controls { order: 5; flex-basis: 100%; margin-left: 0; gap: 6px; }
+  .q-header-tools .q-timer,
+  .q-header-controls .q-timer { flex: 1 1 auto; justify-content: center; }
+  .q-timer { padding: 8px 10px; }
+  .q-timer-clock { font-size: 16px; }
+  .q-btn-mini { padding: 8px 12px; }
+  .q-zoom { margin-left: auto; }
+  .q-zoom button { width: 27px; height: 27px; }
 }
-@media (max-width: 400px) {
+@media (max-width: 360px) {
   .q-zoom-val { display: none; }
   .q-header-title p { display: none; }
+  .q-header-tools .q-zoom,
+  .q-header-controls .q-zoom { margin-left: 0; }
 }
 
 @media print {
