@@ -19,6 +19,8 @@ import {
   deleteMedia,
   getMedia,
   listMedia,
+  listMediaNames,
+  mediaWriteCapError,
   mediaPlaceholder,
   putMedia,
   sniffImageType,
@@ -151,6 +153,12 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
       return c.json({ status: 'error', message: 'Nama gambar kosong. Tulis nama, misal: fotosintesis.' }, 400);
     }
 
+    // Write cap 200 slot per aplikasi (bug lama: upload ke-201 berhasil tapi
+    // tak terlihat oleh list). Menimpa slot yang sudah ada tetap diizinkan —
+    // revisi foto tidak boleh terblokir oleh cap.
+    const capError = mediaWriteCapError(await listMediaNames(c.env, slug), name);
+    if (capError) return c.json({ status: 'error', message: capError }, 409);
+
     await putMedia(c.env, slug, name, bytes.buffer as ArrayBuffer, contentType);
     await touchMeta(c.env, slug);
 
@@ -223,6 +231,10 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
     // Model pilihan guru dipakai dulu; kalau kosong baru model bawaan (BYOK/admin).
     const model = String(body?.model ?? '').trim().slice(0, 80) || resolved.model;
     if (!name) return c.json({ status: 'error', message: 'Nama slot gambar tidak valid.' }, 400);
+    // Write cap juga di jalur generate AI: tolak SEBELUM kuota proxy dibakar,
+    // supaya aplikasi penuh tidak menghasilkan gambar yang tidak akan terlihat.
+    const capError = mediaWriteCapError(await listMediaNames(c.env, slug), name);
+    if (capError) return c.json({ status: 'error', message: capError }, 409);
     if (!prompt) {
       // Guru tidak menulis deskripsi: ambil konteksnya langsung dari soal supaya
       // tombol generate tetap jalan tanpa perlu mengetik apa-apa.

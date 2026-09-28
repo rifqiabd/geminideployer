@@ -33,6 +33,38 @@ export const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
 
 export const MAX_MEDIA_PER_APP = 200;
 
+/**
+ * Daftar nama slot media yang sudah ada untuk satu aplikasi — hanya nama, tanpa
+ * membaca isi file. Satu operasi `list` per pemanggilan, jadi murah dipakai
+ * sebagai guard sebelum setiap tulis.
+ *
+ * Dipisah dari `listMedia()` (yang membaca metadata tiap file) karena pemakaian
+ * utamanya adalah menghitung dan mengecek keberadaan nama, bukan menampilkan
+ * detail ke panel.
+ */
+export async function listMediaNames(env: MediaBindings, slug: string): Promise<string[]> {
+  if (env.MEDIA) {
+    const listed = await env.MEDIA.list({ prefix: `${slug}/`, limit: MAX_MEDIA_PER_APP });
+    return listed.objects.map((object) => object.key.slice(slug.length + 1));
+  }
+  const listed = await env.STORAGE.list({ prefix: kvKey(slug, ''), limit: MAX_MEDIA_PER_APP });
+  return listed.keys.map((key) => key.name.slice(kvKey(slug, '').length));
+}
+
+/**
+ * Batas tulis media per aplikasi (bug lama: batas hanya dipakai sebagai `limit`
+ * saat list, sehingga upload ke-201 dan seterusnya berhasil tapi tak terlihat).
+ *
+ * Mengembalikan pesan error bila menulis `name` akan melewati batas, atau null
+ * bila boleh. Menimpa slot yang sudah ada TIDAK dihitung tulis baru — revisi
+ * foto di aplikasi penuh tetap harus jalan.
+ */
+export function mediaWriteCapError(existingNames: string[], name: string): string | null {
+  if (existingNames.includes(name)) return null;
+  if (existingNames.length < MAX_MEDIA_PER_APP) return null;
+  return `Batas ${MAX_MEDIA_PER_APP} gambar per aplikasi sudah tercapai. Hapus gambar yang tidak terpakai di panel Gambar dulu.`;
+}
+
 export type StoredMedia = {
   body: ArrayBuffer;
   contentType: string;

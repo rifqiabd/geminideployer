@@ -292,10 +292,15 @@ Terverifikasi di `docs/plan-hardening-auth.md:129-138`. Tidak ditutup oleh auth
 plan. Sebagian besar juga masuk Gerbang P0.
 
 - [ ] `KEY` tidak terdefinisi di `src/quiz-page.ts:746` — `localStorage.setItem(KEY, name)`
-      error tertelan `catch` kosong, jadi nama siswa tidak tersimpan saat submit.
-- [ ] Batas media hanya saat `list()` di `src/media.ts:137,146` —
-      `MAX_MEDIA_PER_APP = 200` dipakai sebagai `limit`, bukan write cap; upload
-      ke-201 dan seterusnya sukses tapi tak terlihat.
+      error tertelan `catch` kosong, jadi nama siswa tidak tersimpan saat submit.- [x] Batas media hanya saat `list()` di `src/media.ts` — **diperbaiki 28 Sep
+      2026.** `listMediaNames()` (satu operasi list, tanpa baca isi) +
+      `mediaWriteCapError()` kini dipasang di upload DAN generate AI (409
+      sebelum kuota AI dibakar); overwrite slot yang sudah ada tetap
+      diizinkan. Test di `tests/media-cap.test.mjs` (11 test). Pemantauan
+      kuota KV lewat `npm run kv:usage[:staging]`: production 43 media
+      (5,0 MB), staging 36 media (5,6 MB) — jauh dari 1 GB, jadi keputusan
+      tetap KV untuk pilot terkonfirmasi; R2 baru saat ≥80% atau mode
+      assigned/CBT aktif.
 - [ ] Query rekap tanpa `LIMIT` di `src/index.ts:264` dan `src/quiz-essay.ts:67` —
       `SELECT *` penuh, analitik dihitung ulang tiap request.
 - [ ] `app_records` yatim di `src/index.ts:1314-1334` — `/api/delete` menghapus KV

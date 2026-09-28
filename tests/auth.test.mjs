@@ -74,10 +74,11 @@ check('regresi: cookie lama tanpa titik ditolak', await verifySession('authentic
 const [body, mac] = cookie.split('.');
 const tamperedBody = body.slice(0, -4) + (body.endsWith('AAAA') ? 'AAAB' : 'AAAA');
 check('tamper: payload diubah → ditolak', await verifySession(`${tamperedBody}.${mac}`, SECRET, NOW), null);
-check('tamper: mac diubah satu karakter → ditolak', await verifySession(`${body}.${mac.slice(0, -1)}A`), null);
+const tamperedMac = mac.slice(0, -1) + (mac.endsWith('A') ? 'B' : 'A');
+check('tamper: mac diubah satu karakter → ditolak', await verifySession(`${body}.${tamperedMac}`, SECRET, NOW), null);
 check(
   'tamper: mac diubah satu karakter (varian) → ditolak',
-  await verifySession(`${body}.${mac.slice(0, -1)}A`, SECRET, NOW),
+  await verifySession(`${body}.${tamperedMac}`, SECRET, NOW),
   null
 );
 check('tamper: titik hilang → ditolak', await verifySession(body + mac, SECRET, NOW), null);
