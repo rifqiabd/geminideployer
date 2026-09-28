@@ -52,6 +52,21 @@ app.get('/p/:slug', async (c) => {
     return c.html(notFoundCard(), 404);
   }
 
+  /* Tombol cetak tidak pernah dirender di HTML halaman siswa (tersimpan
+     statis, tidak tahu siapa yang membuka). Untuk admin, tombol disuntik ke
+     placeholder #admin-tools di sini saat halaman disajikan — siswa tidak
+     melihat apa pun karena penyuntikan hanya terjadi bila sesi admin valid. */
+  if (await isAuthed(c)) {
+    const adminTools = `<a class="q-btn q-btn-mini" href="?print=1" title="Cetak / Simpan PDF">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          Cetak
+        </a>`;
+    const injected = html.includes('id="admin-tools"')
+      ? html.replace('<span class="q-admin-tools" id="admin-tools"></span>', `<span class="q-admin-tools" id="admin-tools">${adminTools}</span>`)
+      : html; // HTML lama tanpa placeholder: dilewati, tombol cetak tersedia dari dashboard
+    return c.html(injected);
+  }
+
   return c.html(html);
 });
 }

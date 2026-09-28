@@ -925,7 +925,8 @@ check('render highlight: bacaan jadi tombol yang bisa diklik', (hlHtml.match(/cl
 check('render highlight: teks biasa tidak jadi tombol', hlHtml.includes('di sekolah.'), true);
 
 /* --- Print to PDF: lembar statis, tata letak 1/2 kolom, kunci opsional ------ */
-check('render: tombol Cetak di header kuis menuju mode cetak', navHtml.includes('href="?print=1"'), true);
+check('render: tombol Cetak TIDAK dirender di header siswa', !navHtml.includes('href="?print=1"'), true);
+check('render: placeholder alat admin ada di header', navHtml.includes('id="admin-tools"'), true);
 
 const plainSheet = renderPrintSheet(tkaSpec, 'tka-bahasa-inggris');
 check('print: semua teks soal ikut tercetak', tkaSpec.questions.every((question) => plainSheet.includes(question.question)), true);
@@ -1371,11 +1372,11 @@ check('gerbang: petunjuk esai muncul saat ada esai', (() => { const spec = parse
 const headerBlock = timerHtml.slice(timerHtml.indexOf('q-header-inner'), timerHtml.indexOf('</header>'));
 const toolsStart = headerBlock.indexOf('q-header-tools');
 const timerStart = headerBlock.indexOf('id="quiz-timer"');
-const printStart = headerBlock.indexOf('href="?print=1"');
+const adminToolsStart = headerBlock.indexOf('id="admin-tools"');
 const zoomStart = headerBlock.indexOf('id="zoom-out"');
 check('header: cluster tools ada', toolsStart !== -1, true);
 check('header: timer di dalam cluster tools', toolsStart !== -1 && timerStart > toolsStart, true);
-check('header: tombol cetak di dalam cluster tools', toolsStart !== -1 && printStart > toolsStart && printStart < zoomStart, true);
+check('header: placeholder alat admin sebelum zoom', toolsStart !== -1 && adminToolsStart > toolsStart && adminToolsStart < zoomStart, true);
 check('header: timer pakai ikon jam', headerBlock.includes('q-timer-ico'), true);
 const noTimerSpec = parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', questions: [{ type: 'short', question: 'a', answer: ['a'] }] }));
 const noTimerHtml = renderQuizApp(noTimerSpec, 'uji-tanpa-timer');
