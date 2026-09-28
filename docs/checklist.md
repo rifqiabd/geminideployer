@@ -134,10 +134,13 @@ dan prasyarat `docs/plan-google-cbt.md` Fase 0 — Fase 0 kini boleh dimulai.
       dashboard yang baru ada di file `.dev.vars` lokal, bukan lagi `admin123`;
       ganti sendiri kalau mau yang mudah dihafal.
 - [x] Ulangi keduanya dengan `--env staging` — selesai.
-- [ ] Kode yang memakai secret ini **belum di-deploy** — production masih
-      menjalankan versi lama dengan fallback `admin123` sampai
-      `npx wrangler deploy` dijalankan. Urutan T0 aman: secret sudah mendahului
-      kode, jadi deploy berikutnya langsung hardened tanpa jendela 503.
+- [x] Kode hardened **sudah di-deploy ke staging** (versi `6208ac7b`, 28 Sep
+      2026) dan diverifikasi end-to-end: login dengan password yang disinkronkan,
+      sandi salah ditolak 401, deploy app, upload gambar lewat header
+      `X-CSRF-Token` (tanpa token = 403), gambar tersaji publik dengan cache
+      1 jam, `gen-config` tanpa `apiKey`, hapus app — 12/12 cek lolos, artefak
+      test dihapus. **Production masih menjalankan versi lama** sampai
+      `npx wrangler deploy` dijalankan.
 - [x] Tambah `SESSION_SECRET` ke `.dev.vars.example` (tanpa nilai nyata) dan ke
       `.dev.vars` lokal
 - [ ] Halaman 503 saat secret kosong memuat dua perintah `wrangler secret put`
@@ -291,8 +294,10 @@ dan prasyarat `docs/plan-google-cbt.md` Fase 0 — Fase 0 kini boleh dimulai.
 Terverifikasi di `docs/plan-hardening-auth.md:129-138`. Tidak ditutup oleh auth
 plan. Sebagian besar juga masuk Gerbang P0.
 
-- [ ] `KEY` tidak terdefinisi di `src/quiz-page.ts:746` — `localStorage.setItem(KEY, name)`
-      error tertelan `catch` kosong, jadi nama siswa tidak tersimpan saat submit.- [x] Batas media hanya saat `list()` di `src/media.ts` — **diperbaiki 28 Sep
+- [x] `KEY` tidak terdefinisi di `src/quiz-page.ts` — **diperbaiki 28 Sep 2026**
+      bersama fitur form identitas nama+kelas: submit kini menyimpan nama ke
+      `NAME_KEY` dan kelas ke `CLASS_KEY` (kunci yang benar), bukan `KEY` yang
+      tak terdefinisi.- [x] Batas media hanya saat `list()` di `src/media.ts` — **diperbaiki 28 Sep
       2026.** `listMediaNames()` (satu operasi list, tanpa baca isi) +
       `mediaWriteCapError()` kini dipasang di upload DAN generate AI (409
       sebelum kuota AI dibakar); overwrite slot yang sudah ada tetap
@@ -322,9 +327,11 @@ plan. Sebagian besar juga masuk Gerbang P0.
 
 ## 3. Google CBT — Fase 0 `docs/plan-google-cbt.md`
 
-Status dokumen: Disetujui, belum diimplementasikan. **Menunggu auth plan selesai
-lebih dulu** — Fase 0 menyusut drastis setelah T0-T10, karena sesi HMAC, CORS,
-dan CSRF sudah menjadi fondasinya.
+Status dokumen: Disetujui, **DITUNDA sementara** (keputusan 28 Sep 2026).
+Prasyarat auth sudah selesai, tapi diprioritaskan dulu: perbaikan latensi
+dashboard, form identitas nama+kelas, dan timer latihan klien — semuanya
+sudah dikerjakan. Timer server-side untuk CBT tetap menunggu Fase 0-3 plan
+ini bersama roster siswa.
 
 - [ ] Direktori `migrations/` + npm script `db:migrate:local` dan
       `db:migrate:remote`, jalankan yang lokal

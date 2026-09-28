@@ -474,3 +474,22 @@ body {
   .q-btn { padding: 10px 15px; }
   .q-bar-inner { gap: 10px; }
 }
+
+/* ---------- Timer latihan (opsional, dari duration_minutes) ---------- */
+.q-timer {
+  max-width: 920px; margin: 14px auto 0; padding: 9px 16px;
+  display: flex; align-items: center; gap: 9px;
+  background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px;
+  color: #075985; font-size: 13.5px; width: calc(100% - 32px);
+  box-sizing: border-box;
+}
+.q-timer-clock { font-variant-numeric: tabular-nums; font-size: 15px; margin-left: auto; }
+.q-timer-danger { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+
+/* ---------- Identitas dua kolom (nama + kelas) ---------- */
+.q-id-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.q-id-cell { flex: 1 1 200px; min-width: 0; }
+
+@media print {
+  .q-timer { display: none !important; }
+}

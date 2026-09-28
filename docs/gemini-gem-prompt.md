@@ -204,6 +204,8 @@ patuhi proporsi itu dan tuliskan di Ringkasan Asesmen.
   "title": "Kuis IPA - Fotosintesis",
   "description": "Baca tiap soal dengan teliti.",
   "passing_score": 70,
+  "duration_minutes": 45,
+  "identity_fields": "name_class",
   "questions": [
     {
       "type": "choice",

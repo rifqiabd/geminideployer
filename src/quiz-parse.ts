@@ -952,11 +952,24 @@ export function parseQuizSpec(raw: string): QuizSpec {
   const rawKkm = Number(pick(obj, ['passing_score', 'kkm', 'nilai_minimum', 'nilai_lulus']) ?? 70);
   const passingScore = Number.isFinite(rawKkm) ? Math.min(100, Math.max(0, Math.round(rawKkm))) : 70;
 
+  // Durasi latihan opsional (menit). 0/teks aneh = tanpa timer; batas 1-600
+  // menit supaya typo (mis. 6000) tidak jadi penghitung yang tidak masuk akal.
+  const rawDuration = Number(pick(obj, ['duration_minutes', 'durasi_menit']) ?? 0);
+  const durationMinutes =
+    Number.isFinite(rawDuration) && rawDuration >= 1 && rawDuration <= 600 ? Math.round(rawDuration) : null;
+
+  // Bentuk identitas: default 'name' (perilaku lama). 'name_class' menambah
+  // input kelas wajib di halaman siswa.
+  const rawIdentity = String(pick(obj, ['identity_fields', 'identitas']) ?? 'name').trim();
+  const identityFields = rawIdentity === 'name_class' || rawIdentity === 'nama_kelas' ? 'name_class' : 'name';
+
   return {
     title: String(pick(obj, ['title', 'judul', 'nama']) ?? '').trim(),
     description: String(pick(obj, ['description', 'deskripsi', 'petunjuk', 'instruksi']) ?? '').trim(),
     slug: String(pick(obj, ['slug']) ?? '').trim(),
     passingScore,
+    durationMinutes,
+    identityFields,
     features: [...features],
     stimuli,
     showExplanation: resolveBoolean(pick(obj, ['show_explanation', 'tampilkan_pembahasan'])) !== false,
@@ -1063,6 +1076,8 @@ export function quizToAuthoringSource(quiz: QuizSpec): Record<string, unknown> {
     title: quiz.title,
     description: quiz.description,
     passing_score: quiz.passingScore,
+    ...(quiz.durationMinutes ? { duration_minutes: quiz.durationMinutes } : {}),
+    ...(quiz.identityFields === 'name_class' ? { identity_fields: 'name_class' } : {}),
     ...(quiz.showExplanation === false ? { show_explanation: false } : {}),
     questions,
   };

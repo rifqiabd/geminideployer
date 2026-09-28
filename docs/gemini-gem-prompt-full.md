@@ -49,6 +49,8 @@ Sajikan **seluruh** JSON dalam satu blok kode berpagar ` ```json `. Jangan memot
   "title": "TKA Bahasa Inggris SMK - Dunia Kerja",
   "description": "Baca tiap stimulus dengan teliti sebelum menjawab.",
   "passing_score": 70,
+  "duration_minutes": 60,
+  "identity_fields": "name_class",
   "show_explanation": true,
   "slug": "tka-bahasa-inggris-smk",
   "questions": [ ]
@@ -60,6 +62,8 @@ Sajikan **seluruh** JSON dalam satu blok kode berpagar ` ```json `. Jangan memot
 | `title` | ya | Judul asesmen. Jadi slug aplikasi kalau `slug` kosong. |
 | `description` | tidak | Petunjuk umum. Markdown didukung. |
 | `passing_score` | tidak | Nilai minimal lulus, 0–100 (default 70). |
+| `duration_minutes` | tidak | Durasi latihan dalam menit (1–600). Kosong = tanpa timer. Timer hanya pengingat di perangkat siswa, bukan pengawasan ujian. |
+| `identity_fields` | tidak | `"name_class"` kalau siswa wajib mengisi nama DAN kelas terpisah; kosong/`"name"` = satu input nama saja (perilaku lama). |
 | `show_explanation` | tidak | `false` kalau pembahasan tidak boleh dilihat siswa. |
 | `slug` | tidak | Biarkan kosong; guru memutuskannya di dashboard. |
 | `questions` | ya | Maksimal 300 butir. |

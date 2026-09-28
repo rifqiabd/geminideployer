@@ -852,13 +852,32 @@ if (type === 'true_false') {
   var titleInput = document.getElementById('qe-title');
   var descInput = document.getElementById('qe-description');
   var kkmInput = document.getElementById('qe-kkm');
+  var durationInput = document.getElementById('qe-duration');
+  var identitySelect = document.getElementById('qe-identity');
   titleInput.value = state.title || '';
   descInput.value = state.description || '';
   kkmInput.value = state.passing_score === undefined ? 70 : state.passing_score;
+  durationInput.value = state.duration_minutes || '';
+  identitySelect.value = state.identity_fields === 'name_class' ? 'name_class' : 'name';
 
   titleInput.addEventListener('input', function () { state.title = titleInput.value; markDirty(); });
   descInput.addEventListener('input', function () { state.description = descInput.value; markDirty(); });
   kkmInput.addEventListener('input', function () { state.passing_score = Number(kkmInput.value); markDirty(); });
+  durationInput.addEventListener('input', function () {
+    var minutes = Number(durationInput.value);
+    // Kosong = tanpa timer; nilai di luar 1-600 dibuang saat disimpan parser.
+    if (durationInput.value === '' || !Number.isFinite(minutes) || minutes < 1 || minutes > 600) {
+      delete state.duration_minutes;
+    } else {
+      state.duration_minutes = Math.round(minutes);
+    }
+    markDirty();
+  });
+  identitySelect.addEventListener('change', function () {
+    if (identitySelect.value === 'name_class') state.identity_fields = 'name_class';
+    else delete state.identity_fields;
+    markDirty();
+  });
 
   document.getElementById('qe-add').addEventListener('click', function () {
     state.questions.push({ type: 'choice', question: '', options: ['', ''], answer: 'A', points: 1 });

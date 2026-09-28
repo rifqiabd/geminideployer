@@ -149,6 +149,20 @@ export type QuizSpec = {
   /** Slug mentah dari JSON (opsional); disanitasi oleh pemanggil. */
   slug: string;
   passingScore: number;
+  /**
+   * Durasi latihan dalam menit (opsional). Kosong/0 = tanpa timer. Timer ini
+   * hanya pengingat sisi klien untuk mode latihan — bukan pengawas ujian:
+   * siswa yang paham DevTools bisa melewatkannya. Timer server-side yang
+   * tidak bisa dimanipulasi adalah bagian mode CBT terdaftar (plan-google-cbt
+   * Fase 3).
+   */
+  durationMinutes: number | null;
+  /**
+   * Bentuk identitas siswa di halaman kuis. Default 'name' (satu input nama
+   * bebas, perilaku lama). 'name_class' = dua input: nama + kelas, keduanya
+   * wajib, tersimpan terpisah di payload kiriman.
+   */
+  identityFields: 'name' | 'name_class';
   features: Feature[];
   stimuli: QuizStimulus[];
   /** false = pembahasan tidak ditampilkan ke siswa (tetap tersimpan untuk guru). */

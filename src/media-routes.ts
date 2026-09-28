@@ -1066,8 +1066,12 @@ export async function withMediaStats<T extends { slug?: string; type?: string }>
     if (!specRaw) return project;
     const slots = collectMediaSlotsFromStored(specRaw);
     if (!slots.length) return { ...project, media_slots: 0, media_missing: 0 };
-    const items = await listMedia(env, project.slug);
-    const uploaded = new Set(items.map((item) => item.name));
+    // listMediaNames (list saja) bukan listMedia (yang mengunduh ISI tiap
+    // gambar). Dulu dashboard mengunduh seluruh byte gambar hanya untuk
+    // menghitung "3 dari 5 gambar belum diunggah" — sumber utama latensi
+    // publish dengan KV remote.
+    const names = await listMediaNames(env, project.slug);
+    const uploaded = new Set(names);
     return {
       ...project,
       media_slots: slots.length,

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS app_records (
     app_slug TEXT NOT NULL,
     user_id TEXT,
     payload_json TEXT NOT NULL,
+    student_class TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

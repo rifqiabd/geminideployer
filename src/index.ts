@@ -254,6 +254,10 @@ const saveRecordHandler = async (c: Context<{ Bindings: Bindings }>) => {
 
   const id = crypto.randomUUID();
   const userId = body.user || body.name || body.student_name || 'anonim';
+  // Kelas siswa (opsional): dipisah dari nama supaya rekap per kelas tidak perlu
+  // menebak dari teks nama. Dibersihkan dari tipe aneh; payload lama tanpa kelas
+  // tetap terbaca apa adanya.
+  const studentClass = typeof body.student_class === 'string' ? body.student_class.trim().slice(0, 60) : '';
 
   // Kalau slug ini dibuat dari JSON soal, nilainya dihitung ulang DI SERVER
   // supaya skor tidak bisa dipalsukan dari sisi browser.
@@ -271,6 +275,9 @@ const saveRecordHandler = async (c: Context<{ Bindings: Bindings }>) => {
         ...body,
         type: 'quiz-json',
         quiz_title: spec.title,
+        // Normalisasi kelas ke field payload yang pasti (body bisa saja tidak
+        // mengirim student_class; kelas tetap tampil di rekap).
+        student_class: studentClass,
         score: graded.score,
         points_earned: graded.points_earned,
         points_total: graded.points_total,
@@ -305,9 +312,9 @@ const saveRecordHandler = async (c: Context<{ Bindings: Bindings }>) => {
   }
 
   await c.env.DB.prepare(`
-    INSERT INTO app_records (id, app_slug, user_id, payload_json)
-    VALUES (?, ?, ?, ?)
-  `).bind(id, slug, userId, JSON.stringify(payload)).run();
+    INSERT INTO app_records (id, app_slug, user_id, payload_json, student_class)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(id, slug, userId, JSON.stringify(payload), studentClass || null).run();
 
   return c.json({
     status: 'success',
@@ -557,10 +564,15 @@ app.get('/p/:slug/data', async (c) => {
                 ${results.map((r: any) => {
                   const payload = JSON.parse(r.payload_json);
                   const summary = payload.summary ? JSON.stringify(payload.summary) : (payload.score !== undefined ? `Skor: ${payload.score}` : '-');
+                  // Kelas tampil di belakang identitas (payload baru); kiriman
+                  // lama tanpa student_class tetap tampil tanpa label kelas.
+                  const identitas = payload.student_class
+                    ? `${escapeHtml(r.user_id)}<span class="tone-muted"> · ${escapeHtml(payload.student_class)}</span>`
+                    : escapeHtml(r.user_id);
                   return `
                   <tr class="r-row">
                     <td class="r-cell r-nowrap tone-muted">${escapeHtml(r.created_at)}</td>
-                    <td class="r-cell r-id">${escapeHtml(r.user_id)}</td>
+                    <td class="r-cell r-id">${identitas}</td>
                     <td class="r-cell r-num tone-ok">${escapeHtml(summary)}</td>
                     <td class="r-cell">
                       <details class="r-details">
@@ -733,10 +745,19 @@ app.get('/', async (c) => {
   let projects: any[] = [];
   if (isAuth) {
     const list = await c.env.STORAGE.list({ prefix: 'meta:' });
-    for (const key of list.keys) {
-      const val = await c.env.STORAGE.get(key.name);
-      if (val) projects.push(await withMediaStats(c.env, JSON.parse(val)));
-    }
+    // KV remote berarti tiap get adalah round-trip jaringan; dulu loop ini
+    // serial sehingga publish terasa berat (N app × beberapa get + statistik
+    // media yang ikut mengunduh gambar). Semua pembacaan diparalelkan.
+    const metas = await Promise.all(list.keys.map((key) => c.env.STORAGE.get(key.name)));
+    projects = (
+      await Promise.all(
+        metas.map(async (val) => {
+          if (!val) return null;
+          const meta = JSON.parse(val);
+          return withMediaStats(c.env, meta);
+        })
+      )
+    ).filter((p): p is any => p !== null);
     // Urutan sidebar mengikuti tanggal dibuat, terbaru dulu. Sebelumnya hanya
     // `reverse()` atas urutan leksikografis KV, jadi urutannya Z->A berdasarkan
     // slug dan sama sekali tidak mencerminkan tanggal. `sort` di JS stabil,
@@ -746,25 +767,27 @@ app.get('/', async (c) => {
 
   const appData: Record<string, any> = {};
   if (isAuth) {
-    for (const p of projects) {
-      let preview = '';
-      if (p.type === 'json') {
-        preview = (await c.env.STORAGE.get(`quizsource:${p.slug}`)) || '';
-      } else {
-        const html = await c.env.STORAGE.get(`html:${p.slug}`);
-        preview = html ? html.slice(0, 1500) : '';
-      }
-      appData[p.slug] = {
-        title: p.title,
-        type: p.type,
-        slug: p.slug,
-        date: relTime(p.created_at),
-        size: p.size,
-        mediaMissing: p.media_missing || 0,
-        mediaTotal: p.media_slots || 0,
-        preview,
-      };
-    }
+    await Promise.all(
+      projects.map(async (p) => {
+        let preview = '';
+        if (p.type === 'json') {
+          preview = (await c.env.STORAGE.get(`quizsource:${p.slug}`)) || '';
+        } else {
+          const html = await c.env.STORAGE.get(`html:${p.slug}`);
+          preview = html ? html.slice(0, 1500) : '';
+        }
+        appData[p.slug] = {
+          title: p.title,
+          type: p.type,
+          slug: p.slug,
+          date: relTime(p.created_at),
+          size: p.size,
+          mediaMissing: p.media_missing || 0,
+          mediaTotal: p.media_slots || 0,
+          preview,
+        };
+      })
+    );
   }
   // Sidebar tidak lagi menampilkan tanggal secara permanen, jadi keterangan
   // kapan aplikasi dibuat dan kapan terakhir diubah harus tetap tersedia lewat

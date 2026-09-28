@@ -28,6 +28,7 @@ type StoredPayload = {
   essay_earned?: number;
   essay_total?: number;
   essay_scores?: Record<string, number>;
+  student_class?: string;
   answers?: unknown;
   detail?: GradedDetail[];
 };
@@ -85,6 +86,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
         return {
           id: String(row.id),
           name: String(row.user_id ?? 'anonim'),
+          className: String(payload.student_class ?? ''),
           createdAt: String(row.created_at ?? ''),
           payload,
           essays,
@@ -123,7 +125,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
       <article class="e-card" data-record="${escapeHtml(entry.id)}" data-slug="${escapeHtml(slug)}">
         <div class="e-card-head">
           <div>
-            <h3 class="e-name">${escapeHtml(entry.name)}</h3>
+            <h3 class="e-name">${escapeHtml(entry.name)}${entry.className ? `<span class="e-class"> · ${escapeHtml(entry.className)}</span>` : ''}</h3>
             <p class="e-time">${escapeHtml(entry.createdAt)}</p>
             <p class="js-summary e-summary">${escapeHtml(summaryLine(entry.payload))}</p>
           </div>
@@ -201,6 +203,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
     .e-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
     .e-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .e-name{margin:0;font-size:14px;font-weight:600}
+    .e-class{font-weight:400;color:var(--text-secondary)}
     .e-time{font-size:11px;color:var(--text-faint);margin:2px 0 0}
     .e-summary{margin:6px 0 0;font-size:11px;color:var(--text-secondary)}
     .e-badge{font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid;white-space:nowrap}

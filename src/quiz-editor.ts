@@ -224,6 +224,19 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
         <label for="qe-kkm">Nilai minimal lulus</label>
         <input id="qe-kkm" type="number" min="0" max="100">
       </div>
+      <div class="field number">
+        <label for="qe-duration">Durasi latihan (menit)</label>
+        <input id="qe-duration" type="number" min="1" max="600" placeholder="kosong = tanpa timer">
+        <p class="note">Penghitung waktu di perangkat siswa; jawaban dikirim otomatis saat waktu habis. Hanya pengingat — bukan pengawasan ujian.</p>
+      </div>
+      <div class="field">
+        <label for="qe-identity">Identitas siswa</label>
+        <select id="qe-identity">
+          <option value="name">Nama saja (perilaku lama)</option>
+          <option value="name_class">Nama + kelas (dua kolom, kelas wajib)</option>
+        </select>
+        <p class="note">Kelas tersimpan terpisah di rekap supaya mudah difilter per kelas.</p>
+      </div>
     </div>
 
     <div class="list-head">

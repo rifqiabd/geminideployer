@@ -279,6 +279,10 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
     essayCount,
     kkm: quiz.passingScore,
     showExplanation: quiz.showExplanation,
+    // Timer latihan (menit) — hanya pengingat klien, bukan pengawas ujian.
+    durationMinutes: quiz.durationMinutes ?? null,
+    // Bentuk identitas: 'name' (perilaku lama) atau 'name_class' (nama + kelas).
+    identityFields: quiz.identityFields ?? 'name',
   }).replace(/</g, '\\u003c');
 
   const headExtra = [
@@ -321,13 +325,38 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
     </div>
   </header>
 
+  ${
+    quiz.durationMinutes
+      ? `<div class="q-timer q-no-print" id="quiz-timer" style="display:none">
+          <span class="q-timer-icon" aria-hidden="true">⏱</span>
+          <span class="q-timer-label">Sisa waktu</span>
+          <strong class="q-timer-clock" id="timer-clock">--:--</strong>
+        </div>`
+      : ''
+  }
+
   <main class="q-wrap">
     <div class="q-shell">
       <div class="q-main">
         <div id="quiz-view">
           <div class="q-card">
+            ${
+              (quiz.identityFields ?? 'name') === 'name_class'
+                ? `
+            <div class="q-id-row">
+              <div class="q-id-cell">
+                <label class="q-idlabel" for="student-name">Nama siswa</label>
+                <input class="q-input" id="student-name" type="text" autocomplete="off" placeholder="Nama lengkap">
+              </div>
+              <div class="q-id-cell">
+                <label class="q-idlabel" for="student-class">Kelas</label>
+                <input class="q-input" id="student-class" type="text" autocomplete="off" placeholder="Contoh: 7A">
+              </div>
+            </div>`
+                : `
             <label class="q-idlabel" for="student-name">Nama siswa</label>
-            <input class="q-input" id="student-name" type="text" autocomplete="off" placeholder="Tulis nama lengkap dan kelas...">
+            <input class="q-input" id="student-name" type="text" autocomplete="off" placeholder="Tulis nama lengkap dan kelas...">`
+            }
             ${description}
           </div>
 
@@ -379,6 +408,7 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
 (function () {
   var CFG = ${config};
   var NAME_KEY = 'quiz-student-name:' + CFG.slug;
+  var CLASS_KEY = 'quiz-student-class:' + CFG.slug;
   var ATTEMPT_KEY = 'quiz-attempt:' + CFG.slug;
   var form = document.getElementById('quiz-form');
   var nameInput = document.getElementById('student-name');
@@ -396,7 +426,10 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
   var resumeBox = document.getElementById('resume-box');
   var resumeText = document.getElementById('resume-text');
 
+  var classInput = document.getElementById('student-class');
+
   try { if (localStorage.getItem(NAME_KEY)) nameInput.value = localStorage.getItem(NAME_KEY); } catch (err) {}
+  try { if (classInput && localStorage.getItem(CLASS_KEY)) classInput.value = localStorage.getItem(CLASS_KEY); } catch (err) {}
 
   function store(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (err) {}
@@ -621,12 +654,13 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
     // Jawaban disimpan tiap kali berubah, tapi hanya setelah nama diisi — supaya
     // komputer sekolah yang dipakai bergantian tidak mencampur jawaban siswa lain.
     var name = nameInput.value.trim();
-    if (name) store(ATTEMPT_KEY, { name: name, answers: readAnswers(), flags: flags });
+    if (name) store(ATTEMPT_KEY, { name: name, student_class: classInput ? classInput.value.trim() : '', answers: readAnswers(), flags: flags });
   }
 
   form.addEventListener('input', function () {
     var name = nameInput.value.trim();
     if (name) store(NAME_KEY, name);
+    if (classInput && classInput.value.trim()) store(CLASS_KEY, classInput.value.trim());
     refresh();
   });
   form.addEventListener('change', refresh);
@@ -696,11 +730,59 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
       try {
         localStorage.removeItem(ATTEMPT_KEY);
         localStorage.removeItem(NAME_KEY);
+        localStorage.removeItem(CLASS_KEY);
       } catch (err) {}
       flags = {};
       resumeBox.classList.add('q-hidden');
       refresh();
     });
+  }
+
+  /* --- Timer latihan (opsional, sisi klien) --------------------------------
+   * Durasi dari spec (CFG.durationMinutes). Hanya pengingat: siswa yang paham
+   * DevTools bisa melewatkannya. Pengawasan ujian sungguhan menunggu mode CBT
+   * terdaftar (deadline server-side, plan-google-cbt Fase 3).
+   * ---------------------------------------------------------------------- */
+  var timerBox = document.getElementById('quiz-timer');
+  var timerClock = document.getElementById('timer-clock');
+  var timerDeadline = 0;
+  var timerFinished = false;
+  var TIMER_KEY = 'quiz-deadline:' + CFG.slug;
+
+  if (timerBox && CFG.durationMinutes >= 1) {
+    try {
+      // Deadline disimpan supaya refresh halaman TIDAK mengulang waktu — ini
+      // yang membedakan dari timer latihan biasa yang gampang di-reset.
+      timerDeadline = Number(localStorage.getItem(TIMER_KEY)) || 0;
+      if (!timerDeadline || timerDeadline < Date.now()) {
+        // Mulai baru hanya bila belum ada (deadline lewat tetap dipertahankan
+        // supaya refresh sesaat sebelum auto-submit tidak menambah waktu).
+        if (!timerDeadline) {
+          timerDeadline = Date.now() + CFG.durationMinutes * 60000;
+          localStorage.setItem(TIMER_KEY, String(timerDeadline));
+        }
+      }
+    } catch (err) {
+      timerDeadline = Date.now() + CFG.durationMinutes * 60000;
+    }
+    timerBox.style.display = '';
+    tickTimer();
+    setInterval(tickTimer, 1000);
+  }
+
+  function tickTimer() {
+    if (!timerClock) return;
+    var remain = Math.max(0, Math.floor((timerDeadline - Date.now()) / 1000));
+    var mm = String(Math.floor(remain / 60)).padStart(2, '0');
+    var ss = String(remain % 60).padStart(2, '0');
+    timerClock.textContent = mm + ':' + ss;
+    timerBox.classList.toggle('q-timer-danger', remain <= 60 && remain > 0);
+    if (remain <= 0 && !timerFinished) {
+      timerFinished = true;
+      try { localStorage.removeItem(TIMER_KEY); } catch (err) {}
+      if (form && form.requestSubmit) form.requestSubmit();
+      else if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
   }
 
   buildNav();
@@ -743,7 +825,19 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
       nameInput.focus();
       return;
     }
-    try { localStorage.setItem(KEY, name); } catch (err) {}
+    var className = classInput ? classInput.value.trim() : '';
+    if (CFG.identityFields === 'name_class' && !className) {
+      showAlert('Isi kelas dulu ya sebelum mengirim jawaban.');
+      classInput.focus();
+      return;
+    }
+    // Bug lama (checklist bagian 2): setItem(KEY, ...) dengan KEY tak terdefinisi
+    // melempar ReferenceError yang tertelan catch kosong, jadi nama tidak
+    // pernah tersimpan saat submit. Simpan keduanya dengan kunci yang benar.
+    try { localStorage.setItem(NAME_KEY, name); } catch (err) {}
+    if (className) {
+      try { localStorage.setItem(CLASS_KEY, className); } catch (err) {}
+    }
 
     var cards = cardList();
     var answers = readAnswers();
@@ -758,7 +852,7 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
     fetch('/api/submit/' + encodeURIComponent(CFG.slug), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_name: name, quiz_title: CFG.title, answers: answers })
+      body: JSON.stringify({ student_name: name, student_class: className, quiz_title: CFG.title, answers: answers })
     })
       .then(function (response) {
         return response.json().then(function (data) { return { ok: response.ok, data: data }; });
@@ -767,7 +861,7 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
         if (!result.ok || !result.data || result.data.status !== 'success') {
           throw new Error((result.data && result.data.message) || 'Server menolak jawaban ini.');
         }
-        showResult(result.data.grading, name);
+        showResult(result.data.grading, className ? name + ' — ' + className : name);
       })
       .catch(function (error) {
         submitBtn.disabled = false;

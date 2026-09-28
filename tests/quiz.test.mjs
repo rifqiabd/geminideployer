@@ -1282,5 +1282,38 @@ check(
 );
 check('dokumen prompt: larangan base64 ada', promptDoc.includes('base64'), true);
 
+// ---------- Durasi latihan (timer) + identitas nama+kelas ------------------
+const timerSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Kuis Timer',
+    passing_score: 60,
+    duration_minutes: 45,
+    identity_fields: 'name_class',
+    questions: [{ type: 'short', question: '1+1?', answer: ['2'] }],
+  })
+);
+check('durasi: dibaca dari duration_minutes', timerSpec.durationMinutes, 45);
+check('identitas: name_class dikenali', timerSpec.identityFields, 'name_class');
+check('durasi: di luar 1-600 dibuang', parseQuizSpec(JSON.stringify({ title: 'x', duration_minutes: 6000, questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).durationMinutes, null);
+check('durasi: tidak diset = null (tanpa timer)', parseQuizSpec(JSON.stringify({ title: 'x', questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).durationMinutes, null);
+check('identitas: tidak diset = name (perilaku lama)', parseQuizSpec(JSON.stringify({ title: 'x', questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).identityFields, 'name');
+
+const timerHtml = renderQuizApp(timerSpec, 'uji-timer');
+check('render: kotak timer ada saat durasi diset', timerHtml.includes('id="quiz-timer"'), true);
+check('render: form identitas dua kolom ada', timerHtml.includes('id="student-class"'), true);
+const noTimerSpec = parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', questions: [{ type: 'short', question: 'a', answer: ['a'] }] }));
+const noTimerHtml = renderQuizApp(noTimerSpec, 'uji-tanpa-timer');
+check('render: tanpa durasi tidak ada timer', noTimerHtml.includes('id="quiz-timer"'), false);
+check('render: tanpa name_class tidak ada input kelas', noTimerHtml.includes('id="student-class"'), false);
+check('render: form siswa tetap ada tanpa opsi baru', noTimerHtml.includes('id="student-name"'), true);
+
+// Round-trip: durasi dan identitas ikut tersimpan saat editor menyimpan ulang.
+const timerRt = quizToAuthoringSource(timerSpec);
+check('round-trip: duration_minutes ikut', timerRt.duration_minutes, 45);
+check('round-trip: identity_fields ikut', timerRt.identity_fields, 'name_class');
+const tanpaTimerRt = quizToAuthoringSource(noTimerSpec);
+check('round-trip: tanpa durasi tidak menulis field', 'duration_minutes' in tanpaTimerRt, false);
+check('round-trip: tanpa name_class tidak menulis field', 'identity_fields' in tanpaTimerRt, false);
+
 console.log(failed === 0 ? '\nSemua tes lulus.' : `\n${failed} tes GAGAL.`);
 process.exit(failed === 0 ? 0 : 1);
