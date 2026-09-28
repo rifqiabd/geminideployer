@@ -7,6 +7,7 @@ import type { Hono } from 'hono';
 import { isAuthed } from './auth';
 import { renderPrintSheet } from './quiz';
 import type { QuizSpec } from './quiz';
+import { messageCard } from './ui-card.ts';
 
 // Bindings minimal: KV untuk html/spec + SESSION_SECRET untuk isAuthed().
 type PublicAppBindings = { STORAGE: KVNamespace; SESSION_SECRET?: string };
@@ -26,7 +27,7 @@ app.get('/p/:slug', async (c) => {
     // publik: mencetak naskah soal bukan kebocoran.
     const wantsKunci = c.req.query('kunci') === '1';
     if (wantsKunci && !(await isAuthed(c))) {
-      return c.text('Aplikasi tidak ditemukan!', 404);
+      return c.html(notFoundCard(), 404);
     }
     const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
     if (specRaw) {
@@ -48,9 +49,22 @@ app.get('/p/:slug', async (c) => {
   const html = await c.env.STORAGE.get(`html:${slug}`);
 
   if (!html) {
-    return c.text('Aplikasi tidak ditemukan!', 404);
+    return c.html(notFoundCard(), 404);
   }
 
   return c.html(html);
 });
+}
+
+/**
+ * 404 untuk halaman siswa. Tetap polos dan tanpa tombol: halaman ini terbuka
+ * untuk umum, jadi tidak boleh menawarkan tautan ke dashboard admin dan tidak
+ * boleh membocorkan apakah sebuah slug pernah ada. Pesannya sengaja generik.
+ */
+function notFoundCard(): string {
+  return messageCard({
+    title: 'Aplikasi tidak ditemukan',
+    message: 'Alamat ini tidak ada atau sudah dipindahkan. Periksa kembali tautan yang kamu terima dari guru.',
+    tone: 'warn',
+  });
 }

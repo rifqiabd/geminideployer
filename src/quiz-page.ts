@@ -5,6 +5,7 @@
 import { escapeHtml, mediaBaseFor, optionLetter } from './quiz-util.ts';
 import { inlineRich, renderRichText } from './quiz-rich.ts';
 import { HLJS_BASE, KATEX_BASE } from './quiz-types.ts';
+import { FAVICON_TAGS } from './favicon.ts';
 import type { Feature, QuizQuestion, QuizSpec } from './quiz-types.ts';
 
 
@@ -308,6 +309,7 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(quiz.title || 'Kuis')}</title>
+  ${FAVICON_TAGS}
   <link rel="stylesheet" href="/vendor/quiz.css">
   ${headExtra}
 </head>
@@ -317,23 +319,33 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
       <div class="q-logo">
         <svg viewBox="0 0 24 24"><path d="M9 11l2 2 4-4"></path><path d="M5 3h14a1 1 0 011 1v16a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z"></path></svg>
       </div>
-      <div>
+      <div class="q-header-title">
         <h1>${escapeHtml(quiz.title || 'Kuis')}</h1>
         <p>${quiz.questions.length} soal • nilai minimal lulus ${quiz.passingScore}${levelLine}</p>
       </div>
-      <a class="q-btn q-btn-mini q-no-print" href="?print=1" title="Cetak / Simpan PDF">Cetak</a>
+      <div class="q-header-tools q-no-print">
+        ${
+          quiz.durationMinutes
+            ? `<div class="q-timer" id="quiz-timer" style="display:none">
+                <svg class="q-timer-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>
+                <span class="q-timer-label">Sisa waktu</span>
+                <strong class="q-timer-clock" id="timer-clock">--:--</strong>
+              </div>`
+            : ''
+        }
+        <a class="q-btn q-btn-mini" href="?print=1" title="Cetak / Simpan PDF">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          Cetak
+        </a>
+        <div class="q-zoom" role="group" aria-label="Perbesar teks soal">
+          <button type="button" id="zoom-out" aria-label="Perkecil teks" title="Perkecil teks (Ctrl −)">−</button>
+          <span class="q-zoom-val" id="zoom-val" aria-live="polite">100%</span>
+          <button type="button" id="zoom-in" aria-label="Perbesar teks" title="Perbesar teks (Ctrl +)">＋</button>
+          <button type="button" id="zoom-reset" aria-label="Setel ulang ukuran teks" title="Setel ulang (Ctrl 0)">⟲</button>
+        </div>
+      </div>
     </div>
   </header>
-
-  ${
-    quiz.durationMinutes
-      ? `<div class="q-timer q-no-print" id="quiz-timer" style="display:none">
-          <span class="q-timer-icon" aria-hidden="true">⏱</span>
-          <span class="q-timer-label">Sisa waktu</span>
-          <strong class="q-timer-clock" id="timer-clock">--:--</strong>
-        </div>`
-      : ''
-  }
 
   <main class="q-wrap">
     <div class="q-shell">
@@ -430,6 +442,47 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
 
   try { if (localStorage.getItem(NAME_KEY)) nameInput.value = localStorage.getItem(NAME_KEY); } catch (err) {}
   try { if (classInput && localStorage.getItem(CLASS_KEY)) classInput.value = localStorage.getItem(CLASS_KEY); } catch (err) {}
+
+  /* --- Zoom teks (aksesibilitas): 80–150%, tersimpan per perangkat ---------
+     body.style.zoom dipakai karena stylesheet berbasis px; zoom menskalakan
+     seluruh layout termasuk bar tetap di bawah. Firefox lama yang tidak
+     mendukung cukup kehilangan efeknya tanpa merusak apa pun. */
+  (function () {
+    var KEY = 'quiz-text-zoom';
+    var MIN = 80, MAX = 150, STEP = 10, DEFAULT = 100;
+    var val = DEFAULT;
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY));
+      if (typeof saved === 'number' && saved >= MIN && saved <= MAX) val = saved;
+    } catch (err) {}
+    var outBtn = document.getElementById('zoom-out');
+    var inBtn = document.getElementById('zoom-in');
+    var resetBtn = document.getElementById('zoom-reset');
+    var label = document.getElementById('zoom-val');
+    function apply() {
+      document.body.style.zoom = val === DEFAULT ? '' : String(val / 100);
+      document.body.setAttribute('data-zoom', String(val));
+      if (label) label.textContent = val + '%';
+      if (outBtn) outBtn.disabled = val <= MIN;
+      if (inBtn) inBtn.disabled = val >= MAX;
+    }
+    function set(next) {
+      val = Math.min(MAX, Math.max(MIN, next));
+      apply();
+      try { localStorage.setItem(KEY, JSON.stringify(val)); } catch (err) {}
+    }
+    if (outBtn) outBtn.addEventListener('click', function () { set(val - STEP); });
+    if (inBtn) inBtn.addEventListener('click', function () { set(val + STEP); });
+    if (resetBtn) resetBtn.addEventListener('click', function () { set(DEFAULT); });
+    document.addEventListener('keydown', function (ev) {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      var k = ev.key;
+      if (k === '+' || k === '=') { set(val + STEP); ev.preventDefault(); }
+      else if (k === '-' || k === '_') { set(val - STEP); ev.preventDefault(); }
+      else if (k === '0') { set(DEFAULT); ev.preventDefault(); }
+    });
+    apply();
+  })();
 
   function store(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (err) {}
@@ -1157,6 +1210,7 @@ export function renderPrintSheet(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cetak — ${escapeHtml(quiz.title || 'Kuis')}</title>
+  ${FAVICON_TAGS}
   <link rel="stylesheet" href="/vendor/quiz.css">
   ${features.has('math') ? `<link rel="stylesheet" href="${KATEX_BASE}/katex.min.css">` : ''}
   <style>

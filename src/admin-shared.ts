@@ -4,30 +4,19 @@
  * supaya pemeriksaan keamanan tidak terduplikasi.
  * ========================================================================== */
 import type { Context } from 'hono';
-import { escapeHtml } from './quiz';
+import { errorCard } from './ui-card.ts';
 import { getSession, verifyCsrfFromRequest } from './auth';
 
 // Bindings minimal guard: verifikasi sesi & CSRF hanya butuh SESSION_SECRET.
 type GuardEnv = { Bindings: { SESSION_SECRET?: string } };
 
-// Helper: Halaman error yang bisa dibaca guru (bukan teks polos)
+/* Helper: Halaman error yang bisa dibaca guru (bukan teks polos).
+ * delegate ke messageCard supaya gaya dan token tema sama dengan halaman
+ * dashboard — bukan lagi kartu Tailwind CDN biru-slate yang terlihat seperti
+ * produk berbeda. Signature tetap (title, message) jadi auth-routes.ts dan
+ * actions.ts tidak perlu berubah. */
 export function errorPage(title: string, message: string): string {
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-slate-100 min-h-screen grid place-items-center p-6 font-sans">
-  <div class="max-w-lg w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-2xl">
-    <h1 class="text-base font-bold text-rose-400 mb-2">${title}</h1>
-    <p class="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">${escapeHtml(message)}</p>
-    <a href="/" class="inline-block mt-5 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-xs font-semibold">Kembali ke Dashboard</a>
-  </div>
-</body>
-</html>`;
+  return errorCard(title, message);
 }
 
 /* --------------------------------------------------------------------------

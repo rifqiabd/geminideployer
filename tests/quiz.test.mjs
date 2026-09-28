@@ -15,6 +15,7 @@ import {
   quizToAuthoringSource,
   resolveMediaUrl,
   sanitizeMediaName,
+  wrapBareLatex,
 } from '../src/quiz.ts';
 import { MAX_MEDIA_BYTES, mediaPlaceholder, sniffImageType, suggestMediaName } from '../src/media.ts';
 import { buildGeminiPrompt, buildImagePrompt, IMGGEN_MODELS, mediaGenConfig } from '../src/media-gen.ts';
@@ -377,6 +378,49 @@ check('image bentuk objek terbaca', collectMediaSlots(objImage), ['bagan-x']);
 check('alt dari bentuk objek dipakai', renderQuizApp(objImage, 'obj').includes('alt="Bagan alur"'), true);
 
 check('parseQuizJson melepas pagar kode', JSON.stringify(parseQuizJson('```json{"a":1}```')), '{"a":1}');
+
+// ---------- LaTeX telanjang di pilihan jawaban dibungkus otomatis ----------
+const latexSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Matematika XI',
+    passing_score: 70,
+    questions: [
+      {
+        type: 'choice',
+        question: 'Jika $A = \\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}$, tentukan $A^{-1}$.',
+        options: ['\\begin{pmatrix} 6 & -2 \\\\ -5 & 7 \\end{pmatrix}', '\\frac{1}{4}(\\sqrt{6} + \\sqrt{2})', '1,732', '2'],
+        answer: '\\frac{1}{4}(\\sqrt{6} + \\sqrt{2})',
+      },
+      {
+        type: 'multi',
+        question: 'Pilih semua yang benar.',
+        options: ['\\sqrt{3} > 1', 'Operasi perkalian matriks bersifat komutatif: A \\times B = B \\times A', 'Pusat lingkaran (3, -4) dan jari-jarinya 6'],
+        answer: ['\\sqrt{3} > 1', 'Operasi perkalian matriks bersifat komutatif: A \\times B = B \\times A'],
+      },
+    ],
+  })
+);
+check('opsi matriks telanjang dibungkus $', latexSpec.questions[0].options[0], '$\\begin{pmatrix} 6 & -2 \\\\ -5 & 7 \\end{pmatrix}$');
+check('opsi pegas telanjang dibungkus $', latexSpec.questions[0].options[1], '$\\frac{1}{4}(\\sqrt{6} + \\sqrt{2})$');
+check('opsi angka biasa tidak tersentuh', latexSpec.questions[0].options[2], '1,732');
+check('kunci choice tetap cocok setelah dibungkus', latexSpec.questions[0].keys, ['1']);
+check('label kunci ikut memakai opsi ter-wrap', latexSpec.questions[0].keyLabel, 'B. $\\frac{1}{4}(\\sqrt{6} + \\sqrt{2})$');
+check('opsi prose + rumus: prose tetap di luar $', latexSpec.questions[1].options[1], 'Operasi perkalian matriks bersifat komutatif: $A \\times B = B \\times A$');
+check('opsi prosa tanpa Latex tetap utuh', latexSpec.questions[1].options[2], 'Pusat lingkaran (3, -4) dan jari-jarinya 6');
+check('kunci multi tetap cocok setelah dibungkus', latexSpec.questions[1].keys, ['0|1']);
+check('opsi ter-wrap tetap dirender server sebagai latex', renderQuizApp(latexSpec, 'mtk').includes('\\frac{1}{4}(\\sqrt{6} + \\sqrt{2})'), true);
+check('wrap idempoten (satu kali lagi tidak berubah)', wrapBareLatex(wrapBareLatex('Operasi komutatif: A \\times B = B \\times A')), 'Operasi komutatif: $A \\times B = B \\times A$');
+check('rumus yang sudah dibungkus tidak dinesting', wrapBareLatex('$\\frac{1}{2}$ dan $\\sqrt{3}$'), '$\\frac{1}{2}$ dan $\\sqrt{3}$');
+check('teks tanpa Latex tidak pernah berubah', wrapBareLatex('Nilai k = 4 membuat matriks M singular'), 'Nilai k = 4 membuat matriks M singular');
+check('nama variabel 2 huruf bukan prosa', wrapBareLatex('Invers dari perkalian dua matriks non-singular berlaku: (AB)^{-1} = \\B^{-1} A^{-1}'), 'Invers dari perkalian dua matriks non-singular berlaku: $(AB)^{-1} = \\B^{-1} A^{-1}$');
+check('seluruh opsi hasil wrap selalu $ genap', latexSpec.questions.concat(parseQuizSpec(JSON.stringify(latexSpec)).questions).every((q) => q.options.every((opt) => opt.replace(/\$\$[\s\S]*?\$\$/g, '').split('$').length % 2 === 1)), true);
+check('teks dengan $ ganjil tidak ditambah apa-apa', wrapBareLatex('harga $\\frac{1}{2}'), 'harga $\\frac{1}{2}');
+check('pangkat tanpa backslash ikut jadi rumus', wrapBareLatex('Invers dari perkalian dua matriks berlaku: (AB)^{-1} = B^{-1} A^{-1}'), 'Invers dari perkalian dua matriks berlaku: $(AB)^{-1} = B^{-1} A^{-1}$');
+check('indeks tanpa backslash ikut jadi rumus', wrapBareLatex('a_{12} dan b_{21}'), '$a_{12}$ dan $b_{21}$');
+check('underscore nama file/slot media tidak memicu', wrapBareLatex('Lihat media:gambar_satu pada file_name.png'), 'Lihat media:gambar_satu pada file_name.png');
+check('pangkat telanjang tanpa kurung kurawal tidak memicu', wrapBareLatex('Turunan x^2 di titik 3'), 'Turunan x^2 di titik 3');
+check('spec tersimpan lama ikut ter-wrap', parseQuizSpec(JSON.stringify(latexSpec)).questions[0].options[0], '$\\begin{pmatrix} 6 & -2 \\\\ -5 & 7 \\end{pmatrix}$');
+check('pilihan siswa tetap dinilai benar setelah wrap', gradeSubmission(latexSpec, [{ id: 'q1', value: 'B' }, { id: 'q2', value: ['A', 'B'] }]).detail[0].benar, true);
 
 // ---------- Analisis butir soal ----------
 const reportSpec = parseQuizSpec(
@@ -1301,9 +1345,22 @@ check('identitas: tidak diset = name (perilaku lama)', parseQuizSpec(JSON.string
 const timerHtml = renderQuizApp(timerSpec, 'uji-timer');
 check('render: kotak timer ada saat durasi diset', timerHtml.includes('id="quiz-timer"'), true);
 check('render: form identitas dua kolom ada', timerHtml.includes('id="student-class"'), true);
+
+// Header siswa: timer + Cetak + zoom dikelompokkan dalam satu cluster kanan
+// (.q-header-tools), jadi timer selalu sebelahan tombol Cetak.
+const headerBlock = timerHtml.slice(timerHtml.indexOf('q-header-inner'), timerHtml.indexOf('</header>'));
+const toolsStart = headerBlock.indexOf('q-header-tools');
+const timerStart = headerBlock.indexOf('id="quiz-timer"');
+const printStart = headerBlock.indexOf('href="?print=1"');
+const zoomStart = headerBlock.indexOf('id="zoom-out"');
+check('header: cluster tools ada', toolsStart !== -1, true);
+check('header: timer di dalam cluster tools', toolsStart !== -1 && timerStart > toolsStart, true);
+check('header: tombol cetak di dalam cluster tools', toolsStart !== -1 && printStart > toolsStart && printStart < zoomStart, true);
+check('header: timer pakai ikon jam', headerBlock.includes('q-timer-ico'), true);
 const noTimerSpec = parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', questions: [{ type: 'short', question: 'a', answer: ['a'] }] }));
 const noTimerHtml = renderQuizApp(noTimerSpec, 'uji-tanpa-timer');
 check('render: tanpa durasi tidak ada timer', noTimerHtml.includes('id="quiz-timer"'), false);
+check('header: tanpa durasi tetap ada cluster tools', noTimerHtml.includes('q-header-tools'), true);
 check('render: tanpa name_class tidak ada input kelas', noTimerHtml.includes('id="student-class"'), false);
 check('render: form siswa tetap ada tanpa opsi baru', noTimerHtml.includes('id="student-name"'), true);
 

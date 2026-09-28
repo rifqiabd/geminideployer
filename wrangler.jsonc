@@ -16,17 +16,17 @@
 	//   npx wrangler secret put IMGGEN_API_URL
 	//   npx wrangler secret put IMGGEN_API_KEY
 	//
-	// OPSIONAL - tempat menyimpan gambar hasil unggahan guru.
-	// Kalau blok ini tidak dipakai, gambar otomatis disimpan di KV (binding
-	// STORAGE di bawah) dan semuanya tetap jalan tanpa setup tambahan.
-	// Kalau gambar mulai banyak/besar, pindah ke R2: buka komentar di bawah,
-	// lalu jalankan: npx wrangler r2 bucket create gemini-media
-	// "r2_buckets": [
-	// 	{
-	// 		"binding": "MEDIA",
-	// 		"bucket_name": "gemini-media"
-	// 	}
-	// ],
+	// AKTIF. Gambar soal disimpan di sini, bukan di KV: kuota R2 free jauh lebih
+	// longgar (1 juta Class A per BULAN) dibanding KV yang cuma 1.000 tulis per
+	// HARI. Gambar lama yang masih di KV tetap terbaca dan pindah sendiri ke sini
+	// saat pertama kali dibaca, jadi tidak perlu migrasi manual.
+	// Kalau binding ini dihapus, media otomatis turun ke KV tanpa perubahan kode.
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "gemini-media"
+		}
+	],
 	// Ajakan PPDB 2027/2028 di banner dashboard. Tombol "Daftar Sekarang" selalu
 	// tampil; nomor WhatsApp panitia (format internasional tanpa "+", mis.
 	// 6281234567890) membuatnya langsung menuju chat admin. Kalau kosong,
@@ -38,7 +38,12 @@
 		{
 			"binding": "STORAGE",
 			"id": "eccfd622d7004c58ae8e9c8e1d223ba2",
-			"remote": true
+			// false (bukan true) sejak kuota harian KV free adalah 1.000 tulis +
+			// 1.000 hapus + 1.000 list per HARI. Dengan true, setiap sesi
+			// `wrangler dev` lokal memakai kuota produksi yang sama dan ikut
+			// habis sehingga aplikasi gagal menulis. Set true hanya kalau
+			// memang perlu menguji terhadap data produksi.
+			"remote": false
 		}
 	],
 	"d1_databases": [
@@ -52,13 +57,13 @@
 		"staging": {
 			"name": "gemini-deployer-staging",
 			"vars": {
-				"PPDB_WHATSAPP": ""
+				"PPDB_WHATSAPP": "6285183331506"
 			},
 			"kv_namespaces": [
 				{
 					"binding": "STORAGE",
 					"id": "26f5f45fa7894f6faf8ba6a97e97f53e",
-					"remote": true
+					"remote": false
 				}
 			],
 			"d1_databases": [
@@ -66,6 +71,15 @@
 					"binding": "DB",
 					"database_name": "gemini-db-staging",
 					"database_id": "f44392a6-e445-41b4-a8ab-ca2ec9caba3a"
+				}
+			],
+			// Bucket TERPISAH dari produksi (gemini-media). Kalau staging memakai
+			// bucket yang sama, satu slug yang kebetulan sama bisa menimpa
+			// gambar produksi. Media di staging sengaja dibiarkan kosong dulu.
+			"r2_buckets": [
+				{
+					"binding": "MEDIA",
+					"bucket_name": "gemini-media-staging"
 				}
 			]
 		}

@@ -11,6 +11,7 @@ import {
   optionLetter,
   pick,
   stripFences,
+  wrapBareLatex,
 } from './quiz-util.ts';
 import {
   ARABIC_RUN,
@@ -109,7 +110,7 @@ export function normalizeStatements(rawValue: unknown, fallback: string[], no: n
         `Soal #${no}: pernyataan ke-${index + 1} belum punya kunci. Tulis "answer": true/false di pernyataan itu, atau isi "answers": [true, false, ...].`
       );
     }
-    statements.push({ text, answer: truth });
+    statements.push({ text: wrapBareLatex(text), answer: truth });
   });
   return statements;
 }
@@ -268,8 +269,8 @@ export function normalizePairs(
       if (!left || !right) {
         throw new QuizError(`Soal #${no}: pasangan ke-${index + 1} harus punya "left" dan "right" yang terisi.`);
       }
-      lefts.push(left);
-      rights.push(right);
+      lefts.push(wrapBareLatex(left));
+      rights.push(wrapBareLatex(right));
     });
   } else {
     const leftList = asStringList(pick(raw, ['left', 'kiri', 'items', 'pernyataan', 'daftar_kiri']));
@@ -279,8 +280,8 @@ export function normalizePairs(
         `Soal #${no}: tipe matching butuh "pairs" (atau "left" dan "right" dengan jumlah sama). Jumlah kiri ${leftList.length} dan kanan ${rightList.length} tidak sama.`
       );
     }
-    lefts.push(...leftList);
-    rights.push(...rightList);
+    lefts.push(...leftList.map(wrapBareLatex));
+    rights.push(...rightList.map(wrapBareLatex));
   }
 
   if (lefts.length < 2) throw new QuizError(`Soal #${no}: tipe matching butuh minimal 2 pasangan.`);
@@ -309,7 +310,7 @@ export function normalizeOrdering(
 ): { items: string[]; presentOrder: number[]; correctOrder: number[] } {
   const items = asStringList(
     pick(raw, ['items', 'langkah', 'steps', 'urutkan', 'urutan', 'daftar', 'options', 'pilihan', 'choices'])
-  );
+  ).map(wrapBareLatex);
   if (items.length < 2) throw new QuizError(`Soal #${no}: tipe ordering butuh minimal 2 item pada "items".`);
 
   const rawAnswer = pick(raw, ['answer', 'kunci', 'kunci_jawaban', 'urutan_benar', 'correct_order']);
@@ -370,7 +371,7 @@ export function normalizeTableFill(raw: Record<string, unknown>, no: number): { 
       });
       return `@@BLANK${blanks.length - 1}@@`;
     }
-    return String(cell);
+    return wrapBareLatex(String(cell));
   };
 
   const rawList = Array.isArray(rawRows)
@@ -470,13 +471,15 @@ export function rehydrateQuestion(rawValue: unknown, index: number): QuizQuestio
   const labels: [string, string] =
     rawLabels.length >= 2 ? [rawLabels[0], rawLabels[1]] : ['Benar', 'Salah'];
 
+  // Spec lama bisa menyimpan LaTeX telanjang di pilihan jawaban; disamakan
+  // dengan hasil parseQuizSpec supaya tampilan dan kunci tetap sinkron.
   const stringList = (value: unknown): string[] =>
-    Array.isArray(value) ? value.map((entry) => String(entry)) : [];
+    Array.isArray(value) ? value.map((entry) => wrapBareLatex(String(entry))) : [];
 
   const statements = (Array.isArray(raw.statements) ? raw.statements : [])
     .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
     .map((entry) => ({
-      text: String(entry.text ?? '').toString(),
+      text: wrapBareLatex(String(entry.text ?? '').toString()),
       answer: Boolean(entry.answer) || String(entry.answer) === 'true',
     }));
 
@@ -497,7 +500,7 @@ export function rehydrateQuestion(rawValue: unknown, index: number): QuizQuestio
 
   const tableRows = (Array.isArray(raw.tableRows) ? raw.tableRows : [])
     .filter((row): row is unknown[] => Array.isArray(row))
-    .map((row) => row.map((cell) => String(cell ?? '')));
+    .map((row) => row.map((cell) => wrapBareLatex(String(cell ?? ''))));
 
   const scoring: ScoringMode = raw.scoring === 'partial' ? 'partial' : 'all';
 
@@ -644,7 +647,7 @@ export function normalizeQuestion(rawValue: unknown, index: number): QuizQuestio
   if (type === 'choice' || type === 'multi') {
     const rawOptions = pick(raw, ['options', 'opsi', 'pilihan', 'choices', 'daftar_pilihan']);
     const options = Array.isArray(rawOptions)
-      ? rawOptions.map((opt) => String(opt).trim()).filter((opt) => opt !== '')
+      ? rawOptions.map((opt) => wrapBareLatex(String(opt).trim())).filter((opt) => opt !== '')
       : [];
     if (options.length < 2) {
       throw new QuizError(`Soal #${no}: tipe ${type} butuh "options" berisi minimal 2 pilihan.`);
@@ -724,7 +727,7 @@ export function normalizeQuestion(rawValue: unknown, index: number): QuizQuestio
       ...base,
       options: [],
       blanks,
-      tableHeaders: asStringList(pick(raw, ['headers', 'header', 'kolom', 'judul_kolom'])),
+      tableHeaders: asStringList(pick(raw, ['headers', 'header', 'kolom', 'judul_kolom'])).map(wrapBareLatex),
       tableRows: rows,
       keys: [],
       keyLabel: blanks.map((blank, index) => `${index + 1}. ${blank.accepted.join(' / ')}`).join(' \u00b7 '),
@@ -732,8 +735,8 @@ export function normalizeQuestion(rawValue: unknown, index: number): QuizQuestio
   }
 
   if (type === 'two_tier') {
-    const options = asStringList(pick(raw, ['options', 'pilihan', 'tier1', 'pernyataan']));
-    const reasons = asStringList(pick(raw, ['reasons', 'alasan', 'options2', 'pilihan_alasan', 'tier2']));
+    const options = asStringList(pick(raw, ['options', 'pilihan', 'tier1', 'pernyataan'])).map(wrapBareLatex);
+    const reasons = asStringList(pick(raw, ['reasons', 'alasan', 'options2', 'pilihan_alasan', 'tier2'])).map(wrapBareLatex);
     if (options.length < 2) throw new QuizError(`Soal #${no}: tipe two_tier butuh "options" (pernyataan) minimal 2 pilihan.`);
     if (reasons.length < 2) throw new QuizError(`Soal #${no}: tipe two_tier butuh "reasons" (pilihan alasan) minimal 2 pilihan.`);
 

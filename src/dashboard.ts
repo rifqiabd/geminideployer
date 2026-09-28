@@ -7,7 +7,8 @@ import type { Hono } from 'hono';
 import { setCookie, getCookie } from 'hono/cookie';
 import { escapeHtml, parseStamp, relTime } from './quiz';
 import { withMediaStats } from './media-routes';
-import { GEM_URL } from './guide';
+import { listAppsForDashboard } from './app-index.ts';
+import { FAVICON_TAGS } from './favicon.ts';
 import {
   PRE_COOKIE_NAME,
   csrfFor,
@@ -20,7 +21,10 @@ import {
 } from './auth';
 
 // Bindings minimal dashboard: KV + R2 opsional (statistik media) + secret auth.
-type DashboardBindings = { STORAGE: KVNamespace; MEDIA?: R2Bucket; SESSION_SECRET?: string; APP_PASSWORD?: string; PPDB_WHATSAPP?: string };
+// `DB` dipakai app-index.ts sebagai jalur darurat: kalau kuota `list` KV harian
+// habis, slug aplikasi lama diambil dari `app_records` (D1) yang tidak punya
+// batas sekecil itu. Binding-nya selalu ada di wrangler.jsonc.
+type DashboardBindings = { STORAGE: KVNamespace; MEDIA?: R2Bucket; DB: D1Database; SESSION_SECRET?: string; APP_PASSWORD?: string; PPDB_WHATSAPP?: string };
 type DashboardEnv = { Bindings: DashboardBindings };
 
 export function registerDashboardRoutes<E extends DashboardEnv>(app: Hono<E>) {
@@ -54,20 +58,14 @@ app.get('/', async (c) => {
 
   let projects: any[] = [];
   if (isAuth) {
-    const list = await c.env.STORAGE.list({ prefix: 'meta:' });
-    // KV remote berarti tiap get adalah round-trip jaringan; dulu loop ini
-    // serial sehingga publish terasa berat (N app × beberapa get + statistik
-    // media yang ikut mengunduh gambar). Semua pembacaan diparalelkan.
-    const metas = await Promise.all(list.keys.map((key) => c.env.STORAGE.get(key.name)));
-    projects = (
-      await Promise.all(
-        metas.map(async (val) => {
-          if (!val) return null;
-          const meta = JSON.parse(val);
-          return withMediaStats(c.env, meta);
-        })
-      )
-    ).filter((p): p is any => p !== null);
+    // Sumbernya index R2, bukan `list` KV. Ini yang membuat dashboard tetap
+    // hidup walau kuota `list` harian habis — reviewers: lihat app-index.ts.
+    // KV tetap ikut dibaca sebagai cadangan (best-effort), jadi begitu kuota
+    // pulih aplikasi lama langsung ikut muncul tanpa migrasi manual.
+    const apps = await listAppsForDashboard(c.env);
+    projects = apps
+      .map((meta) => withMediaStats(c.env, meta))
+      .filter((p): p is any => p !== null && Boolean(p.slug));
     // Urutan sidebar mengikuti tanggal dibuat, terbaru dulu. Sebelumnya hanya
     // `reverse()` atas urutan leksikografis KV, jadi urutannya Z->A berdasarkan
     // slug dan sama sekali tidak mencerminkan tanggal. `sort` di JS stabil,
@@ -128,7 +126,8 @@ return c.html(`<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gemini Edge Deployer - SMK Thibbil Qulub Assimbani</title>
+  <title>TQAssesment - SMK Thibbil Qulub Assimbani</title>
+  ${FAVICON_TAGS}
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html{-webkit-text-size-adjust:100%}
@@ -174,7 +173,6 @@ return c.html(`<!DOCTYPE html>
     .sidebar-brand:hover{background:var(--surface-2)}
     .sidebar-logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:13px}
     .sidebar-title{font-size:14px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    @media(max-width:480px){.topbar-actions .detail-chip{display:none!important}}
 
     .sidebar-new{padding:0 12px 8px}
     .btn-new-deploy{width:100%;display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s}
@@ -229,7 +227,11 @@ return c.html(`<!DOCTYPE html>
        sekolah, bukan judul mengambang. */
     .brand-banner{display:flex;align-items:center;gap:16px;padding:10px 14px;flex:none;width:100%;background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 7%,var(--bg)),var(--bg))}
     .brand-banner-brand{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
-    .brand-banner-badge{width:32px;height:32px;flex:none;border-radius:9px;background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center}
+    /* Badge banner: logo sekolah (public/assets/logo.png), bukan lagi ikon
+       topi. Netral karena gambarnya yang jadi identitas, dan object-fit
+       contain supaya rasio PNG tidak dipaksa jadi kotak. */
+    .brand-banner-badge{width:32px;height:32px;flex:none;border-radius:9px;background:var(--surface);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .brand-banner-badge img{width:100%;height:100%;object-fit:contain;display:block}
     .brand-banner-text{display:flex;flex-direction:column;min-width:0;line-height:1.3}
     .brand-banner-title{font-size:13.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .brand-banner-sub{font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -258,11 +260,28 @@ return c.html(`<!DOCTYPE html>
 
     /* Topbar 3 kolom: kiri (toggle + brand), tengah (tab switch home),
        kanan (aksi). Kolom tengah memastikan toggle Deploy/Prompt pas center.
-       Borderless: warna sama dengan konten di bawahnya, tanpa garis pemisah. */
-    .main-topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;background:var(--bg);flex:none;padding:10px 16px}
+       Gaya "liquid glass" ala Apple: bar diposisikan absolute overlay di atas
+       area konten, latar translucent + backdrop blur/saturate supaya konten
+       yang scroll terlihat melewati di belakang kacanya. Hairline + highlight
+       atas tipis memberi tepi kaca; @supports memberi latar solid untuk
+       browser tanpa backdrop-filter. */
+    .main{position:relative;--topbar-pad:64px}
+    .main-topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;flex:none;padding:10px 16px;position:absolute;top:0;left:0;right:0;z-index:30;background:color-mix(in srgb,var(--bg) 55%,transparent);-webkit-backdrop-filter:blur(22px) saturate(1.7);backdrop-filter:blur(22px) saturate(1.7);border-bottom:1px solid color-mix(in srgb,var(--border) 45%,transparent);box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 18%,transparent)}
+    /* Kaca tetap dipasang di atas iframe — eksperimen headless Chrome
+       (sd luminance 1.0 vs 74) membuktikan backdrop-filter ikut meng-blur
+       konten iframe. Tint 55% tetap menjamin teks terbaca kalau engine
+       tertentu gagal menyampling iframe. */
+    @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+      .main-topbar{background:var(--bg)}
+    }
     .topbar-left{display:flex;align-items:center;gap:12px;min-width:0}
     .topbar-center{display:flex;justify-content:center;min-width:0}
     .topbar-center .seg{background:var(--surface-2);border-color:var(--border)}
+    /* Detail aplikasi menutupi isi home, jadi toggle Deploy/Prompt disembunyikan
+       supaya tidak menggoda klik yang membuat guru mengira tabnya berubah.
+       visibility (bukan display) supaya kolom tengah grid 1fr auto 1fr tetap
+       utuh dan kolom kiri/kanan tidak meleset. */
+    body.view-detail .topbar-center{visibility:hidden}
     /* Toggle sidebar di topbar: selalu ada di desktop, ditaruh di kolom kiri
        topbar dengan lebar tetap supaya tombolnya diam di tempat saat brand
        muncul/hilang. */
@@ -279,7 +298,7 @@ return c.html(`<!DOCTYPE html>
     .hamburger{width:36px;height:36px;border:none;background:none;color:var(--text);border-radius:8px;cursor:pointer;display:none;align-items:center;justify-content:center}
     .hamburger:hover{background:var(--surface-2)}
     .topbar-brand{display:flex;align-items:center;gap:10px;min-width:0}
-    /* Brand "Gemini Edge Deployer" di topbar disembunyikan di desktop dan baru
+    /* Brand "TQAssesment" di topbar disembunyikan di desktop dan baru
        muncul saat sidebar terlipat. Di mobile sidebar memang tersembunyi
        default, jadi brand selalu tampil sebagai penanda halaman. */
     @media(min-width:1024px){
@@ -287,24 +306,56 @@ return c.html(`<!DOCTYPE html>
       body.sb-collapsed .topbar-brand{display:flex}
     }
     .topbar-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px;font-weight:700}
+    /* Mark aplikasi (public/assets/logoapps.jpg) menggantikan kotak teks "SQ"
+       di sidebar dan topbar. object-fit:contain supaya rasio JPEG-nya tidak
+       dipaksa jadi kotak; JPG tidak tembus pandang jadi tidak perlu alas. */
+    img.sidebar-logo,img.topbar-logo{display:block;object-fit:contain}
     .topbar-brand-text{display:flex;flex-direction:column;min-width:0}
     .topbar-title{font-size:14px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .topbar-sub{font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .topbar-actions{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+    /* Mobile/tablet: toggle Deploy/Prompt turun ke baris sendiri di bawah
+       kop. Tiga kolom horizontal memotong tombolnya di layar sempit, jadi
+       topbar jadi 2 baris: kop + tombol banner di atas, toggle selebar di
+       bawah. Bar juga keluar dari mode overlay (position:absolute + blur)
+       ke alur flex biasa supaya tidak menutupi isi halaman — di desktop
+       ruangnya disisakan lewat --topbar-pad, di mobile cukup padding kecil
+       karena bar tidak lagi melayang. */
+    @media(max-width:1023px){
+      .main{--topbar-pad:20px}
+      .main-topbar{position:static;grid-template-columns:1fr auto;grid-template-areas:"left actions" "tabs tabs";row-gap:10px}
+      .topbar-left{grid-area:left}
+      .topbar-center{grid-area:tabs}
+      .topbar-actions{grid-area:actions}
+      .topbar-center .seg{width:100%}
+      .topbar-center .seg-cols{flex:1;min-width:0;text-align:center;padding:7px 10px}
+      /* Bar sudah tidak melayang, jadi baris toggle yang disembunyikan di
+         detail bisa hilang total tanpa bikin kolom lain meleset. */
+      body.view-detail .main-topbar .topbar-center{display:none}
+    }
     .btn-ghost{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:500;padding:6px 12px;cursor:pointer;white-space:nowrap;font-family:inherit;background:var(--surface);color:var(--text);transition:background .15s,border-color .15s}
     .btn-ghost:hover{background:var(--surface-2);border-color:var(--text-faint)}
     .btn-primary{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:8px;font-size:13px;font-weight:500;padding:6px 14px;cursor:pointer;white-space:nowrap;font-family:inherit;background:var(--accent);color:#fff;transition:background .15s}
     .btn-primary:hover{background:var(--accent-hover)}
 
-    .main-content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
+    /* Konten harus mulai di bawah bar kaca; sisanya bisa scroll melewatinya.
+       --topbar-pad = ruang yang disisakan untuk bar yang melayang (desktop);
+       di mobile topbar ikut alur jadi ruang ini cuma padding biasa. */
+    .main-content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--topbar-pad) 24px 24px;overflow-y:auto}
 
     /* ========== HOME VIEW ========== */
     #viewHome{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    /* padding-top selebar topbar: topbar absolute keluar dari alur flex, jadi
+       tanpa ini iframe studio naik sampai y=0 dan menu tabnya tertutup bar. */
+    /* Full-bleed: iframe memanjang sampai ke belakang topbar kaca supaya
+       konten studio benar-benar melewati kaca saat di-scroll. Halaman
+       /studio yang menurunkan kontennya sendiri (padding-top di body). */
     .main-content.studio-host{align-items:stretch;padding:0;overflow:hidden}
+    .main-content.detail-host{justify-content:flex-start;padding-top:calc(var(--topbar-pad) + 8px)}
     .studio-frame{flex:1;width:100%;border:none;background:var(--bg)}
 
     /* ========== EMPTY STATE ========== */
-    .empty-state{text-align:center;max-width:680px;width:100%}
+    .empty-state{text-align:center;max-width:960px;width:100%}
     .empty-greeting{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px;color:var(--text)}
     .empty-sub{font-size:14px;color:var(--text-secondary);margin-bottom:24px}
 
@@ -330,7 +381,7 @@ return c.html(`<!DOCTYPE html>
     .btn-deploy:hover{background:var(--accent-hover)}
 
     /* ========== APP DETAIL VIEW ========== */
-    .detail-view{display:none;width:100%;max-width:640px}
+    .detail-view{display:none;width:100%;max-width:900px}
     .detail-view.active{display:block}
     .detail-header{margin-bottom:24px}
     .detail-title{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
@@ -349,6 +400,10 @@ return c.html(`<!DOCTYPE html>
     .detail-action.danger:hover{background:var(--danger-soft);border-color:rgba(239,68,68,.3);color:var(--danger)}
     .detail-action.danger:hover .detail-action-icon{background:var(--danger-soft);color:var(--danger)}
     .detail-actions form{margin:0;display:contents}
+    /* Konfirmasi "Tersalin" pakai state tombolnya sendiri supaya tidak perlu
+       toast baru di dashboard. */
+    .detail-action.done{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+    .detail-action.done .detail-action-icon{background:var(--ok-soft);color:var(--ok)}
 
     .detail-section-label{font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
     .detail-preview{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -445,7 +500,7 @@ return c.html(`<!DOCTYPE html>
       <div class="brand-banner" id="brandBanner">
         <div class="brand-banner-brand">
           <span class="brand-banner-badge" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.1 2.7 2 6 2s6-.9 6-2v-5"/></svg>
+            <img src="/assets/logo.png" alt="" width="32" height="32" decoding="async">
           </span>
           <div class="brand-banner-text">
             <span class="brand-banner-title">SMK Thibbil Qulub Assimbani</span>
@@ -457,7 +512,7 @@ return c.html(`<!DOCTYPE html>
           <span class="ppdb-btn"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg><span class="ppdb-btn-full">Daftar Sekarang</span><span class="ppdb-btn-short">Daftar</span></span>
         </a>
         <button type="button" class="brand-banner-hide" onclick="toggleBanner()" aria-label="Sembunyikan banner sekolah" title="Sembunyikan banner">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
         </button>
       </div>
 
@@ -466,8 +521,8 @@ return c.html(`<!DOCTYPE html>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <a class="sidebar-brand" href="/">
-          <span class="sidebar-logo">SQ</span>
-          <span class="sidebar-title">Gemini Edge Deployer</span>
+          <img class="sidebar-logo" src="/assets/logoapps.jpg" alt="Logo TQAssesment" width="28" height="28" decoding="async">
+          <span class="sidebar-title">TQAssesment</span>
         </a>
       </div>
 
@@ -510,14 +565,6 @@ return c.html(`<!DOCTYPE html>
       </div>
 
       <div class="sidebar-footer">
-        <a href="${GEM_URL}" target="_blank" rel="noopener" class="sidebar-footer-btn">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
-          Gem Gemini
-        </a>
-        <a href="/studio" class="sidebar-footer-btn" onclick="event.preventDefault(); showStudio();">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>
-          Prompt Engine
-        </a>
         <a href="/panduan" class="sidebar-footer-btn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg>
           Panduan
@@ -538,10 +585,13 @@ return c.html(`<!DOCTYPE html>
       <div class="main-topbar">
         <div class="topbar-left">
           <div class="topbar-toggle-slot">
-            <!-- Desktop: toggle lipat/panggil sidebar, ikon berubah sesuai state -->
+            <!-- Desktop: toggle lipat/panggil sidebar. Kedua ikon memakai garis
+                 panel di kiri; hanya arah chevron yang dibalik: saat sidebar
+                 terbuka tombolnya berarti "lipat" (panah ke kiri), saat terlipat
+                 tombolnya berarti "panggil" (panah ke kanan). -->
             <button type="button" class="topbar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">
-              <svg class="i-close" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/><polyline points="14 9 17 12 14 15"/></svg>
-              <svg class="i-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="10 9 7 12 10 15"/></svg>
+              <svg class="i-close" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/><polyline points="15 9 12 12 15 15"/></svg>
+              <svg class="i-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/><polyline points="10 9 13 12 10 15"/></svg>
             </button>
             <!-- Mobile: hamburger slide-in -->
             <button class="hamburger" onclick="toggleSidebar()" aria-label="Buka menu">
@@ -549,9 +599,9 @@ return c.html(`<!DOCTYPE html>
             </button>
           </div>
           <div class="topbar-brand">
-            <span class="topbar-logo">SQ</span>
+            <img class="topbar-logo" src="/assets/logoapps.jpg" alt="Logo TQAssesment" width="34" height="34" decoding="async">
             <span class="topbar-brand-text">
-              <span class="topbar-title">Gemini Edge Deployer</span>
+              <span class="topbar-title">TQAssesment</span>
             </span>
           </div>
         </div>
@@ -563,10 +613,12 @@ return c.html(`<!DOCTYPE html>
           </div>
         </div>
         <div class="topbar-actions">
+          <!-- Kolom kanan sengaja hanya berisi tombol banner. Jumlah aplikasi
+               dihapus dari pojok: angka itu tidak pernah dipakai untuk aksi apa
+               pun dan cuma bikin topbar terasa ramai. -->
           <button type="button" class="banner-show" onclick="toggleBanner()" aria-label="Tampilkan banner sekolah" title="Tampilkan banner sekolah">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <span class="detail-chip" style="display:${projects.length ? 'inline-block' : 'none'}">${projects.length} Aplikasi</span>
         </div>
       </div>
 
@@ -605,6 +657,17 @@ return c.html(`<!DOCTYPE html>
                 <button type="submit" class="btn-deploy" id="deployBtn">Publikasikan ke URL</button>
               </div>
             </form>
+            <!--
+              Satu kali jalan: memindahkan seluruh aplikasi lama di KV ke index R2.
+              Dashboard sengaja tidak pernah memakai list KV, jadi aplikasi yang
+              belum pernah ada di D1 hanya bisa dipindah lewat perintah ini.
+              Setelah berhasil, index R2 tidak butuh list KV lagi selamanya.
+            -->
+            <form method="POST" action="/api/app-index/backfill" id="backfillForm" style="margin-top:10px">
+              <input type="hidden" name="_csrf" value="${authCsrf}">
+              <button type="submit" class="btn-cancel" id="backfillBtn">Pindai aplikasi lama ke index R2</button>
+              <div id="backfillMsg" style="font-size:12px;color:var(--text-dim);margin-top:6px"></div>
+            </form>
           </div>
         </div>
       </div>
@@ -616,7 +679,7 @@ return c.html(`<!DOCTYPE html>
       </div>
 
       <!-- VIEW: App Detail -->
-      <div class="main-content" id="viewDetail" style="justify-content:flex-start;padding-top:32px;display:none">
+      <div class="main-content detail-host" id="viewDetail" style="display:none">
         <div class="detail-view active">
           <button class="detail-back" onclick="showDetailClose()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -815,38 +878,67 @@ return c.html(`<!DOCTYPE html>
     try { return localStorage.getItem('dashboard_home_tab'); } catch (e) { return null; }
   }
 
-  function showEmptyState() {
-    var e = document.getElementById('viewEmpty');
-    var d = document.getElementById('viewDetail');
-    if (e) e.style.display = 'flex';
-    if (d) d.style.display = 'none';
-    setHomeTab('deploy');
-    document.querySelectorAll('.sidebar-item').forEach(function (i) { i.classList.remove('active'); });
-  }
-
-  function showStudio() {
+  /* showHome: satu tempat untuk berpindah dari detail kembali ke home.
+     showDetail() menyembunyikan #viewHome, jadi SETIAP jalan kembali ke home
+     wajib memunculkannya lagi. showEmptyState() dulu hanya menyentuh
+     #viewEmpty sehingga #viewHome tetap display:none -> layar kosong begitu
+     guru menekan "Deploy Baru" dari detail. */
+  function showHome() {
     var home = document.getElementById('viewHome');
     var detail = document.getElementById('viewDetail');
     if (home) home.style.display = 'flex';
     if (detail) detail.style.display = 'none';
-    setHomeTab('studio');
+    document.body.classList.remove('view-detail');
+  }
+
+  function showEmptyState() {
+    showHome();
+    var e = document.getElementById('viewEmpty');
+    if (e) e.style.display = 'flex';
+    setHomeTab('deploy');
     document.querySelectorAll('.sidebar-item').forEach(function (i) { i.classList.remove('active'); });
     if (window.innerWidth < 1024) toggleSidebar();
+    closeDetailUrl();
   }
 
+  /* Rapikan URL saat panel detail ditutup. ReplaceState saja (bukan
+     history.back()): prediktabel dan tidak bisa mendarat di detail aplikasi
+     lain kalau guru sebelumnya deep-link beruntun ke beberapa aplikasi. */
+  function closeDetailUrl() {
+    if (window.location.search.indexOf('app=') !== -1) {
+      window.history.replaceState({ app: null }, '', window.location.pathname);
+    }
+  }
+
+  /* Tombol "Kembali" di panel detail: perilakunya sama dengan tombol Back
+     browser kalau panel dibuka lewat klik, dan sekadar menutup panel kalau
+     halaman dibuka langsung di /?app=<slug>. */
   function showDetailClose() {
-    var home = document.getElementById('viewHome');
-    var detail = document.getElementById('viewDetail');
-    if (home) home.style.display = 'flex';
-    if (detail) detail.style.display = 'none';
+    showHome();
     setHomeTab('deploy');
+    closeDetailUrl();
   }
 
-  function showDetail(el, slug) {
+  /* Navigasi berbasis URL: panel detail punya alamat sendiri /?app=<slug>
+     supaya tombol Back/Forward browser dan refresh bekerja seperti halaman
+     biasa. pushState hanya saat membuka lewat klik; popstate menggambar ulang
+     tampilan tanpa menyentuh history. URL tetap pakai query ?app= (bukan path
+     /app/<slug>) agar tidak perlu route server baru — dashboard HTML yang sama
+     sudah tahu cara membukanya. */
+  function setDetailUrl(slug) {
+    var url = slug ? '/?app=' + encodeURIComponent(slug) : window.location.pathname;
+    if (window.location.search !== url.slice(window.location.pathname.length)) {
+      window.history.pushState({ app: slug || null }, '', url);
+    }
+  }
+
+  /* Buka panel detail tanpa mengubah history (untuk popstate dan deep-link). */
+  function renderDetail(el, slug) {
     var home = document.getElementById('viewHome');
     var d = document.getElementById('viewDetail');
     if (home) home.style.display = 'none';
     if (d) d.style.display = 'flex';
+    document.body.classList.add('view-detail');
     document.querySelectorAll('.sidebar-item').forEach(function (i) { i.classList.remove('active'); });
     if (el) el.classList.add('active');
 
@@ -881,6 +973,7 @@ return c.html(`<!DOCTYPE html>
       img: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
       log: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
       print: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+      link: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
       del: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
     };
     function cell(inner) {
@@ -888,6 +981,7 @@ return c.html(`<!DOCTYPE html>
     }
     var html = '';
     html += '<a class="detail-action" href="/p/' + app.slug + '" target="_blank">' + cell(icons.open) + 'Buka App</a>';
+    html += '<button type="button" class="detail-action" data-copy-btn="' + app.slug + '">' + cell(icons.link) + '<span data-copy-label>Salin Link</span></button>';
     if (app.type === 'json') html += '<a class="detail-action" href="/p/' + app.slug + '/edit">' + cell(icons.edit) + 'Edit Soal</a>';
     html += '<a class="detail-action" href="/p/' + app.slug + '/media">' + cell(icons.img) + 'Atur Gambar</a>';
     html += '<a class="detail-action" href="/p/' + app.slug + '/data">' + cell(icons.log) + 'Log Data</a>';
@@ -898,6 +992,75 @@ return c.html(`<!DOCTYPE html>
 
     if (window.innerWidth < 1024) toggleSidebar();
   }
+
+  /* Dipakai klik sidebar & deep-link: render lalu catat ke history. */
+  function showDetail(el, slug) {
+    renderDetail(el, slug);
+    setDetailUrl(slug);
+  }
+
+  window.addEventListener('popstate', function (e) {
+    var slug = e.state && e.state.app;
+    if (slug && APPDATA[slug]) {
+      var item = null;
+      document.querySelectorAll('.sidebar-item').forEach(function (el) {
+        if (!item && el.getAttribute('data-slug') === slug) item = el;
+      });
+      renderDetail(item, slug);
+      if (item && item.scrollIntoView) item.scrollIntoView({ block: 'nearest' });
+    } else {
+      // Home: cukup render ulang, JANGAN panggil showDetailClose() di sini —
+      // dia memanggil closeDetailUrl() yang replaceState dan bisa saling
+      // memicu popstate lagi. Urutan yang benar: tampilan dulu, URL lalu
+      // dirapikan oleh popstate sendiri.
+      showHome();
+      setHomeTab('deploy');
+    }
+  });
+
+  /* Salin tautan siswa. navigator.clipboard hanya jalan di konteks aman
+     (https/localhost), jadi ada jalur fallback execCommand supaya tombolnya
+     tetap berfungsi saat dashboard diakses lewat http://localhost:8787. */
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) resolve(); else reject(new Error('copy failed'));
+    });
+  }
+
+  function copyAppLink(slug, btn) {
+    var label = btn.querySelector('[data-copy-label]');
+    var original = label ? label.textContent : 'Salin Link';
+    var url = window.location.origin + '/p/' + slug;
+    copyText(url).then(function () { flashCopy(btn, label, original, 'Tersalin'); },
+                          function () { flashCopy(btn, label, original, 'Gagal'); });
+  }
+
+  /* Konfirmasi ditulis di tombolnya sendiri ( kelas .done ) supaya dashboard
+     tidak perlu toast baru hanya untuk satu aksi ini. */
+  function flashCopy(btn, label, original, text) {
+    btn.classList.add('done');
+    if (label) label.textContent = text;
+    setTimeout(function () {
+      btn.classList.remove('done');
+      if (label) label.textContent = original;
+    }, 1600);
+  }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy-btn]');
+    if (b) copyAppLink(b.getAttribute('data-copy-btn'), b);
+  });
 
   function togglePreviewCode(btn) {
     var code = document.getElementById('previewCode');
@@ -1114,10 +1277,12 @@ return c.html(`<!DOCTYPE html>
 
   // Deep-link: /?app=<slug> langsung membuka panel detail aplikasi itu.
   // Dipakai /api/deploy setelah publish supaya guru langsung melihat alamat
-  // publik yang baru dan tidak salah share alamat lamanya ke siswa. Query-nya
-  // lalu dibuang supaya refresh tidak memaksa panel yang sama terbuka lagi.
-  // Tanpa deep-link, tab home yang terakhir aktif dipulihkan dari localStorage
-  // supaya reload tetap di tab yang sama (mis. Prompt Engine beserta state-nya).
+  // publik yang baru dan tidak salah share alamat lamanya ke siswa.
+  // Query-nya SENGAJA dipertahankan di address bar (navigasi berbasis URL):
+  // refresh membuka panel yang sama lagi, dan Back/Forward browser pindah
+  // antar tampilan lewat popstate. Tanpa deep-link, tab home yang terakhir
+  // aktif dipulihkan dari localStorage supaya reload tetap di tab yang sama
+  // (mis. Prompt Engine beserta state-nya).
   (function openAppFromQuery() {
     var params = new URLSearchParams(window.location.search);
     var want = params.get('app');
@@ -1126,13 +1291,48 @@ return c.html(`<!DOCTYPE html>
       document.querySelectorAll('.sidebar-item').forEach(function (el) {
         if (!item && el.getAttribute('data-slug') === want) item = el;
       });
-      showDetail(item, want);
+      renderDetail(item, want);
       if (item && item.scrollIntoView) item.scrollIntoView({ block: 'nearest' });
-      window.history.replaceState(null, '', window.location.pathname);
+      // Entri ini berasal dari load halaman (bukan klik) — tandai sebagai root
+      // supaya popstate tahu entri sebelumnya juga milik dashboard ini.
+      window.history.replaceState({ app: want }, '', window.location.search);
       return;
+    }
+    if (want) {
+      // Slug tidak dikenal (aplikasi sudah dihapus): buang dari URL supaya
+      // refresh tidak mencoba membuka panel yang tidak ada lagi.
+      window.history.replaceState({ app: null }, '', window.location.pathname);
     }
     var saved = getSavedHomeTab();
     if (saved === 'studio') setHomeTab('studio');
+  })();
+
+  // Pindai aplikasi lama ke index R2. Kirim lewat fetch supaya tidak pindah
+  // halaman dan hasilnya bisa ditampilkan di tempat. Setelah sukses, halaman
+  // dimuat ulang supaya sidebar langsung menampilkan aplikasi yang baru dipindah.
+  (function backfillAppIndex() {
+    var form = document.getElementById('backfillForm');
+    if (!form) return;
+    form.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      var btn = document.getElementById('backfillBtn');
+      var msg = document.getElementById('backfillMsg');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memindai...'; }
+      if (msg) msg.textContent = 'Memindai satu halaman kunci KV...';
+      try {
+        var res = await fetch('/api/app-index/backfill', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': CSRF },
+        });
+        var data = await res.json();
+        if (msg) msg.textContent = data.message || data.error || 'Selesai.';
+        if (data.ok) { if (btn) btn.textContent = 'Selesai'; window.location.reload(); return; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Pindai aplikasi lama ke index R2'; }
+      } catch (err) {
+        if (msg) msg.textContent = 'Gagal: ' + err;
+        if (btn) { btn.disabled = false; btn.textContent = 'Pindai aplikasi lama ke index R2'; }
+      }
+    });
   })();
   </script>` : ''}
 </body>

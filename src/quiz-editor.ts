@@ -12,9 +12,13 @@
 
 import type { Hono } from 'hono';
 import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth';
+import { syncMediaStats } from './media';
+import { writeAppMeta } from './app-index.ts';
+import { FAVICON_TAGS } from './favicon.ts';
 import { QuizError, escapeHtml, parseQuizSpec, quizToAuthoringSource, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
+import { messageCard } from './ui-card.ts';
 
 type StoredMeta = { title?: string; slug?: string; type?: string; created_at?: string; size?: string };
 
@@ -78,7 +82,7 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
   <title>Edit Soal - ${escapeHtml(title)}</title>
   <meta name="csrf-token" content="${csrfToken}">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
+  ${FAVICON_TAGS}
   <style>
     @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
     @font-face{font-family:'Geist Mono';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geistmono-variable.woff2') format('woff2')}
@@ -107,9 +111,8 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
     .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
     .topbar-inner{max-width:820px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
     .topbar-left{min-width:0;display:flex;align-items:center;gap:12px}
-    .brand{width:34px;height:34px;flex:none;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
-    .back{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);padding:5px 10px;border-radius:8px;transition:background .15s,color .15s}
-    .back:hover{background:var(--surface-2);color:var(--text)}
+    .brand{width:34px;height:34px;flex:none;border-radius:10px;overflow:hidden;display:block}
+    .brand img{width:100%;height:100%;object-fit:contain;display:block}
     .topbar h1{font-size:14px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .topbar .sub{font-size:11px;font-family:'Geist Mono',ui-monospace,monospace;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .topbar-actions{display:flex;align-items:center;gap:8px;flex:none}
@@ -124,8 +127,8 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
     .field{margin-bottom:14px}
     .field:last-child{margin-bottom:0}
     .field label{display:block;font-size:12px;font-weight:500;margin-bottom:6px;color:var(--text-secondary)}
-    .field input[type=text],.field input[type=number],.field textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13.5px;color:var(--text);outline:none;transition:border-color .15s}
-    .field input:focus,.field textarea:focus{border-color:var(--accent)}
+    .field input[type=text],.field input[type=number],.field textarea,.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13.5px;color:var(--text);outline:none;transition:border-color .15s}
+    .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent)}
     .field .note{font-size:11px;color:var(--text-faint);margin-top:5px}
     .field.number{max-width:160px}
     .list-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -141,6 +144,31 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
     #qe-preview{margin:12px 0 0;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--text-secondary);overflow-x:auto;white-space:pre;line-height:1.6}
     #qe-banner.hidden{display:none}
     :is(#qe-title,#qe-description,#qe-kkm),#qe-questions [class]{font-family:inherit}
+
+    /* ===== <select> (mis. "Identitas siswa") =====
+       Select tidak pernah ikut aturan .field di atas, jadi dia jatuh ke
+       tampilan bawaan browser: font & tinggi beda dari input lain, sudut
+       kotak, dan yang paling hurts — di mode gelap teksnya ikut tema
+       (--text) sementara latar masih putih UA, jadi isinya nyaris tak
+       terbaca. Dua aturan di bawah cuma menyamakan bentuk dan warnanya;
+       <option> juga diwarnai karena daftar native tidak mengikuti warna
+       elemennya. */
+    select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;outline:none;transition:border-color .15s;cursor:pointer}
+    select:focus{border-color:var(--accent)}
+    option{background:var(--bg);color:var(--text)}
+    /* Panah dropdown sendiri disembunyikan lalu diganti chevron supaya ujungnya
+       ikut membulat dan posisinya sama di semua OS. */
+    .field select{
+      appearance:none;-webkit-appearance:none;
+      padding-right:34px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 11px center;background-size:14px;
+    }
+    /* Select tipe soal dibuat quiz-editor.js di dalam kartu Tailwind, bukan
+       .field: warna & ukurannya sudah dari kelas utilitas, jadi yang kurang
+       cuma cincin fokus. Butuh !important karena shim .border-slate-700 di
+       atas memaksa border-color dan tidak kalah oleh selector biasa. */
+    select[data-field=type]:focus{border-color:var(--accent)!important}
 
     /* ===== repaint editor cards (Tailwind classes injected by quiz-editor.js) ===== */
     .bg-slate-800{background-color:var(--surface)!important}
@@ -178,9 +206,10 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
   <nav class="topbar">
     <div class="topbar-inner">
       <div class="topbar-left">
-        <a class="brand" href="/" title="Kembali ke Dashboard">SQ</a>
+        <a class="brand" href="/" title="Kembali ke Dashboard" aria-label="Kembali ke Dashboard">
+          <img src="/assets/logoapps.jpg" alt="" width="34" height="34" decoding="async">
+        </a>
         <div class="min-w-0">
-          <a href="/" class="back"><i class="fa-solid fa-arrow-left"></i>Dashboard</a>
           <h1>Edit Soal: ${escapeHtml(title)}</h1>
           <div class="sub">/p/${escapeHtml(slug)} &bull; <span id="qe-count">0 soal</span></div>
         </div>
@@ -306,16 +335,16 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
     await c.env.STORAGE.put(`quizsource:${slug}`, pretty);
     await c.env.STORAGE.put(`quiz:${slug}`, JSON.stringify(spec));
     await c.env.STORAGE.put(`html:${slug}`, html);
-    await c.env.STORAGE.put(
-      `meta:${slug}`,
-      JSON.stringify({
-        ...meta,
-        title,
-        type: 'json',
-        updated_at: stampNow(),
-        size: (new TextEncoder().encode(html).length / 1024).toFixed(1) + ' KB',
-      })
-    );
+    // Slot media bisa berubah karena guru edit soal, jadi statistik di meta
+    // disegarkan ulang di sini juga (bukan cuma saat gambar diunggah/dihapus).
+    await syncMediaStats(c.env, slug);
+    await writeAppMeta(c.env, {
+      ...meta,
+      title,
+      type: 'json',
+      updated_at: stampNow(),
+      size: (new TextEncoder().encode(html).length / 1024).toFixed(1) + ' KB',
+    });
 
     return c.json({
       status: 'success',
@@ -328,29 +357,5 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
 }
 
 function messagePage(title: string, message: string): string {
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)}</title>
-  <style>
-    @font-face{font-family:'Geist';font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
-    :root{--bg:#ffffff;--surface:#f9f9f9;--border:#e5e5e5;--text:#171717;--text-secondary:#737373;--accent:#7c3aed;--danger:#ef4444}
-    @media(prefers-color-scheme:dark){:root{--bg:#212121;--surface:#303030;--border:#424242;--text:#ececec;--text-secondary:#9e9e9e;--accent:#8b5cf6;--danger:#f87171}}
-    *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-    .card{max-width:480px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
-    h1{font-size:15px;font-weight:600;color:var(--danger);margin:0 0 8px;display:flex;align-items:center;gap:8px}
-    p{font-size:13px;color:var(--text-secondary);line-height:1.55;margin:0}
-    a{display:inline-flex;align-items:center;gap:6px;margin-top:18px;padding:8px 16px;background:var(--accent);color:#fff;border-radius:8px;font-size:12.5px;font-weight:500;text-decoration:none}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>${escapeHtml(title)}</h1>
-    <p>${escapeHtml(message)}</p>
-    <a href="/">&larr; Kembali ke Dashboard</a>
-  </div>
-</body></html>`;
+  return messageCard({ title, message, backHref: '/', tone: 'danger' });
 }

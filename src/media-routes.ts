@@ -13,6 +13,8 @@ import type { Hono, Context } from 'hono';
 import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth.ts';
 import { collectMediaSlotsFromStored, escapeHtml, mediaContextFromRaw, mediaSlotContext, mediaSlotContextFull, parseQuizSpec, sanitizeMediaName } from './quiz.ts';
 import { buildGeminiPrompt, generateImage, mediaGenConfig, saveGeneratedMedia, IMGGEN_MODELS } from './media-gen.ts';
+import { messageCard } from './ui-card.ts';
+import { FAVICON_TAGS } from './favicon.ts';
 import type { MediaGenConfig, MediaGenSettings } from './media-gen.ts';
 import {
   MAX_MEDIA_BYTES,
@@ -492,7 +494,7 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gambar Soal - /p/${slug}</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
+  ${FAVICON_TAGS}
   <style>
     @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
     @font-face{font-family:'Geist Mono';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geistmono-variable.woff2') format('woff2')}
@@ -1028,57 +1030,34 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
 }
 
 function errorCard(backHref: string, title: string, message: string): string {
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)}</title>
-  <style>
-    @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
-    :root{--bg:#ffffff;--surface:#f9f9f9;--border:#e5e5e5;--text:#171717;--text-secondary:#737373;--accent:#7c3aed;--danger:#ef4444}
-    @media(prefers-color-scheme:dark){:root{--bg:#212121;--surface:#303030;--border:#424242;--text:#ececec;--text-secondary:#9e9e9e;--accent:#8b5cf6;--danger:#f87171}}
-    *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-    .card{max-width:480px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
-    h1{font-size:15px;font-weight:600;color:var(--danger);margin:0 0 8px}
-    p{font-size:13px;color:var(--text-secondary);line-height:1.55;margin:0}
-    a{display:inline-flex;align-items:center;gap:6px;margin-top:18px;padding:8px 16px;background:var(--accent);color:#fff;border-radius:8px;font-size:12.5px;font-weight:500;text-decoration:none}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>${escapeHtml(title)}</h1>
-    <p>${escapeHtml(message)}</p>
-    <a href="${escapeHtml(backHref)}">&larr; Kembali ke Dashboard</a>
-  </div>
-</body></html>`;
+  return messageCard({ title, message, backHref, tone: 'danger' });
 }
 
 /**
- * Dipakai dashboard untuk menandai aplikasi yang gambarnya belum lengkap,
- * supaya guru sadar sebelum siswa membuka kuisnya.
+ * Menandai aplikasi yang gambarnya belum lengkap, supaya guru sadar sebelum
+ * siswa membuka kuisnya.
+ *
+ * Sekarang fungsi MURNI (tidak async, tidak menyentuh KV): angkanya dibaca dari
+ * `media_slots` dan `media_names` yang sudah disimpan di `meta` oleh
+ * `syncMediaStats`, jadi dashboard tidak perlu `get quiz:<slug>` + `list` media
+ * per aplikasi. Lihat catatan kuota di media.ts.
+ *
+ * `env` tidak lagi dibutuhkan tapi pertahankan sebagai parameter pertama supaya
+ * pemanggilnya tidak harus diubah; jangan dipakai.
  */
-export async function withMediaStats<T extends { slug?: string; type?: string }>(env: MediaBindings, project: T): Promise<T & { media_slots?: number; media_missing?: number }> {
-  if (project?.type !== 'json' || !project.slug) return project;
-  try {
-    const specRaw = await env.STORAGE.get(`quiz:${project.slug}`);
-    if (!specRaw) return project;
-    const slots = collectMediaSlotsFromStored(specRaw);
-    if (!slots.length) return { ...project, media_slots: 0, media_missing: 0 };
-    // listMediaNames (list saja) bukan listMedia (yang mengunduh ISI tiap
-    // gambar). Dulu dashboard mengunduh seluruh byte gambar hanya untuk
-    // menghitung "3 dari 5 gambar belum diunggah" — sumber utama latensi
-    // publish dengan KV remote.
-    const names = await listMediaNames(env, project.slug);
-    const uploaded = new Set(names);
-    return {
-      ...project,
-      media_slots: slots.length,
-      media_missing: slots.filter((name) => !uploaded.has(name)).length,
-    };
-  } catch {
-    return project;
+export function withMediaStats<T extends { media_slots?: unknown; media_names?: unknown }>(
+  _env: MediaBindings,
+  project: T
+): T & { media_slots?: number; media_missing?: number } {
+  if ((project as { type?: unknown })?.type !== 'json') {
+    return project as T & { media_slots?: number; media_missing?: number };
   }
+  const slots = Array.isArray(project.media_slots) ? (project.media_slots as string[]) : [];
+  const uploaded = new Set(Array.isArray(project.media_names) ? (project.media_names as string[]) : []);
+  return {
+    ...project,
+    media_slots: slots.length,
+    media_missing: slots.filter((name) => !uploaded.has(name)).length,
+  };
 }
 

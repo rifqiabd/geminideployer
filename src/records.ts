@@ -9,6 +9,7 @@ import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz
 import type { QuizSpec } from './quiz';
 import { computeItemAnalysis, renderItemAnalysis } from './quiz-report';
 import { isAuthed } from './auth';
+import { FAVICON_TAGS } from './favicon.ts';
 
 // Bindings minimal: KV + D1 (kiriman) + SESSION_SECRET (rekap admin).
 type RecordBindings = { STORAGE: KVNamespace; DB: D1Database; SESSION_SECRET?: string };
@@ -174,7 +175,7 @@ app.get('/p/:slug/data', async (c) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rekap Data - /p/${slug}</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
+  ${FAVICON_TAGS}
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}

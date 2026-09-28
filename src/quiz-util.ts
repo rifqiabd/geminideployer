@@ -50,6 +50,123 @@ export function normalizeAnswer(text: string): string {
     .trim();
 }
 
+/* --- LaTeX tanpa pembatas ---------------------------------------------------- */
+
+/** Perintah LaTeX yang selalu butuh pembatas: `\frac`, `\begin{pmatrix}`, `\det`, ... */
+const LATEX_COMMAND = /\\[a-zA-Z]+/;
+
+/**
+ * Pangkat/indeks tanpa backslash: `B^{-1}`, `(AB)^{-1}`, `a_{12}`. Cukup kuat
+ * untuk jadi penanda rumus — prosa tidak pernah menulis `^{` atau `_{`.
+ * `^` dan `_` telanjang sengaja TIDAK dipakai: `x^2` masih muncul di kalimat
+ * biasa, dan `_` justru sering muncul di nama file atau slot media.
+ */
+const SCRIPT_MARK = /[\^_]\{/;
+
+/**
+ * Kata huruf yang di dalam rumus tetap diperlakukan sebagai bagian rumus, bukan
+ * prosa — `sin 30^\circ` dan `\max` bukan kalimat.
+ */
+const MATH_WORDS = new Set([
+  'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'log', 'ln', 'exp', 'lim',
+  'max', 'min', 'gcd', 'lcm', 'mod', 'det', 'deg', 'dim', 'ker', 'sup', 'inf',
+]);
+
+/** Placeholder sementara untuk rumus yang sudah dibungkus `$` / `$$`. */
+const MATH_HOLD = '\u0001';
+
+/** Penanda satu token yang sudah pasti bagian rumus, dengan atau tanpa `\`. */
+function isMathAnchor(token: string): boolean {
+  return LATEX_COMMAND.test(token) || SCRIPT_MARK.test(token);
+}
+
+/**
+ * Apakah satu token (potongan tanpa spasi) masih bisa ikut masuk satu rumus.
+ * Yang menentukan: ada penanda rumus, atau tidak ada kata prosa di dalamnya.
+ * Nama variabel tetap dianggap rumus walau lebih dari satu huruf — `AB` di
+ * `(AB)^{-1}` bukan kata bahasa. Rumus yang sudah dibungkus `$` selalu menjadi
+ * batas supaya tidak ter-nesting.
+ */
+function isMathToken(token: string): boolean {
+  if (token.includes(MATH_HOLD)) return false;
+  if (isMathAnchor(token)) return true;
+  const words = token.match(/\p{L}+/gu) ?? [];
+  if (!words.length) return true; // 6, &, =, {, }, -1/2
+  return words.every(
+    (word) => word.length === 1 || MATH_WORDS.has(word.toLowerCase()) || word === word.toUpperCase()
+  );
+}
+
+/**
+ * Bungkus rumus LaTeX yang telanjang dengan `$...$` supaya KaTeX merendernya.
+ *
+ * Dipakai untuk pilihan jawaban dan teks jawaban lain, karena di situ guru
+ * sering menulis `\frac{1}{4}(\sqrt{6}+\sqrt{2})` tanpa pembatas — hasilnya
+ * bukan simbol matematika, tapi karakter mentah yang tidak bisa dibaca.
+ *
+ * Aturannya sengaja konservatif:
+ *   - teks tanpa penanda rumus sama sekali tidak tersentuh;
+ *   - `$...$` dan `$$...$$` yang sudah ada dikunci dulu, jadi pemanggilan
+ *     berulang mengembalikan teks yang sama persis (idempoten) dan rumus lama
+ *     tidak pernah jadi `$...$...$`;
+ *   - hanya rentetan matematika yang dibungkus: token ber-`\...` atau berpangkat
+ *     `^{`/`_{`, plus tetangganya yang bukan prosa. Kata prosa minimal dua huruf
+ *     (mis. `dan`, `adalah`) membelah rentetan, jadi kalimat tidak ikut berubah
+ *     jadi rumus dan `1/2 dan -1/2\sqrt{3}` hanya bagian kedua yang dibungkus.
+ */
+export function wrapBareLatex(text: string): string {
+  const source = String(text ?? '');
+  if (!LATEX_COMMAND.test(source) && !SCRIPT_MARK.test(source)) return source;
+  // Teks yang `$`-nya sudah ganjil memang sudah rusak; membungkus lagi hanya
+  // menambah satu pasangan yang tidak berpasangan, jadi biarkan apa adanya.
+  if ((source.match(/\$/g) ?? []).length % 2 === 1) return source;
+
+  // Kunci dulu rumus yang sudah dibungkus supaya tidak ikut ter-wrap lagi.
+  const held: string[] = [];
+  let body = source.replace(/\$\$[\s\S]+?\$\$|\$[^$\n]+?\$/g, (match) => {
+    held.push(match);
+    return `${MATH_HOLD}${held.length - 1}${MATH_HOLD}`;
+  });
+  // Semua rumusnya sudah berada di dalam `$...$`: biarkan apa adanya.
+  if (!LATEX_COMMAND.test(body) && !SCRIPT_MARK.test(body)) return source;
+
+  const tokens: Array<{ text: string; start: number; end: number }> = [];
+  for (const match of body.matchAll(/\S+/g)) {
+    const start = match.index ?? 0;
+    tokens.push({ text: match[0], start, end: start + match[0].length });
+  }
+
+  // Kumpulkan rentetan matematika: token berurutan yang bukan prosa. Proyek atau
+  // angka di dalam prosa jadi run sendiri, jadi `1/2 dan -1/2\sqrt{3}` membelah
+  // diri dan hanya bagian yang punya penanda rumus yang ikut dibungkus.
+  const runs: Array<[number, number]> = [];
+  let open = -1;
+  tokens.forEach((token, index) => {
+    if (isMathToken(token.text)) {
+      if (open < 0) open = index;
+    } else if (open >= 0) {
+      runs.push([open, index - 1]);
+      open = -1;
+    }
+  });
+  if (open >= 0) runs.push([open, tokens.length - 1]);
+
+  const targets = runs.filter(([from, to]) => tokens.slice(from, to + 1).some((token) => isMathAnchor(token.text)));
+  if (!targets.length) return source;
+
+  // Bungkus dari belakang supaya offset token di depannya tidak bergeser.
+  for (const [from, to] of targets.reverse()) {
+    const start = tokens[from].start;
+    const end = tokens[to].end;
+    body = body.slice(0, start) + '$' + body.slice(start, end) + '$' + body.slice(end);
+  }
+
+  return body.replace(
+    new RegExp(`${MATH_HOLD}(\\d+)${MATH_HOLD}`, 'g'),
+    (_match, index: string) => held[Number(index)] ?? ''
+  );
+}
+
 /**
  * Nama slot media — dipakai di token `media:nama` dan di URL /media/<slug>/<nama>.
  * Selalu huruf kecil, tanpa garis miring, tanpa titik di awal/akhir, jadi tidak

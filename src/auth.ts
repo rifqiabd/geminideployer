@@ -14,6 +14,7 @@
 
 import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
+import { messageCard } from './ui-card.ts';
 
 /** Sesi login admin yang sudah terverifikasi. */
 export type Session = {
@@ -315,33 +316,19 @@ export function missingSecrets(env: { SESSION_SECRET?: string; APP_PASSWORD?: st
 
 /** Halaman 503 berisi dua perintah yang harus dijalankan, dalam bahasa Indonesia. */
 export function secretSetupPage(): string {
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Konfigurasi belum lengkap</title>
-  <style>
-    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a;color:#e2e8f0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:24px}
-    .card{max-width:640px;background:#1e293b;border:1px solid #334155;border-radius:16px;padding:28px}
-    h1{font-size:16px;color:#fb7185;margin:0 0 12px}
-    p{font-size:13px;line-height:1.7;margin:0 0 14px}
-    pre{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px 14px;font-size:12px;overflow-x:auto;margin:0 0 10px;line-height:1.8}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>503 — Konfigurasi login belum lengkap</h1>
-    <p>Login admin dinonaktifkan karena secret wajib belum dipasang. Jalankan dua perintah berikut, lalu coba lagi:</p>
-    <pre>npx wrangler secret put SESSION_SECRET
-npx wrangler secret put APP_PASSWORD</pre>
-    <p>Nilai SESSION_SECRET sebaiknya dibuat acak, misalnya dari
-    <code>openssl rand -base64 32</code>. Untuk environment staging, tambahkan
-    flag <code>--env staging</code> pada keduanya. Tanpa secret ini dashboard
-    akan selalu menampilkan halaman ini — tidak ada lagi password bawaan.</p>
-  </div>
-</body>
-</html>`;
+  return messageCard({
+    title: '503 — Konfigurasi login belum lengkap',
+    message:
+      'Login admin dinonaktifkan karena secret wajib belum dipasang. Jalankan dua perintah berikut, lalu coba lagi.',
+    detail: [
+      'npx wrangler secret put SESSION_SECRET',
+      'npx wrangler secret put APP_PASSWORD',
+    ].join('\n'),
+    note:
+      'Nilai SESSION_SECRET sebaiknya dibuat acak, misalnya dari openssl rand -base64 32. Untuk environment staging, tambahkan flag --env staging pada keduanya. Tanpa secret ini dashboard akan selalu menampilkan halaman ini — tidak ada lagi password bawaan.',
+    backHref: '',
+    tone: 'danger',
+  });
 }
 
 /* --------------------------------------------------------------------------

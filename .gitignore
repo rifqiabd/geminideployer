@@ -42,3 +42,8 @@ Thumbs.db
 
 # imggen-proxy (repo sendiri di D:\code\cloudflare\imggen-proxy)
 imggen-proxy/
+
+# Data lokal Worker: cermin index R2 (_index/) dan folder media contoh
+# (nama aplikasi, dibuat saat wrangler dev lokal) — bukan bagian dari kode sumber.
+_index/
+bahasa-indonesia-kelas-xii/

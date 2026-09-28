@@ -8,7 +8,9 @@ import type { Hono } from 'hono';
 import { escapeHtml, parseQuizJson, parseQuizSpec, QuizError, randomSlugSuffix, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
 import { safeSlug } from './auth';
-import { deleteAllMedia, moveAllMedia } from './media';
+import { deleteAllMedia, moveAllMedia, syncMediaStats } from './media';
+import { deleteAppMeta, writeAppMeta, backfillIndexFromKv } from './app-index.ts';
+import type { AppMeta } from './app-index.ts';
 import { denyAdminRequest, errorPage } from './admin-shared';
 
 // Bindings minimal aksi: KV + D1 (riwayat jawaban) + R2 opsional (media) + secret.
@@ -49,31 +51,28 @@ async function uniqueSlug(env: { STORAGE: KVNamespace }, base: string): Promise<
 }
 
 // Helper: Simpan HTML aplikasi + metadatanya ke KV
-async function saveApp(env: { STORAGE: KVNamespace }, entry: { title: string; slug: string; type: string; html: string }) {
+async function saveApp(env: { STORAGE: KVNamespace; MEDIA?: R2Bucket }, entry: { title: string; slug: string; type: string; html: string }) {
   // Baca metadata lama dulu supaya `created_at` tidak hilang kalau aplikasi yang
   // sama di-publish ulang. Tanpa ini, tanggal dibuat ikut melompat ke hari ini
   // setiap kali kuis di-replace, dan urutan sidebar jadi tidak jujur.
-  let prev: Record<string, unknown> | null = null;
+  let prev: AppMeta | null = null;
   try {
     const raw = await env.STORAGE.get(`meta:${entry.slug}`);
-    if (raw) prev = JSON.parse(raw) as Record<string, unknown>;
+    if (raw) prev = JSON.parse(raw) as AppMeta;
   } catch {
     prev = null;
   }
 
   await env.STORAGE.put(`html:${entry.slug}`, entry.html);
-  await env.STORAGE.put(
-    `meta:${entry.slug}`,
-    JSON.stringify({
-      ...prev,
-      title: entry.title,
-      slug: entry.slug,
-      type: entry.type,
-      created_at: prev?.created_at ?? stampNow(),
-      updated_at: stampNow(),
-      size: (new TextEncoder().encode(entry.html).length / 1024).toFixed(1) + ' KB',
-    })
-  );
+  await writeAppMeta(env, {
+    ...prev,
+    title: entry.title,
+    slug: entry.slug,
+    type: entry.type,
+    created_at: prev?.created_at ?? stampNow(),
+    updated_at: stampNow(),
+    size: (new TextEncoder().encode(entry.html).length / 1024).toFixed(1) + ' KB',
+  });
 }
 
 // ==========================================
@@ -127,6 +126,9 @@ app.post('/api/deploy', async (c) => {
   // alamat. Kalau slug guru bentrok dan guru mem-publish ulang sumber itu,
   // `POST /api/deploy` mendeteksi bentrok lagi dan memberi sufiks baru.
   await c.env.STORAGE.put(`quizsource:${slug}`, JSON.stringify(parseQuizJson(rawCode), null, 2));
+  // Slot media berubah setiap kali soal dipublish ulang, jadi statistik gambar
+  // di meta disegarkan supaya dashboard tidak menampilkan data basi.
+  await syncMediaStats(c.env, slug);
 
   // `?app=` membuat dashboard langsung membuka panel detail aplikasi ini, jadi
   // guru melihat alamat publik yang benar dan tidak salah share ke siswa.
@@ -141,13 +143,35 @@ app.post('/api/delete', async (c) => {
   const slug = body.slug as string;
   if (slug) {
     await c.env.STORAGE.delete(`html:${slug}`);
-    await c.env.STORAGE.delete(`meta:${slug}`);
+    await deleteAppMeta(c.env, slug);
     await c.env.STORAGE.delete(`quiz:${slug}`);
     await c.env.STORAGE.delete(`quizsource:${slug}`);
     await deleteAllMedia(c.env, slug); // jangan tinggalkan gambar yatim di storage
   }
 
   return c.redirect('/');
+});
+
+// ==========================================
+// 7. PINDAI KE INDEX R2 (satu kali jalan)
+// ==========================================
+// Satu-satunya tempat di Worker yang masih memakai `list` KV, dan hanya kalau
+// admin menekan tombolnya secara sadar. Tujuannya memindahkan aplikasi lama
+//yang belum pernah ada di D1 ke index R2, supaya dashboard tidak pernah perlu
+// `list` KV lagi — termasuk setelah kuota hari ini habis.
+app.post('/api/app-index/backfill', async (c) => {
+  const denied = await denyAdminRequest(c);
+  if (denied) return denied;
+
+  const result = await backfillIndexFromKv(c.env);
+  // `found: 0` hampir selalu berarti kuota `list` masih habis, bukan berarti
+  // tidak ada aplikasinya. Pesannya dibedakan supaya admin tahu mana yang
+  // terjadi dan tidak mengira index sudah terisi.
+  const message =
+    result.found === 0
+      ? 'Tidak ada yang bisa dipindai. Kemungkinan kuota `list` KV harian masih habis — coba lagi setelah reset.'
+      : `${result.mirrored} dari ${result.found} aplikasi berhasil dipindahkan ke index R2.`;
+  return c.json({ ok: result.found > 0, ...result, message });
 });
 
 // ==========================================
@@ -266,16 +290,13 @@ app.post('/api/app/update', async (c) => {
     if (html) await c.env.STORAGE.put(`html:${newSlug}`, html);
   }
 
-  await c.env.STORAGE.put(
-    `meta:${newSlug}`,
-    JSON.stringify({
-      ...meta,
-      title: nextTitle,
-      slug: newSlug,
-      ...(renderedSize ? { size: Math.round(renderedSize / 1024) } : {}),
-      updated_at: stampNow(),
-    })
-  );
+  await writeAppMeta(c.env, {
+    ...meta,
+    title: nextTitle,
+    slug: newSlug,
+    ...(renderedSize ? { size: Math.round(renderedSize / 1024) } : {}),
+    updated_at: stampNow(),
+  });
 
   if (renamed) {
     if (type === 'json') {
@@ -291,7 +312,7 @@ app.post('/api/app/update', async (c) => {
     // kunci KV ditulis, supaya kegagalan D1 tidak meninggalkan dua alamat hidup.
     // Link lama mati total (tanpa redirect), media dipindahkan, key lama dibersihkan.
     await c.env.STORAGE.delete(`html:${oldSlug}`);
-    await c.env.STORAGE.delete(`meta:${oldSlug}`);
+    await deleteAppMeta(c.env, oldSlug);
     await c.env.STORAGE.delete(`quiz:${oldSlug}`);
     await c.env.STORAGE.delete(`quizsource:${oldSlug}`);
     await moveAllMedia(c.env, oldSlug, newSlug);

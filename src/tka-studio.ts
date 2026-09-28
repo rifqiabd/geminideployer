@@ -20,6 +20,8 @@ import type { Hono } from 'hono';
 // Impor memakai ekstensi .ts supaya modul ini juga bisa dijalankan langsung
 // oleh Node (mis. smoke test), seperti di media-gen.ts.
 import { csrfFor, getSession, verifyCsrfFromRequest } from './auth.ts';
+import { GEM_URL } from './guide';
+import { FAVICON_TAGS } from './favicon.ts';
 import type { Context } from 'hono';
 
 type TkaBindings = { STORAGE: KVNamespace; SESSION_SECRET?: string };
@@ -274,7 +276,7 @@ function renderStudioPage(data: StudioData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="${csrf}">
   <title>TKA Prompt Engine - Gemini Edge Deployer</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
+  ${FAVICON_TAGS}
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
@@ -305,16 +307,6 @@ function renderStudioPage(data: StudioData): string {
     .ta-right{text-align:right}
     .nowrap{white-space:nowrap}
 
-    .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
-    .topbar-inner{max-width:1000px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .topbar-left{min-width:0;display:flex;align-items:center;gap:12px}
-    .brand{width:34px;height:34px;flex:none;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
-    .back{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);padding:5px 10px;border-radius:8px;transition:background .15s,color .15s}
-    .back:hover{background:var(--surface-2);color:var(--text)}
-    .topbar h1{font-size:14px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .topbar .sub{font-size:11px;font-family:'Geist Mono',ui-monospace,monospace;color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .topbar-actions{display:flex;align-items:center;gap:8px;flex:none}
-
     .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:500;cursor:pointer;transition:background .15s,border-color .15s,color .15s;white-space:nowrap}
     .btn:hover{background:var(--surface-2)}
     .btn-accent{background:var(--accent);border-color:transparent;color:#fff}
@@ -323,9 +315,16 @@ function renderStudioPage(data: StudioData): string {
     .btn-danger{color:var(--danger);background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
     .btn-danger:hover{background:var(--danger);color:#fff}
 
-    main{max-width:1000px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+    /* Halaman ini selalu hidup di iframe dashboard yang punya topbar kaca
+       melayang (tinggi 52px) di atasnya. Konten diturunkan melewatinya; saat
+       scroll, konten melewati belakang kaca itu. Bar tab sendiri dibuat
+       sticky translucent supaya tab tetap terlihat dan konten melewatinya
+       juga — nuansa "layered glass" dua lapis. Di luar iframe (buka langsung
+       /studio) padding-top kecil cukup karena tidak ada topbar melayang. */
+    main{max-width:1400px;margin:0 auto;padding:72px 20px 20px;display:flex;flex-direction:column;gap:16px}
+    body.embedded main{padding-top:72px}
 
-    .tabs{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:4px;width:fit-content;max-width:100%;flex-wrap:wrap}
+    .tabs{position:sticky;top:8px;z-index:20;display:flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--surface-2) 72%,transparent);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);border:1px solid color-mix(in srgb,var(--border) 60%,transparent);border-radius:12px;padding:4px;width:fit-content;max-width:100%;flex-wrap:wrap;box-shadow:0 4px 18px -8px rgba(0,0,0,.35),inset 0 1px 0 color-mix(in srgb,#fff 12%,transparent)}
     .tab{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;color:var(--text-secondary);border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:500;white-space:nowrap;transition:background .15s,color .15s}
     .tab:hover{color:var(--text)}
     .tab.active{background:var(--bg);color:var(--text);box-shadow:var(--shadow)}
@@ -335,6 +334,7 @@ function renderStudioPage(data: StudioData): string {
     .card-label{font-size:13px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:8px}
     .card-label .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
     .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .card-actions{display:flex;align-items:center;gap:8px;flex:none}
     .card-title{font-size:14px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px}
     .card-title i{color:var(--accent)}
     .card-text{font-size:12.5px;color:var(--text-secondary);line-height:1.6;margin:0}
@@ -419,31 +419,14 @@ function renderStudioPage(data: StudioData): string {
     .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--border)}
     .x-btn{border:none;background:transparent;color:var(--text-faint);font-size:14px;padding:4px 8px;border-radius:6px}
     .x-btn:hover{background:var(--surface-2);color:var(--text)}
-
-    @media(max-width:640px){.topbar-actions .btn{font-size:0}.topbar-actions .btn i{margin:0;font-size:13px}}
-
-    /* Mode embed: halaman di-iframe dashboard (tab "Prompt Engine") — chrome
-       topbar disembunyikan via klien agar tidak dobel dengan topbar dashboard. */
-    html.embedded .brand,html.embedded .back,html.embedded .topbar-actions{display:none}
   </style>
 </head>
 <body>
 
-  <nav class="topbar">
-    <div class="topbar-inner">
-      <div class="topbar-left">
-        <a class="brand" href="/" title="Kembali ke Dashboard">SQ</a>
-        <div class="min-w-0">
-          <a href="/" class="back"><i class="fa-solid fa-arrow-left"></i>Dashboard</a>
-          <h1>TKA Prompt Engine</h1>
-          <div class="sub">Generator prompt asesmen &bull; Sumatif / TKA-AKM / Spesifik</div>
-        </div>
-      </div>
-      <div class="topbar-actions">
-        <a href="/panduan" class="btn"><i class="fa-solid fa-book"></i>Panduan</a>
-      </div>
-    </div>
-  </nav>
+  <!-- Topbar (SQ, judul, tombol Panduan) dihapus total: halaman ini selalu
+       dibuka di dalam iframe dashboard yang sudah punya topbar sendiri, jadi
+       nav-nya cuma dobel dan memakan tinggi layar. Konten naik langsung ke
+       <main> yang tetap max-width 1400px dan terpusat. -->
 
   <main>
     <div class="tabs" role="tablist">
@@ -674,10 +657,13 @@ function renderStudioPage(data: StudioData): string {
         </div>
       </div>
 
-      <div class="card stack" style="position:sticky;top:76px">
+      <div class="card stack" style="position:sticky;top:12px">
         <div class="card-head" style="margin-bottom:0">
           <h2 class="card-title"><i class="fa-solid fa-wand-magic-sparkles"></i>Hasil prompt</h2>
-          <button type="button" class="btn btn-accent" onclick="copyToClipboard()"><i class="fa-solid fa-copy"></i>Salin prompt</button>
+          <div class="card-actions">
+            <a class="btn" href="${GEM_URL}" target="_blank" rel="noopener" title="Buka Gem Gemini di tab baru"><i class="fa-solid fa-gem"></i>Gem Gemini</a>
+            <button type="button" class="btn btn-accent" onclick="copyToClipboard()"><i class="fa-solid fa-copy"></i>Salin prompt</button>
+          </div>
         </div>
         <textarea id="output-text" readonly placeholder="Prompt tersusun otomatis dari pilihan di sebelah kiri..."></textarea>
         <div class="output-foot">
@@ -902,7 +888,6 @@ function renderStudioPage(data: StudioData): string {
   </div>
 
   <script>window.TKA_DATA = ${embedded};</script>
-  <script>if (window.self !== window.top) document.documentElement.classList.add('embedded');</script>
   <script src="/vendor/tka-studio.js"></script>
 </body>
 </html>`;

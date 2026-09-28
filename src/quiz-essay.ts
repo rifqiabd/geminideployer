@@ -17,6 +17,8 @@ import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth';
 import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz';
 import type { GradeResult, GradedDetail, QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
+import { messageCard } from './ui-card.ts';
+import { FAVICON_TAGS } from './favicon.ts';
 
 type EssayBindings = MediaBindings & { DB: D1Database };
 
@@ -149,7 +151,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Koreksi Esai - ${escapeHtml(meta.title ?? slug)}</title>
   <meta name="csrf-token" content="${csrfToken}">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
+  ${FAVICON_TAGS}
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
@@ -376,27 +378,5 @@ function summaryLine(payload: StoredPayload): string {
 }
 
 function messagePage(title: string, message: string): string {
-  return `<!DOCTYPE html>
-<html lang="id">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${escapeHtml(title)}</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='32' font-weight='bold' text-anchor='middle' fill='white'%3ESQ%3C/text%3E%3C/svg%3E">
-<style>
-  @font-face{font-family:'Geist';font-style:normal;font-weight:100 900;font-display:swap;src:url('/vendor/fonts/geist-variable.woff2') format('woff2')}
-  :root{--bg:#ffffff;--surface:#f9f9f9;--border:#e5e5e5;--text:#171717;--text-secondary:#737373;--accent:#7c3aed;--danger:#ef4444}
-  @media(prefers-color-scheme:dark){:root{--bg:#212121;--surface:#303030;--border:#424242;--text:#ececec;--text-secondary:#9e9e9e;--accent:#8b5cf6;--danger:#f87171}}
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.55;min-height:100vh;display:grid;place-items:center;padding:24px;-webkit-font-smoothing:antialiased}
-  a{text-decoration:none}
-  .card{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.08)}
-  h1{font-size:15px;font-weight:600;color:var(--danger);margin:0 0 8px}
-  p{font-size:13px;color:var(--text-secondary);margin:0;line-height:1.6}
-  .btn{display:inline-block;margin-top:20px;padding:8px 16px;background:var(--accent);color:#fff;border-radius:10px;font-size:12.5px;font-weight:500}
-</style></head>
-<body>
-  <div class="card">
-    <h1>${escapeHtml(title)}</h1>
-    <p>${escapeHtml(message)}</p>
-    <a href="/" class="btn">Kembali ke Dashboard</a>
-  </div>
-</body></html>`;
+  return messageCard({ title, message, backHref: '/', tone: 'danger' });
 }
