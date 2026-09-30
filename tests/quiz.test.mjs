@@ -1,8 +1,10 @@
 // Uji cepat logika src/quiz.ts tanpa deploy: normalisasi jawaban Arab,
 // deteksi fitur (tabel/rumus/arab), dan penilaian.
 import {
+  DEFAULT_DURATION_MINUTES,
   parseQuizSpec,
   gradeSubmission,
+  publicGrading,
   renderQuizApp,
   renderPrintSheet,
   collectMediaSlots,
@@ -1358,7 +1360,12 @@ const timerSpec = parseQuizSpec(
 check('durasi: dibaca dari duration_minutes', timerSpec.durationMinutes, 45);
 check('identitas: name_class dikenali', timerSpec.identityFields, 'name_class');
 check('durasi: di luar 1-600 dibuang', parseQuizSpec(JSON.stringify({ title: 'x', duration_minutes: 6000, questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).durationMinutes, null);
-check('durasi: tidak diset = null (tanpa timer)', parseQuizSpec(JSON.stringify({ title: 'x', questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).durationMinutes, null);
+// Tidak menyebut duration_minutes = pakai DEFAULT_DURATION_MINUTES. Kunci yang
+// diHAPUS dan nilai 0 EKSPLISIT sengaja dibedakan: 0 = guru mematikan timer.
+check('durasi: tidak diset = default 90 menit', parseQuizSpec(JSON.stringify({ title: 'x', questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).durationMinutes, DEFAULT_DURATION_MINUTES);
+check('durasi: default 90 menit', DEFAULT_DURATION_MINUTES, 90);
+check('durasi: 0 eksplisit = tanpa timer', parseQuizSpec(JSON.stringify({ title: 'x', duration_minutes: 0, questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).durationMinutes, null);
+check('durasi: alias durasi_menit ikut', parseQuizSpec(JSON.stringify({ title: 'x', durasi_menit: 30, questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).durationMinutes, 30);
 check('identitas: tidak diset = name (perilaku lama)', parseQuizSpec(JSON.stringify({ title: 'x', questions: [{ type: 'short', question: 'a', answer: ['a'] }] })).identityFields, 'name');
 
 const timerHtml = renderQuizApp(timerSpec, 'uji-timer');
@@ -1372,8 +1379,10 @@ check('gerbang: tombol mulai ada', timerHtml.includes('id="gate-start"'), true);
 check('gerbang: judul aplikasi di modal', timerHtml.includes('id="gate-title"'), true);
 check('gerbang: input nama di modal', timerHtml.includes('id="gate-name"'), true);
 check('gerbang: input kelas di modal (name_class)', timerHtml.includes('id="gate-class"'), true);
+// Kuis tanpa timer harus menyebut duration_minutes: 0 secara eksplisit —
+// kalau kuncinya dihilangkan, parser memakai default 90 menit.
 const noTimerGateHtml = renderQuizApp(
-  parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', questions: [{ type: 'short', question: 'a', answer: ['a'] }] })),
+  parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', duration_minutes: 0, questions: [{ type: 'short', question: 'a', answer: ['a'] }] })),
   'uji-gate-tanpa-timer'
 );
 check('gerbang: input nama ikut mode name', noTimerGateHtml.includes('id="gate-name"'), true);
@@ -1396,7 +1405,7 @@ check('header: cluster tools ada', toolsStart !== -1, true);
 check('header: timer di dalam cluster tools', toolsStart !== -1 && timerStart > toolsStart, true);
 check('header: placeholder alat admin sebelum zoom', toolsStart !== -1 && adminToolsStart > toolsStart && adminToolsStart < zoomStart, true);
 check('header: timer pakai ikon jam', headerBlock.includes('q-timer-ico'), true);
-const noTimerSpec = parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', questions: [{ type: 'short', question: 'a', answer: ['a'] }] }));
+const noTimerSpec = parseQuizSpec(JSON.stringify({ title: 'Kuis Tanpa Timer', duration_minutes: 0, questions: [{ type: 'short', question: 'a', answer: ['a'] }] }));
 const noTimerHtml = renderQuizApp(noTimerSpec, 'uji-tanpa-timer');
 check('render: tanpa durasi tidak ada timer', noTimerHtml.includes('id="quiz-timer"'), false);
 check('header: tanpa durasi tetap ada cluster tools', noTimerHtml.includes('q-header-tools'), true);
@@ -1407,9 +1416,107 @@ check('render: form siswa tetap ada tanpa opsi baru', noTimerHtml.includes('id="
 const timerRt = quizToAuthoringSource(timerSpec);
 check('round-trip: duration_minutes ikut', timerRt.duration_minutes, 45);
 check('round-trip: identity_fields ikut', timerRt.identity_fields, 'name_class');
+// Tanpa timer harus tetap 0, bukan dihapus — kalau dihapus, editor memakai
+// default 90 menit dan kuis ini ikut dapet timer saat guru menyimpan ulang.
 const tanpaTimerRt = quizToAuthoringSource(noTimerSpec);
-check('round-trip: tanpa durasi tidak menulis field', 'duration_minutes' in tanpaTimerRt, false);
+check('round-trip: tanpa timer menulis 0 (bukan dihapus)', tanpaTimerRt.duration_minutes, 0);
 check('round-trip: tanpa name_class tidak menulis field', 'identity_fields' in tanpaTimerRt, false);
+
+// ---------- Kunci jawaban & umpan balik per butir tidak boleh sampai ke siswa --
+// publicGrading() dipakai /api/submit (src/records.ts) untuk memangkas `detail`
+// SEBELUM dikirim ke browser siswa.
+// Dua alasan scrubbing, keduanya wajib:
+//
+//   1) Satu kiriman cukup untuk menyalin seluruh kunci kuis lewat DevTools lalu
+//      dibagikan ke teman.
+//   2) Kuis publik boleh diulang, jadi `benar` per soal saja sudah cukup untuk
+//      menebak kunci: submit dengan jawaban berbeda beberapa kali, lihat nomor
+//      soal mana yang berubah jadi "Benar". Menyembunyikan `kunci` saja tidak
+//      menutup jalur ini.
+//
+// Yang WAJIB tetap ikut: nilai agregat, bobot maksimum, teks soal, jawaban siswa,
+// dan pembahasan.
+const bocorSpec = parseQuizSpec(JSON.stringify({
+  title: 'Kuis Bocor',
+  show_explanation: true,
+  questions: [
+    { type: 'choice', question: '2 + 2 = ?', options: ['3', '4'], answer: '4', explanation: 'Penjelasan: 2 + 2 = 4.' },
+    { type: 'true_false', question: 'Bumi bulat', answer: 'salah' },
+    { type: 'category', question: 'Pilih yang sesuai', labels: ['Sesuai', 'Tidak Sesuai'], statements: [{ text: 'Pernyataan A', answer: true }, { text: 'Pernyataan B', answer: false }] },
+    { type: 'table_fill', question: 'Lengkapi tabel', headers: ['Daerah', 'Ibu kota'], rows: [['Jawa', { answer: ['Jakarta'] }], ['Bali', { answer: ['Denpasar'] }]] },
+  ],
+}));
+
+const bocorFull = gradeSubmission(bocorSpec, [
+  { id: bocorSpec.questions[0].id, value: '4' },
+  { id: bocorSpec.questions[1].id, value: 'benar' },
+  { id: bocorSpec.questions[2].id, value: { 0: 'benar', 1: 'benar' } },
+  { id: bocorSpec.questions[3].id, value: ['Jakarta', 'salah'] },
+]);
+const bocorPub = publicGrading(bocorFull);
+
+// 1) Tidak ada kunci di level soal maupun di baris statements — termasuk soal
+//    esai (kunci null) supaya tidak ada jalur bocor lewat tipe soal lain.
+check('bocor: kunci hilang di setiap soal', bocorPub.detail.every((d) => !('kunci' in d)), true);
+check('bocor: kunci hilang di setiap baris statements', bocorPub.detail.every((d) => (d.statements ?? []).every((s) => !('kunci' in s))), true);
+check('bocor: hasil grade asli masih punya kunci (payload D1 utuh)', bocorFull.detail.every((d) => 'kunci' in d), true);
+check('bocor: kunci asli masih ada di statements', bocorFull.detail.some((d) => (d.statements ?? []).some((s) => 'kunci' in s)), true);
+
+// 2) Status benar/salah per butir juga dibuang. Inilah yang membuat retake tidak
+//    lagi berguna untuk menebak kunci, jadi assertion ini hilang dari sisi
+//    "pembelajaran" tapi wajib ada di sisi "keamanan".
+check('bocor: status benar per soal hilang', bocorPub.detail.every((d) => !('benar' in d)), true);
+check('bocor: status benar per baris statements hilang', bocorPub.detail.every((d) => (d.statements ?? []).every((s) => !('benar' in s))), true);
+// `poin` harus ikut hilang bersama `benar`: kalau `poin` masih dikirim, `poin > 0`
+// sudah berarti "ada yang benar di soal ini" sehingga triangulasi biner jalan lagi.
+check('bocor: poin per soal hilang (bukan hanya status)', bocorPub.detail.every((d) => !('poin' in d)), true);
+
+// 3) Payload D1 wajib tetap menyimpan `benar` dan `poin`: analisis butir di
+//    src/quiz-report.ts membacanya (entry.benar + row.benar) untuk rekap guru.
+//    Kalau ikut terpangkas, rekap diam-diam jadi tidak berguna.
+check('bocor: payload asli masih punya status benar (analisis butir)', bocorFull.detail.every((d) => 'benar' in d), true);
+check('bocor: payload asli masih punya poin (analisis butir)', bocorFull.detail.every((d) => 'poin' in d), true);
+
+// 4) Objek hasil tidak boleh share reference dengan aslinya: kalau tidak,
+//    scrubbing di satu tempat bisa ikut mengubah payload yang disimpan.
+check('bocor: hasil tidak share objek detail', bocorPub.detail.every((d) => !bocorFull.detail.includes(d)), true);
+check('bocor: hasil tidak share baris statements', bocorPub.detail.every((d) => (d.statements ?? []).every((s) => !bocorFull.detail.some((o) => (o.statements ?? []).includes(s)))), true);
+check('bocor: payload asli tidak berubah setelah scrubbing', bocorFull.detail.filter((d) => 'kunci' in d).length, bocorFull.detail.length);
+check('bocor: scrubbing dua kali tidak merusak aslinya', (() => {
+  const sekali = publicGrading(bocorFull);
+  const dua = publicGrading(sekali);
+  return bocorFull.detail.every((d) => 'benar' in d && 'poin' in d && 'kunci' in d)
+    && sekali.detail.every((d) => !('benar' in d) && !('poin' in d) && !('kunci' in d))
+    && dua.detail.every((d) => !('benar' in d) && !('poin' in d) && !('kunci' in d));
+})(), true);
+
+// 5) Data yang dibutuhkan siswa untuk belajar tetap ada: nilai agregat, bobot
+//    maksimum, teks soal, jawaban sendiri, dan pembahasan (show_explanation: true).
+check('bocor: nilai agregat tetap utuh', bocorPub.points_earned, bocorFull.points_earned);
+check('bocor: total poin tetap utuh', bocorPub.points_total, bocorFull.points_total);
+check('bocor: skor persen tetap utuh', bocorPub.score, bocorFull.score);
+check('bocor: bobot maksimum per soal tetap ada', bocorPub.detail.every((d) => 'poin_maks' in d && 'no' in d), true);
+check('bocor: teks soal tetap ada', bocorPub.detail.every((d) => typeof d.question_html === 'string' && d.question_html.length > 0), true);
+check('bocor: jawaban siswa tetap ada', bocorPub.detail[0].jawaban.length > 0, true);
+check('bocor: pembahasan tetap ada saat show_explanation', bocorPub.detail[0].pembahasan.length > 0, true);
+check('bocor: jawaban baris statements tetap ada', bocorPub.detail[2].statements.every((s) => 'text' in s && 'jawaban' in s), true);
+
+// 6) Halaman hasil siswa tidak boleh menampilkan kunci maupun status benar per
+//    butir — termasuk untuk halaman html:<slug> lama yang masih menyimpan HTML
+//    versi sebelumnya.
+const bocorHtml = renderQuizApp(bocorSpec, 'uji-bocor');
+check('bocor: halaman hasil tidak merender label Kunci', bocorHtml.includes("'Kunci: '"), false);
+check('bocor: halaman hasil tidak merender kolom Kunci', bocorHtml.includes("el('th', null, 'Kunci')"), false);
+check('bocor: tidak ada teks "Kunci:" di HTML hasil', /Kunci: /.test(bocorHtml), false);
+check('bocor: halaman hasil tidak merender badge status', bocorHtml.includes('q-review-status'), false);
+check('bocor: halaman hasil tidak merender "Benar (+...)"', bocorHtml.includes("'Benar (+'"), false);
+check('bocor: halaman hasil tidak merender "Sebagian benar"', bocorHtml.includes("'Sebagian benar (+'"), false);
+check('bocor: halaman hasil tidak mewarnai baris statements', bocorHtml.includes("statement.benar ? 'q-ok' : 'q-no'"), false);
+check('bocor: halaman hasil tidak membaca item.benar', /item\.benar/.test(bocorHtml), false);
+check('bocor: halaman hasil hanya membaca nilai agregat', bocorHtml.includes('grading.points_earned'), true);
+// Draft harus dibuang setelah submit sukses, kalau tidak reload memunculkan
+// banner "lanjutkan jawaban" untuk attempt yang sudah terkirim.
+check('bocor: draft dihapus setelah submit sukses', bocorHtml.includes('localStorage.removeItem(ATTEMPT_KEY)'), true);
 
 console.log(failed === 0 ? '\nSemua tes lulus.' : `\n${failed} tes GAGAL.`);
 process.exit(failed === 0 ? 0 : 1);

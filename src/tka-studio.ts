@@ -21,6 +21,7 @@ import type { Hono } from 'hono';
 // oleh Node (mis. smoke test), seperti di media-gen.ts.
 import { csrfFor, getSession, verifyCsrfFromRequest } from './auth.ts';
 import { GEM_URL } from './guide';
+import { noStorePage } from './admin-shared';
 import { FAVICON_TAGS } from './favicon.ts';
 import type { Context } from 'hono';
 
@@ -921,6 +922,7 @@ export function registerTkaStudioRoutes<E extends { Bindings: TkaBindings }>(app
     if (!session) return c.redirect('/');
     const [templates, subjects] = await Promise.all([loadTemplates(c.env.STORAGE), loadSubjects(c.env.STORAGE)]);
     const tab = c.req.query('tab') || 'generator';
+    noStorePage(c);
     return c.html(
       renderStudioPage({
         templates,

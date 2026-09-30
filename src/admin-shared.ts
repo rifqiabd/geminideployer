@@ -3,7 +3,7 @@
  * guard sesi+CSRF untuk rute aksi. Dipakai oleh auth-routes.ts dan actions.ts
  * supaya pemeriksaan keamanan tidak terduplikasi.
  * ========================================================================== */
-import type { Context } from 'hono';
+import type { Context, Env } from 'hono';
 import { errorCard } from './ui-card.ts';
 import { getSession, verifyCsrfFromRequest } from './auth';
 
@@ -17,6 +17,24 @@ type GuardEnv = { Bindings: { SESSION_SECRET?: string } };
  * actions.ts tidak perlu berubah. */
 export function errorPage(title: string, message: string): string {
   return errorCard(title, message);
+}
+
+/* --------------------------------------------------------------------------
+ * Header anti-cache untuk halaman admin.
+ * Halaman rekap/editor/esai memuat data kelas (jawaban siswa, nilai, analisis
+ * butir). Tanpa `no-store`, HTML yang sudah ter-render bertahan di bfcache
+ * browser: di laptop kelas bersama tombol Back bisa memunculkan lagi rekap
+ * kelas walau cookie admin sudah dihapus.
+ *
+ * Dipanggil SESUDAH guard sesi supaya response 302 ke '/' tidak ikut
+ * di-no-store (kalau tidak, halaman login juga ikut terkunci dari cache).
+ * ------------------------------------------------------------------------ */
+export function noStorePage<E extends Env>(c: Context<E>): void {
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+  c.header('Pragma', 'no-cache');
+  c.header('Expires', '0');
+  // Varian HTML bedsakan guru (tombol cetak tersuntik) vs siswa.
+  c.header('Vary', 'Cookie');
 }
 
 /* --------------------------------------------------------------------------

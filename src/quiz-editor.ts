@@ -15,10 +15,11 @@ import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth';
 import { syncMediaStats } from './media';
 import { writeAppMeta } from './app-index.ts';
 import { FAVICON_TAGS } from './favicon.ts';
-import { QuizError, escapeHtml, parseQuizSpec, quizToAuthoringSource, renderQuizApp, stampNow } from './quiz';
+import { DEFAULT_DURATION_MINUTES, QuizError, escapeHtml, parseQuizSpec, quizToAuthoringSource, renderQuizApp, stampNow } from './quiz';
 import type { QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
 import { messageCard } from './ui-card.ts';
+import { noStorePage } from './admin-shared';
 
 type StoredMeta = { title?: string; slug?: string; type?: string; created_at?: string; size?: string };
 
@@ -67,12 +68,18 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
       return c.html(messagePage('Editor soal tidak tersedia untuk aplikasi ini', explanation), 400);
     }
 
-    const embedded = JSON.stringify({ slug, source, synthesized }).replace(/</g, '\\u003c');
+    // `defaultDurationMinutes` disuntik supaya kotak durasi di editor
+    // menampilkan angka yang sama dengan default parser (lihat
+    // DEFAULT_DURATION_MINUTES di quiz-parse.ts). Kalau salah satu berubah,
+    // keduanya harus diubah bareng.
+    const embedded = JSON.stringify({ slug, source, synthesized, defaultDurationMinutes: DEFAULT_DURATION_MINUTES }).replace(/</g, '\\u003c');
     const title = meta.title ?? slug;
     // Token CSRF untuk inline JS editor (T4) — dikirim sebagai header
     // X-CSRF-Token pada fetch simpan, bukan field form.
     const editorSession = (await getSession(c))!;
     const csrfToken = await csrfFor(editorSession.npc, c.env.SESSION_SECRET ?? '');
+
+    noStorePage(c);
 
     return c.html(`<!DOCTYPE html>
 <html lang="id">
@@ -255,8 +262,8 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
       </div>
       <div class="field number">
         <label for="qe-duration">Durasi latihan (menit)</label>
-        <input id="qe-duration" type="number" min="1" max="600" placeholder="kosong = tanpa timer">
-        <p class="note">Penghitung waktu di perangkat siswa; jawaban dikirim otomatis saat waktu habis. Hanya pengingat — bukan pengawasan ujian.</p>
+        <input id="qe-duration" type="number" min="0" max="600" placeholder="90">
+        <p class="note">Batas ${DEFAULT_DURATION_MINUTES} menit sudah terisi di atas; ubah angkanya untuk menyesuaikan. Kosongkan seluruh isian (0) kalau kuis ini memang tanpa timer. Penghitung waktu di perangkat siswa; jawaban dikirim otomatis saat waktu habis. Hanya pengingat — bukan pengawasan ujian.</p>
       </div>
       <div class="field">
         <label for="qe-identity">Identitas siswa</label>

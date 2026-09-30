@@ -502,5 +502,67 @@ export function gradeSubmission(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Bentuk untuk siswa                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Rincian baris yang boleh dilihat siswa: tanpa kunci dan tanpa status benar.
+ *
+ * `benar` per baris ikut dibuang karena status per soal sudah memberi jawaban
+ * yang sama, dan baris yang dihijaukan/merahkan memberitahu jawaban tiap baris
+ * hanya dengan satu kiriman.
+ */
+export type PublicGradedStatement = Omit<GradedStatement, 'kunci' | 'benar'>;
+
+/**
+ * Detail satu soal untuk siswa: kunci, status benar, dan poin per soal dibuang;
+ * `statements` ikut dirapikan.
+ *
+ * `poin` (poin yang diperoleh) sengaja ikut dibuang bersama `benar`. Kalau
+ * `poin` masih dikirim, `poin > 0` sudah berarti "ada yang benar di soal ini"
+ * sehingga triangulasi biner tetap jalan meski `benar` hilang.
+ */
+export type PublicGradedDetail = Omit<GradedDetail, 'kunci' | 'benar' | 'poin' | 'statements'> & {
+  statements?: PublicGradedStatement[];
+};
+
+/** Hasil penilaian versi siswa: nilai agregat tanpa rincian status per butir. */
+export type PublicGradeResult = Omit<GradeResult, 'detail'> & { detail: PublicGradedDetail[] };
+
+/**
+ * Buang kunci jawaban DAN umpan balik per butir dari hasil penilaian sebelum
+ * dikirim ke browser siswa.
+ *
+ * `gradeSubmission()` sengaja menyimpan `kunci`, `benar`, dan `poin` di `detail`
+ * supaya rekap guru, koreksi esai, dan analisis butir soal di `/p/:slug/data`
+ * tetap punya data lengkap. Ketiganya TIDAK boleh ikut ke siswa karena kuis
+ * publik boleh diulang: dengan `benar` per soal, siswa cukup submit dengan
+ * jawaban berbeda beberapa kali lalu melihat nomor soal mana yang berubah jadi
+ * "Benar" — seluruh kunci kuis bisa diekstrak tanpa perlu menyalin `kunci` dari
+ * DevTools. Menyembunyikan `kunci` saja tidak menutup jalur ini.
+ *
+ * Yang tetap dikirim: nilai agregat (`score`, `points_earned`, `points_total`,
+ * `full_points`), bobot maksimum (`poin_maks`), nomor dan teks soal, jawaban
+ * siswa sendiri, serta pembahasan. Pembahasan tidak disaring di sini karena itu
+ * sudah dikendalikan terpisah lewat `show_explanation`; kalau pengajar ingin
+ * mengembalikannya, `show_explanation` adalah sakelarnya.
+ */
+export function publicGrading(graded: GradeResult): PublicGradeResult {
+  return {
+    ...graded,
+    // Sisa dari destructuring: `kunci`, `benar`, dan `poin` dibuang dengan
+    // sengaja, TypeScript tidak melaporkannya karena ada rest sibling (`rest`).
+    detail: (graded.detail ?? []).map((item) => {
+      const { kunci, benar, poin, statements, ...rest } = item;
+      if (!statements || !statements.length) return rest;
+      return {
+        ...rest,
+        statements: statements.map(({ kunci: _kunci, benar: _benar, ...rowRest }) => rowRest),
+      };
+    }),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Generator halaman kuis                                                     */
 /* -------------------------------------------------------------------------- */

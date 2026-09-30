@@ -5,6 +5,7 @@
  * ========================================================================== */
 import type { Hono } from 'hono';
 import { isAuthed } from './auth';
+import { noStorePage } from './admin-shared';
 import { renderPrintSheet } from './quiz';
 import type { QuizSpec } from './quiz';
 import { messageCard } from './ui-card.ts';
@@ -29,6 +30,11 @@ app.get('/p/:slug', async (c) => {
     if (wantsKunci && !(await isAuthed(c))) {
       return c.html(notFoundCard(), 404);
     }
+    // Sheet `&kunci=1` memuat kunci jawaban seluruh kuis. Walaupun sudah
+    // dijaga isAuthed, tanpa no-store halaman ini bisa nyangkut di cache /
+    // bfcache dan muncul lagi lewat tombol Back tanpa sesi. Sheet `?print=1`
+    // polos tetap seperti biasa (naskah soal bukan rahasia).
+    if (wantsKunci) noStorePage(c);
     const specRaw = await c.env.STORAGE.get(`quiz:${slug}`);
     if (specRaw) {
       try {

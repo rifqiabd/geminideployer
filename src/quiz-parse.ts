@@ -35,6 +35,16 @@ import type {
 } from './quiz-types.ts';
 
 
+
+/**
+ * Batas waktu default (menit) untuk kuis yang tidak menyebut `duration_minutes`.
+ * Dipakai parser dan kotak "Durasi latihan" di editor soal, jadi keduanya
+ * menampilkan angka yang sama. Menghapus kunci (atau mengosongkan field editor)
+ * berarti "pakai default ini"; untuk men-disable timer tulis eksplisit `0`.
+ */
+export const DEFAULT_DURATION_MINUTES = 90;
+
+
 /* -------------------------------------------------------------------------- */
 /* Parsing spec                                                               */
 /* -------------------------------------------------------------------------- */
@@ -955,9 +965,13 @@ export function parseQuizSpec(raw: string): QuizSpec {
   const rawKkm = Number(pick(obj, ['passing_score', 'kkm', 'nilai_minimum', 'nilai_lulus']) ?? 70);
   const passingScore = Number.isFinite(rawKkm) ? Math.min(100, Math.max(0, Math.round(rawKkm))) : 70;
 
-  // Durasi latihan opsional (menit). 0/teks aneh = tanpa timer; batas 1-600
-  // menit supaya typo (mis. 6000) tidak jadi penghitung yang tidak masuk akal.
-  const rawDuration = Number(pick(obj, ['duration_minutes', 'durasi_menit']) ?? 0);
+  // Durasi latihan opsional (menit).
+  //   - kunci `duration_minutes` tidak ada  -> DEFAULT_DURATION_MINUTES (90)
+  //   - `duration_minutes: 0` atau teks aneh -> tanpa timer (sengaja dikosongkan)
+  // Batas 1-600 menit supaya typo (mis. 6000) tidak jadi penghitung yang tidak
+  // masuk akal. Perhatikan bedanya: "tidak ada" berarti 90, "0" berarti sengaja
+  // tanpa timer — jangan disamakan, karena itu cara guru mematikan timer.
+  const rawDuration = Number(pick(obj, ['duration_minutes', 'durasi_menit']) ?? DEFAULT_DURATION_MINUTES);
   const durationMinutes =
     Number.isFinite(rawDuration) && rawDuration >= 1 && rawDuration <= 600 ? Math.round(rawDuration) : null;
 
@@ -1079,7 +1093,11 @@ export function quizToAuthoringSource(quiz: QuizSpec): Record<string, unknown> {
     title: quiz.title,
     description: quiz.description,
     passing_score: quiz.passingScore,
-    ...(quiz.durationMinutes ? { duration_minutes: quiz.durationMinutes } : {}),
+    // Selalu tulis duration_minutes, termasuk 0 untuk kuis tanpa timer.
+    // Kalau kuncinya dihapus saat durationMinutes null, editor akan memakai
+    // DEFAULT_DURATION_MINUTES dan kuis yang sengaja tanpa timer ikut dapet
+    // timer begitu guru menyimpan perubahan berikutnya.
+    duration_minutes: quiz.durationMinutes ?? 0,
     ...(quiz.identityFields === 'name_class' ? { identity_fields: 'name_class' } : {}),
     ...(quiz.showExplanation === false ? { show_explanation: false } : {}),
     questions,

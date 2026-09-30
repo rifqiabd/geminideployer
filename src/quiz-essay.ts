@@ -18,6 +18,7 @@ import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz
 import type { GradeResult, GradedDetail, QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
 import { messageCard } from './ui-card.ts';
+import { noStorePage } from './admin-shared';
 import { FAVICON_TAGS } from './favicon.ts';
 
 type EssayBindings = MediaBindings & { DB: D1Database };
@@ -143,6 +144,9 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
       </article>`;
       })
       .join('');
+
+    // Halaman koreksi memuat jawaban esai siswa.
+    noStorePage(c);
 
     return c.html(`<!DOCTYPE html>
 <html lang="id">

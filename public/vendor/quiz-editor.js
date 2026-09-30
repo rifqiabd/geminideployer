@@ -12,6 +12,11 @@
   var state = boot.source && typeof boot.source === 'object' ? boot.source : {};
   if (!Array.isArray(state.questions)) state.questions = [];
 
+  // Default durasi (menit) yang disuntik server; harus sama dengan
+  // DEFAULT_DURATION_MINUTES di src/quiz-parse.ts. Dipakai hanya untuk
+  // mengisi field yang belum pernah diisi.
+  var DEFAULT_DURATION_MINUTES = Number(boot.defaultDurationMinutes) > 0 ? Number(boot.defaultDurationMinutes) : 90;
+
   var TYPES = [
     ['choice', 'Pilihan ganda'],
     ['multi', 'PG kompleks (banyak jawaban)'],
@@ -857,7 +862,10 @@ if (type === 'true_false') {
   titleInput.value = state.title || '';
   descInput.value = state.description || '';
   kkmInput.value = state.passing_score === undefined ? 70 : state.passing_score;
-  durationInput.value = state.duration_minutes || '';
+  // Kunci duration_minutes yang hilang = pakai default parser (90 menit), jadi
+  // field ikut menampilkan angka yang sama. Quiz yang memang tanpa timer punya
+  // duration_minutes: 0 di state dan tetap tampil 0 lewat `=== undefined`.
+  durationInput.value = state.duration_minutes === undefined ? DEFAULT_DURATION_MINUTES : state.duration_minutes;
   identitySelect.value = state.identity_fields === 'name_class' ? 'name_class' : 'name';
 
   titleInput.addEventListener('input', function () { state.title = titleInput.value; markDirty(); });
@@ -865,9 +873,11 @@ if (type === 'true_false') {
   kkmInput.addEventListener('input', function () { state.passing_score = Number(kkmInput.value); markDirty(); });
   durationInput.addEventListener('input', function () {
     var minutes = Number(durationInput.value);
-    // Kosong = tanpa timer; nilai di luar 1-600 dibuang saat disimpan parser.
+    // Kosong = guru sengaja mematikan timer, jadi tulis 0 EKSPLISIT. Kalau
+    // kuncinya dihapus, parser akan memakai default 90 menit dan timer nyala
+    // lagi — itu bukan yang guru maksud saat mengosongkan field.
     if (durationInput.value === '' || !Number.isFinite(minutes) || minutes < 1 || minutes > 600) {
-      delete state.duration_minutes;
+      state.duration_minutes = 0;
     } else {
       state.duration_minutes = Math.round(minutes);
     }

@@ -1047,6 +1047,11 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
         if (!result.ok || !result.data || result.data.status !== 'success') {
           throw new Error((result.data && result.data.message) || 'Server menolak jawaban ini.');
         }
+        // Draft sudah selesai: buang supaya reload berikutnya tidak memunculkan
+        // banner "lanjutkan jawaban" untuk attempt yang sudah terkirim
+        // (diceatat di docs/plan-google-cbt.md). Hanya di jalur sukses — kalau
+        // kirim gagal, draft harus tetap ada agar siswa bisa mencoba lagi.
+        try { localStorage.removeItem(ATTEMPT_KEY); } catch (err) {}
         showResult(result.data.grading, className ? name + ' — ' + className : name);
       })
       .catch(function (error) {
@@ -1103,27 +1108,24 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
 
     var list = el('ol', 'q-review');
     (grading.detail || []).forEach(function (item) {
-      var points = Math.round((item.poin || 0) * 100) / 100;
-      var partial = !item.benar && item.benar !== null && points > 0;
-      var cls = item.benar === null ? 'q-pending' : (item.benar ? 'q-ok' : partial ? 'q-partial' : 'q-no');
-      var status = item.benar === null
-        ? 'Belum dinilai'
-        : item.benar
-          ? 'Benar (+' + points + ')'
-          : partial
-            ? 'Sebagian benar (+' + points + ')'
-            : 'Salah';
-      var row = el('li', 'q-review-item ' + cls);
-      row.appendChild(el('span', 'q-review-status', status));
+      // Status benar/salah per butir SENGAJA tidak dirender. Server membuang
+      // kunci, benar, dan poin (publicGrading di quiz-grade.ts), jadi item tidak
+      // punya field itu di sini — dan halaman ini pernah tersimpan di KV
+      // html:<slug>, jadi jangan ditambahkan kembali hanya untuk "mempertahankan"
+      // tampilan. Kuis publik boleh diulang, jadi badge "Benar/Salah" per nomor
+      // justru memberi siswa cara menebak kunci dengan mencoba jawaban
+      // berulang. Yang ditampilkan: soal, jawaban sendiri, dan pembahasan.
+      var row = el('li', 'q-review-item');
 
+      // question_html berisi markup (gambar, LaTeX, format), jadi harus lewat
+      // innerHTML — el() memakai textContent dan akan meng-escape-nya.
       var questionNode = el('div', 'q-review-q');
       questionNode.innerHTML = '<strong>Soal ' + item.no + '.</strong> ' + (item.question_html || '');
       row.appendChild(questionNode);
 
       row.appendChild(el('div', 'q-review-a', 'Jawabanmu: ' + (item.jawaban ? item.jawaban : '(kosong)')));
-      if (item.kunci) row.appendChild(el('div', 'q-review-key', 'Kunci: ' + item.kunci));
 
-      // Soal kategori: tandai pernyataan mana yang keliru.
+      // Soal kategori: tampilkan pernyataan apa adanya, tanpa penanda benar/salah.
       if (item.statements && item.statements.length) {
         var table = el('table', 'q-review-statements');
         var head = el('thead');
@@ -1131,15 +1133,13 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
         var headRow = el('tr');
         headRow.appendChild(el('th', null, item.row_label || 'Pernyataan'));
         headRow.appendChild(el('th', null, 'Jawabanmu'));
-        headRow.appendChild(el('th', null, 'Kunci'));
         head.appendChild(headRow);
         table.appendChild(head);
         var body = el('tbody');
         item.statements.forEach(function (statement) {
-          var line = el('tr', statement.benar ? 'q-ok' : 'q-no');
+          var line = el('tr');
           line.appendChild(el('td', null, statement.text));
           line.appendChild(el('td', null, statement.jawaban));
-          line.appendChild(el('td', null, statement.kunci));
           body.appendChild(line);
         });
         table.appendChild(body);

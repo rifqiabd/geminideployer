@@ -19,6 +19,7 @@ import {
   signPreSession,
   verifyPreSession,
 } from './auth';
+import { noStorePage } from './admin-shared';
 
 // Bindings minimal dashboard: KV + R2 opsional (statistik media) + secret auth.
 // `DB` dipakai app-index.ts sebagai jalur darurat: kalau kuota `list` KV harian
@@ -29,6 +30,12 @@ type DashboardEnv = { Bindings: DashboardBindings };
 
 export function registerDashboardRoutes<E extends DashboardEnv>(app: Hono<E>) {
 app.get('/', async (c) => {
+  // `/` melayani dua kondisi dari URL yang sama (masuk / belum masuk), jadi
+  // harus no-store di paling atas: kalau HTML versi guru tertahan di cache atau
+  // bfcache, siswa berikutnya di laptop bersama bisa membacanya lewat tombol
+  // Back tanpa perlu sesi.
+  noStorePage(c);
+
   // T0: tanpa secret wajib, tampilkan halaman instruksi 503 daripada form
   // login yang pasti ditolak — supaya lockout tidak butuh tebakan.
   if (missingSecrets(c.env).length) return c.html(secretSetupPage(), 503);

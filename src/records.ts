@@ -5,10 +5,11 @@
  *   GET  /p/:slug/data — rekap admin: riwayat kiriman, antrean esai, analisis.
  * ========================================================================== */
 import type { Context, Hono } from 'hono';
-import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz';
+import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec, publicGrading } from './quiz';
 import type { QuizSpec } from './quiz';
 import { computeItemAnalysis, renderItemAnalysis } from './quiz-report';
 import { isAuthed } from './auth';
+import { noStorePage } from './admin-shared';
 import { FAVICON_TAGS } from './favicon.ts';
 
 // Bindings minimal: KV + D1 (kiriman) + SESSION_SECRET (rekap admin).
@@ -66,6 +67,14 @@ const saveRecordHandler = async (c: Context<E>) => {
         detail: graded.detail,
       };
 
+      // Yang dikirim ke siswa HARUS lewat publicGrading(): kunci jawaban,
+      // status benar/salah, dan poin per butir ikut dibuang. Tanpa itu satu
+      // kiriman cukup untuk menyalin seluruh kunci kuis lewat DevTools, dan
+      // karena kuis publik boleh diulang, `benar` per soal saja sudah cukup
+      // untuk menebak kunci dengan mencoba jawaban berulang. `payload` di atas
+      // tetap memakai `graded.detail` apa adanya supaya rekap guru, koreksi
+      // esai, dan analisis butir soal di /p/:slug/data tidak kehilangan data
+      // (dan format app_records lama tidak berubah).
       grading = {
         score: graded.score,
         points_earned: graded.points_earned,
@@ -78,7 +87,7 @@ const saveRecordHandler = async (c: Context<E>) => {
         final_score: graded.final_score,
         passing_score: spec.passingScore,
         lulus,
-        detail: graded.detail,
+        detail: publicGrading(graded).detail,
       };
     } catch {
       // Spec tidak terbaca: jawaban tetap disimpan apa adanya seperti perilaku lama.
@@ -168,6 +177,10 @@ app.get('/p/:slug/data', async (c) => {
       analysisHtml = '';
     }
   }
+
+  // Rekap memuat seluruh jawaban kelas — jangan sampai tertahan di cache
+  // browser setelah guru logout (mis. laptop dipakai bersama di kelas).
+  noStorePage(c);
 
   return c.html(`<!DOCTYPE html>
 <html lang="id">

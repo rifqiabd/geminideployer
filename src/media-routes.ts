@@ -14,6 +14,7 @@ import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth.ts'
 import { collectMediaSlotsFromStored, escapeHtml, mediaContextFromRaw, mediaSlotContext, mediaSlotContextFull, parseQuizSpec, sanitizeMediaName } from './quiz.ts';
 import { buildGeminiPrompt, generateImage, mediaGenConfig, saveGeneratedMedia, IMGGEN_MODELS } from './media-gen.ts';
 import { messageCard } from './ui-card.ts';
+import { noStorePage } from './admin-shared';
 import { FAVICON_TAGS } from './favicon.ts';
 import type { MediaGenConfig, MediaGenSettings } from './media-gen.ts';
 import {
@@ -487,6 +488,8 @@ export function registerMediaRoutes<E extends { Bindings: MediaBindings }>(app: 
           )
           .join('')
       : `<div class="m-empty">Belum ada gambar tersimpan untuk aplikasi ini.</div>`;
+
+    noStorePage(c);
 
     return c.html(`<!DOCTYPE html>
 <html lang="id">
