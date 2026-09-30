@@ -1112,11 +1112,13 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
 
     var list = el('ol', 'q-review');
     // Umpan balik per butir hanya dirender kalau guru menyalakan
-    // show_item_feedback di pengaturan aplikasi. Server sudah membuang
-    // kunci, benar, dan poin dari respons saat sakelar mati, jadi item tidak
-    // punya field itu di sini — tapi kita tetap pakai CFG sebagai penjaga kedua,
-    // supaya halaman html:<slug> versi lama (yang masih ada di KV) tidak
-    // pernah menampilkan badge dari data yang kebetulan masih punya benar.
+    // show_item_feedback di pengaturan aplikasi (default nyala). Server sudah
+    // membuang kunci, benar, dan poin dari respons saat sakelar mati, jadi item
+    // tidak punya field itu di sini — tapi kita tetap pakai CFG sebagai penjaga
+    // kedua, dan penjaga itu sengaja TETAP ketat (=== true, tidak dibalik jadi
+    // !== false): halaman html:<slug> versi lama (masih ada di KV) punya CFG
+    // tanpa flag ini, dan penjaga ketat membuat halaman lama itu gagal
+    // tertutup, bukan ikut menampilkan badge dari data lama.
     var withFeedback = CFG.showItemFeedback === true;
     (grading.detail || []).forEach(function (item) {
       var row = el('li', 'q-review-item');

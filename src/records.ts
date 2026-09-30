@@ -69,13 +69,14 @@ const saveRecordHandler = async (c: Context<E>) => {
 
       // Yang dikirim ke siswa HARUS lewat publicGrading(): kunci jawaban selalu
       // dibuang, dan status benar/salah + poin per butir ikut dibuang kecuali
-      // guru menyalakan `show_item_feedback` di pengaturan aplikasi. Tanpa itu
-      // satu kiriman cukup untuk menyalin seluruh kunci kuis lewat DevTools, dan
-      // karena kuis publik boleh diulang, `benar` per soal saja sudah cukup
-      // untuk menebak kunci dengan mencoba jawaban berulang. `payload` di atas
-      // tetap memakai `graded.detail` apa adanya supaya rekap guru, koreksi
-      // esai, dan analisis butir soal di /p/:slug/data tidak kehilangan data
-      // (dan format app_records lama tidak berubah).
+      // guru menyalakan `show_item_feedback` (default nyala di pengaturan
+      // aplikasi, jadi biasanya ikut terkirim). Tanpa flag itu satu kiriman
+      // cukup untuk menyalin seluruh kunci kuis lewat DevTools, dan karena kuis
+      // publik boleh diulang, `benar` per soal saja sudah cukup untuk menebak
+      // kunci dengan mencoba jawaban berulang. `payload` di atas tetap memakai
+      // `graded.detail` apa adanya supaya rekap guru, koreksi esai, dan analisis
+      // butir soal di /p/:slug/data tidak kehilangan data (dan format
+      // app_records lama tidak berubah).
       grading = {
         score: graded.score,
         points_earned: graded.points_earned,

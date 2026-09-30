@@ -868,10 +868,10 @@ if (type === 'true_false') {
   // duration_minutes: 0 di state dan tetap tampil 0 lewat `=== undefined`.
   durationInput.value = state.duration_minutes === undefined ? DEFAULT_DURATION_MINUTES : state.duration_minutes;
   identitySelect.value = state.identity_fields === 'name_class' ? 'name_class' : 'name';
-  // Default-nya MATI: kunci show_item_feedback yang hilang berarti siswa tidak
+  // Default-nya NYALA: kunci show_item_feedback yang hilang berarti siswa
   // melihat status benar/salah per butir. Sama dengan default parser di
-  // src/quiz-parse.ts, jadi `=== true` (bukan `!== false`) yang dipakai di sini.
-  itemFeedbackInput.checked = state.show_item_feedback === true;
+  // src/quiz-parse.ts, jadi `!== false` (bukan `=== true`) yang dipakai di sini.
+  itemFeedbackInput.checked = state.show_item_feedback !== false;
 
   titleInput.addEventListener('input', function () { state.title = titleInput.value; markDirty(); });
   descInput.addEventListener('input', function () { state.description = descInput.value; markDirty(); });
@@ -895,10 +895,11 @@ if (type === 'true_false') {
   });
 
   itemFeedbackInput.addEventListener('change', function () {
-    // Sama seperti show_explanation: hapus kunci saat off supaya JSON yang
-    // disimpan tetap ringkas dan "kunci tidak ada" tetap berarti default mati.
-    if (itemFeedbackInput.checked) state.show_item_feedback = true;
-    else delete state.show_item_feedback;
+    // Default-nya nyala, jadi key hanya ditulis saat guru MATIKAN. Kalau nyala
+    // lagi key-nya dihapus supaya "hilang" tetap berarti default, sama seperti
+    // show_explanation di atas.
+    if (itemFeedbackInput.checked) delete state.show_item_feedback;
+    else state.show_item_feedback = false;
     markDirty();
   });
 

@@ -3,7 +3,7 @@
     "hono": "^4.13.8"
   },
   "scripts": {
-    "test": "node tests/quiz.test.mjs && node tests/meta-date.test.mjs && node tests/slug.test.mjs && node tests/auth.test.mjs && node tests/media-cap.test.mjs && node tests/app-index.test.mjs && node tests/ui-card.test.mjs && node tests/dashboard-ui.test.mjs",
+    "test": "node tests/quiz-page-source.test.mjs && node tests/quiz.test.mjs && node tests/meta-date.test.mjs && node tests/slug.test.mjs && node tests/auth.test.mjs && node tests/media-cap.test.mjs && node tests/app-index.test.mjs && node tests/ui-card.test.mjs && node tests/dashboard-ui.test.mjs",
     "typecheck": "tsc --noEmit",
     "db:schema:local": "wrangler d1 execute gemini-db --local --file schema.sql",
     "db:schema:local:staging": "wrangler d1 execute gemini-db-staging --env staging --local --file schema.sql",

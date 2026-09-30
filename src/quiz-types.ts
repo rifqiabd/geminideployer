@@ -169,13 +169,13 @@ export type QuizSpec = {
   showExplanation: boolean;
   /**
    * true = siswa melihat status benar/salah (dan poin parsial) per butir di
-   * layar hasil. Default false.
+   * layar hasil. Default true.
    *
    * Ini sakelar umpan balik, BUKAN sakelar kunci jawaban: `kunci` tetap dibuang
    * dari respons siswa apa pun nilai sakelar ini. Tapi hati-hati — kuis publik
-   * boleh diulang, jadi menyalakan ini membuat siswa bisa menebak kunci dengan
-   * mencoba jawaban berulang lalu melihat butir mana yang berubah status.
-   * Pakai hanya untuk latihan yang memang perlu umpan balik per butir.
+   * boleh diulang, jadi membiarkannya aktif membuat siswa bisa menebak kunci
+   * dengan mencoba jawaban berulang lalu melihat butir mana yang berubah status.
+   * Set false untuk kuis ulangan.
    */
   showItemFeedback: boolean;
   questions: QuizQuestion[];

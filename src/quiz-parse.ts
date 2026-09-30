@@ -990,10 +990,12 @@ export function parseQuizSpec(raw: string): QuizSpec {
     features: [...features],
     stimuli,
     showExplanation: resolveBoolean(pick(obj, ['show_explanation', 'tampilkan_pembahasan'])) !== false,
-    // Default MATI: siswa tidak melihat status benar/salah per butir. Kunci
-    // jawaban sendiri selalu dibuang terpisah di publicGrading(), sakelar ini
-    // hanya soal umpan balik.
-    showItemFeedback: resolveBoolean(pick(obj, ['show_item_feedback', 'tampilkan_status_jawab'])) === true,
+    // Default NYALA: siswa melihat status benar/salah per butir. Kunci jawaban
+    // sendiri tetap dibuang terpisah di publicGrading() pada mode apa pun, jadi
+    // yang tampil cuma "soal nomor berapa yang saya benar", bukan jawaban
+    // benarnya. Guru mematikan lewat `show_item_feedback: false` untuk kuis
+    // ulangan; kunci yang hilang berarti default nyala.
+    showItemFeedback: resolveBoolean(pick(obj, ['show_item_feedback', 'tampilkan_status_jawab'])) !== false,
     questions,
   };
 }
@@ -1105,8 +1107,10 @@ export function quizToAuthoringSource(quiz: QuizSpec): Record<string, unknown> {
     ...(quiz.identityFields === 'name_class' ? { identity_fields: 'name_class' } : {}),
     ...(quiz.showExplanation === false ? { show_explanation: false } : {}),
     // Sama seperti show_explanation: hanya tulis saat tidak default, supaya
-    // JSON yang disimpan guru tetap ringkas dan key yang hilang = default mati.
-    ...(quiz.showItemFeedback ? { show_item_feedback: true } : {}),
+    // JSON yang disimpan guru tetap ringkas dan key yang hilang = default nyala.
+    // Quiz yang dibuat sebelum default dibalik tidak punya key ini sama sekali,
+    // jadi ikut nyala — itu konsekuensi yang disengaja (lihat tests/quiz.test.mjs).
+    ...(quiz.showItemFeedback === false ? { show_item_feedback: false } : {}),
     questions,
   };
 }

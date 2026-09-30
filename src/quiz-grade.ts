@@ -505,11 +505,17 @@ export function gradeSubmission(
 /* Bentuk untuk siswa                                                          */
 /* -------------------------------------------------------------------------- */
 
-/** Opsi scrubbing untuk `publicGrading()`. */
+/**
+ * Opsi scrubbing untuk `publicGrading()`.
+ *
+ * Sengaja TIDAK ada default nyala di sini, walaupun sakelar aplikasi
+ * `show_item_feedback` default-nya nyala. Default fungsi dibiarkan mati supaya
+ * call site mana pun yang lupa mengoper flag gagal tertutup, bukan bocor: cara
+ * menyalakan umpan balik selalu lewat `itemFeedback: true` yang eksplisit.
+ */
 export type PublicGradingOptions = {
   /**
    * true = kirim `benar` + `poin` (umpan balik per butir). `kunci` tetap dibuang.
-   * Default false: status per butir membuka jalur menebak kunci lewat pengulangan.
    */
   itemFeedback?: boolean;
 };
@@ -550,16 +556,16 @@ export type PublicGradeResult = Omit<GradeResult, 'detail'> & { detail: PublicGr
  *
  * `gradeSubmission()` sengaja menyimpan `kunci`, `benar`, dan `poin` di `detail`
  * supaya rekap guru, koreksi esai, dan analisis butir soal di `/p/:slug/data`
- * tetap punya data lengkap. Ketiganya TIDAK boleh ikut ke siswa secara default
- * karena kuis publik boleh diulang: dengan `benar` per soal, siswa cukup submit
- * dengan jawaban berbeda beberapa kali lalu melihat nomor soal mana yang berubah
- * jadi "Benar" — seluruh kunci kuis bisa diekstrak tanpa perlu menyalin `kunci`
- * dari DevTools. Menyembunyikan `kunci` saja tidak menutup jalur ini.
+ * tetap punya data lengkap. `kunci` TIDAK boleh ikut ke siswa dalam keadaan apa
+ * pun. `benar` + `poin` bisa ikut kalau guru memang meminta umpan balik per
+ * butir untuk latihan; kalau tidak, keduanya dibuang bersama karena kuis publik
+ * boleh diulang — dengan `benar` per soal, siswa cukup submit dengan jawaban
+ * berbeda beberapa kali lalu melihat nomor soal mana yang berubah jadi "Benar".
  *
- * Opsi `itemFeedback` (sakelar `show_item_feedback` di pengaturan aplikasi)
- * mengembalikan `benar` + `poin` kalau guru memang minta umpan balik per butir
- * untuk latihan. `kunci` tetap dibuang dalam kedua mode — sakelar itu soal
- * umpan balik, bukan soal membocorkan kunci.
+ * Opsi `itemFeedback` di sini tetap opt-in eksplisit walaupun sakelar aplikasi
+ * `show_item_feedback` default-nya nyala: safenya di sini, keputusannya di
+ * spec. `kunci` tetap dibuang dalam kedua mode — sakelar itu soal umpan balik,
+ * bukan soal membocorkan kunci.
  *
  * Yang selalu dikirim: nilai agregat (`score`, `points_earned`, `points_total`,
  * `full_points`), bobot maksimum (`poin_maks`), nomor dan teks soal, jawaban

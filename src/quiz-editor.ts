@@ -279,9 +279,9 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
       <div class="field">
         <label class="toggle">
           <input type="checkbox" id="qe-item-feedback">
-          <span>Tampilkan status benar/salah per soal</span>
+          <span>Tampilkan status benar/salah per soal <em style="font-style:normal;font-size:11px;color:var(--text-faint);font-weight:400">(default)</em></span>
         </label>
-        <p class="note warn">Mati = siswa hanya melihat nilai total, soal, dan jawabannya sendiri (aman dari tebak kunci). Nyalakan hanya untuk latihan yang memang perlu umpan balik per soal. Ingat: link kuis publik boleh dikerjakan berulang, jadi saat ini nyala siswa bisa menebak kunci dengan mencoba jawaban berulang lalu melihat soal mana yang berubah status. Kunci jawaban sendiri tetap tidak pernah dikirim ke browser.</p>
+        <p class="note warn">Aktif secara default: siswa melihat status Benar/Salah per soal. Matikan untuk kuis ulangan — kuis publik boleh dikerjakan berulang, jadi saat ini aktif siswa bisa menebak kunci dengan mengganti satu jawaban lalu melihat soal mana yang berubah status. Jawaban benarnya sendiri tidak pernah dikirim ke browser, yang tampil hanya statusnya.</p>
       </div>
     </div>
 

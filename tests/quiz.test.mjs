@@ -65,6 +65,33 @@ const jawaHtml = renderQuizApp(jawaSpec, 'uji-jawa');
 check('paragraf aksara jawa dibungkus .q-jv', jawaHtml.includes('<div class="q-jv">'), true);
 check('aksara jawa inline dibungkus .q-jv-inline', jawaHtml.includes('q-jv-inline'), true);
 
+// Pemeriksaan backtick di template literal quiz-page.ts ada di
+// tests/quiz-page-source.test.mjs, yang jalan sebelum file ini di-import. Di
+// sini cukup memastikan skrip klien hasil render benar-benar bisa di-parse.
+const clientScriptOf = (html) => {
+  const blocks = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  return blocks.join('\n');
+};
+const syntaxOk = (code) => {
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function(code);
+    return true;
+  } catch (error) {
+    return `ditolak: ${error instanceof Error ? error.message : String(error)}`;
+  }
+};
+const parseScriptSpec = parseQuizSpec(JSON.stringify({
+  title: 'Uji Skrip',
+  questions: [
+    { type: 'choice', question: '2 + 2 = ?', options: ['3', '4'], answer: '4' },
+    { type: 'true_false', question: 'Bumi bulat', answer: 'salah' },
+  ],
+}));
+check('halaman kuis punya skrip klien', clientScriptOf(jawaHtml).length > 500, true);
+check('skrip klien hasil render bisa di-parse', syntaxOk(clientScriptOf(jawaHtml)), true);
+check('skrip klien dengan sakelar umpan balik bisa di-parse', syntaxOk(clientScriptOf(renderQuizApp(parseScriptSpec, 'uji-skrip'))), true);
+
 // Normalisasi jawaban Jawa: angka Jawa (U+A9D0-A9D9) harus cocok dengan kunci
 // angka Latin, dan tanda baca Jawa ikut ter-strip seperti tanda baca biasa.
 const jawaGradeSpec = parseQuizSpec(
@@ -1118,6 +1145,12 @@ const editorJson = {
 const editor = runEditor(editorJson);
 check('editor: skrip editor bisa dijalankan tanpa browser', typeof editor.normalizeForSave, 'function');
 check('editor: semua tipe lanjutan lolos validasi', editor.problems(), []);
+// Checkbox umpan balik per butir harus memakai polaritas yang SAMA dengan parser
+// di src/quiz-parse.ts. Kalau salah satu dibalik dan yang lain tidak, guru
+// melihat centang yang berlawanan dengan perilaku sebenarnya dan tidak sadar.
+// Polaritas default parser: kunci yang hilang = nyala.
+check('editor: centang sakelar umpan balik memakai polaritas parser', /itemFeedbackInput\.checked = state\.show_item_feedback !== false/.test(editorSource), true);
+check('editor: sakelar mati ditulis eksplisit false', /if \(itemFeedbackInput\.checked\) delete state\.show_item_feedback;\s*else state\.show_item_feedback = false;/.test(editorSource), true);
 check('editor: tabel ditampilkan dengan penanda kurawal', editor.tableRowsText(editorJson.questions[3]), 'Timah | {327}');
 check(
   'editor: teks tabel dibaca kembali jadi kunci',
@@ -1508,8 +1541,8 @@ const bocorHtml = renderQuizApp(bocorSpec, 'uji-bocor');
 check('bocor: halaman hasil tidak merender label Kunci', bocorHtml.includes("'Kunci: '"), false);
 check('bocor: halaman hasil tidak merender kolom Kunci', bocorHtml.includes("el('th', null, 'Kunci')"), false);
 check('bocor: tidak ada teks "Kunci:" di HTML hasil', /Kunci: /.test(bocorHtml), false);
-check('bocor: default aplikasi mematikan umpan balik per butir', bocorSpec.showItemFeedback, false);
-check('bocor: CFG menyuntikkan showItemFeedback', bocorHtml.includes('"showItemFeedback":false'), true);
+check('bocor: default aplikasi menyalakan umpan balik per butir', bocorSpec.showItemFeedback, true);
+check('bocor: CFG menyuntikkan showItemFeedback', bocorHtml.includes('"showItemFeedback":true'), true);
 check('bocor: badge status dikunci di balik sakelar', bocorHtml.includes("if (withFeedback && 'benar' in item)"), true);
 check('bocor: sakelar dibaca dari CFG, bukan hardcode', bocorHtml.includes('var withFeedback = CFG.showItemFeedback === true'), true);
 check('bocor: warna baris statements juga dikunci sakelar', bocorHtml.includes("withFeedback && 'benar' in statement"), true);
@@ -1526,8 +1559,20 @@ check('toggle: status benar per baris ikut dikirim', bocorPubFeedback.detail.eve
 check('toggle: KUNCI tetap dibuang saat sakelar nyala', bocorPubFeedback.detail.every((d) => !('kunci' in d)), true);
 check('toggle: KUNCI per baris tetap dibuang saat sakelar nyala', bocorPubFeedback.detail.every((d) => (d.statements ?? []).every((s) => !('kunci' in s))), true);
 check('toggle: tidak ada Kunci: di respons mana pun', JSON.stringify(bocorPubFeedback).includes('"kunci"'), false);
+// Jalur DEFAULT diuji terpisah karena sekarang default-nya NYALA, jadi tidak
+// sama dengan kasus "opsi kosong" di bawah. Kalau assertion "tidak ada kunci"
+// ini tidak eksplisit, perubahan default di masa depan bisa diam-diam membuka
+// kebocoran tanpa ada test yang memerah.
+const bocorPubSpecDefault = publicGrading(bocorFull, { itemFeedback: bocorSpec.showItemFeedback });
+check('bocor: jalur default benar-benar mode nyala', bocorPubSpecDefault.detail.every((d) => 'benar' in d && 'poin' in d), true);
+check('bocor: jalur default tidak mengirim kunci', bocorPubSpecDefault.detail.every((d) => !('kunci' in d)), true);
+check('bocor: jalur default tidak mengirim kunci per baris', bocorPubSpecDefault.detail.every((d) => (d.statements ?? []).every((s) => !('kunci' in s))), true);
+check('bocor: jalur default tidak punya string kunci di respons', JSON.stringify(bocorPubSpecDefault).includes('"kunci"'), false);
 check('toggle: nilai agregat tetap sama dengan mode mati', bocorPubFeedback.score, bocorPub.score);
-// Opsi yang tidak diteruskan (undefined) harus sama dengan default mati.
+// Opsi yang tidak diteruskan (undefined) harus tetap mati. Ini default FUNGSI
+// publicGrading, bukan default aplikasi: sakelar show_item_feedback default-nya
+// nyala, tapi fungsi ini sengaja opt-in supaya call site yang lupa mengoper flag
+// gagal tertutup. records.ts yang memutuskan, dengan mengoper flag spec.
 const bocorPubDefault = publicGrading(bocorFull, {});
 check('toggle: opsi kosong = mode mati', bocorPubDefault.detail.every((d) => !('benar' in d) && !('poin' in d)), true);
 check('toggle: itemFeedback falsy apa pun bukan nyala', publicGrading(bocorFull, { itemFeedback: 0 }).detail.every((d) => !('benar' in d)), true);
@@ -1538,21 +1583,26 @@ check('toggle: mode nyala tidak share objek dengan aslinya', bocorPubFeedback.de
 //    hanya karena menyimpan ulang di editor. Soal diambil dari
 //    quizToAuthoringSource() karena parseQuizSpec membaca bentuk TULIS guru
 //    (options/answer/keys), bukan bentuk internal yang sudah dinormalisasi.
+//    Default sakelar NYALA, jadi `toggleSource({})` = nyala dan yang diuji
+//    eksplisit mati adalah `show_item_feedback: false`.
 const toggleQuestions = quizToAuthoringSource(bocorSpec).questions;
 const toggleSource = (extra) => JSON.stringify({ title: 'Latihan', ...extra, questions: toggleQuestions });
-const toggleSpecOn = parseQuizSpec(toggleSource({ show_item_feedback: true }));
-const toggleSpecOff = parseQuizSpec(toggleSource({}));
+const toggleSpecDefault = parseQuizSpec(toggleSource({}));
+const toggleSpecTrue = parseQuizSpec(toggleSource({ show_item_feedback: true }));
 const toggleSpecFalse = parseQuizSpec(toggleSource({ show_item_feedback: false }));
-check('toggle: parse mengaktifkan sakelar', toggleSpecOn.showItemFeedback, true);
-check('toggle: parse default = mati', toggleSpecOff.showItemFeedback, false);
+check('toggle: parse default = nyala', toggleSpecDefault.showItemFeedback, true);
+check('toggle: parse explicit true = nyala', toggleSpecTrue.showItemFeedback, true);
 check('toggle: parse explicit false = mati', toggleSpecFalse.showItemFeedback, false);
-check('toggle: alias Indonesia dihormati', parseQuizSpec(toggleSource({ tampilkan_status_jawab: true })).showItemFeedback, true);
-check('toggle: round-trip menulis kunci saat nyala', quizToAuthoringSource(toggleSpecOn).show_item_feedback, true);
-check('toggle: round-trip tidak menulis kunci saat mati', 'show_item_feedback' in quizToAuthoringSource(toggleSpecOff), false);
-check('toggle: parse->tulis->parse mempertahankan sakelar', parseQuizSpec(JSON.stringify(quizToAuthoringSource(toggleSpecOn))).showItemFeedback, true);
-check('toggle: parse->tulis->parse mempertahankan keadaan mati', parseQuizSpec(JSON.stringify(quizToAuthoringSource(toggleSpecOff))).showItemFeedback, false);
+// Alias diuji lewat nilai MATI, bukan nyala. Kalau alias diuji dengan `true`
+// sekarang default-nya sudah true, jadi test-nya akan lulus walaupun
+// `tampilkan_status_jawab` dihapus total — aliasnya berbohong tidak ketahuan.
+check('toggle: alias Indonesia dihormati', parseQuizSpec(toggleSource({ tampilkan_status_jawab: false })).showItemFeedback, false);
+check('toggle: round-trip tidak menulis key saat default nyala', 'show_item_feedback' in quizToAuthoringSource(toggleSpecDefault), false);
+check('toggle: round-trip menulis false saat dimatikan', quizToAuthoringSource(toggleSpecFalse).show_item_feedback, false);
+check('toggle: parse->tulis->parse mempertahankan keadaan mati', parseQuizSpec(JSON.stringify(quizToAuthoringSource(toggleSpecFalse))).showItemFeedback, false);
+check('toggle: parse->tulis->parse mempertahankan default nyala', parseQuizSpec(JSON.stringify(quizToAuthoringSource(toggleSpecDefault))).showItemFeedback, true);
 // Sakelar tidak boleh mengubah pertanyaan sama sekali saat putar balik.
-check('toggle: round-trip tidak mengubah isi soal', quizToAuthoringSource(toggleSpecOn).questions.length, toggleQuestions.length);
+check('toggle: round-trip tidak mengubah isi soal', quizToAuthoringSource(toggleSpecTrue).questions.length, toggleQuestions.length);
 
 console.log(failed === 0 ? '\nSemua tes lulus.' : `\n${failed} tes GAGAL.`);
 process.exit(failed === 0 ? 0 : 1);
