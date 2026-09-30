@@ -157,13 +157,13 @@ Ini bagian yang paling mudah dilupakan, jadi wajib ada di UI, bukan cuma di doku
 
 ## 11. Pengujian
 
-`tests/quiz.test.mjs` dan `tests/quiz-page-source.test.mjs` tidak punya DOM, jadi:
+`tests/quiz.test.mjs` dan `tests/quiz-page-source.test.mjs` **ada dan sudah dirangkai ke `npm test`** (keduanya tanpa DOM), jadi:
 
 - **Snapshot lifecycle** — helper murni (baca/simpan/buang snapshot) sebaiknya ditulis sebagai fungsi kecil yang menerima storage, lalu diuji langsung: tulis, baca, `fp` mismatch dibuang, bentuk rusak dibuang, versi lain dibuang.
 - **Source guard** — `tests/quiz-page-source.test.mjs` harus memaksa `Kerjakan Lagi` menghapus kunci `quiz-done` **dan** `TIMER_KEY`, supaya regresi reload-tanpa-pembersihan ketahuan tanpa perlu browser. Ini pengaman paling penting di daftar ini.
 - **Sakelar** — alias `ingat_hasil: false` mematikan; key hilang menyalakan; round-trip tidak menulis key saat nyala.
 - **Integrasi** — cek manual di `npx wrangler dev --env staging`: submit, reload, hasil muncul; klik Kerjakan Lagi, gerbang/timer kembali benar; matikan sakelar di editor, simpan, buka lagi, snapshot hilang.
-- **Tidak ada** verifikasi lewat `wrangler dev` untuk data yang menyentuh KV production — `STORAGE` memakai `remote: true` (`docs/plan-google-cbt.md` §17). Smoke test yang mengubah data harus lewat deploy staging.
+- **Tidak ada** verifikasi lewat `wrangler dev` untuk data yang menyentuh KV production. Catatan: sejak 30 Sep 2026 `STORAGE` memakai `remote: false` di `wrangler.jsonc` (sebelumnya `true`), dan R2 aktif di kedua env, jadi `wrangler dev` sekarang menulis ke store lokal — tapi smoke test yang mengubah data tetap lewat **deploy staging**, karena production dan staging punya binding terpisah dan hanya staging yang boleh dimutasi saat pengujian. Lihat `docs/plan-google-cbt.md` §17.
 
 ## 12. Yang Belum Diputuskan
 
@@ -191,4 +191,4 @@ Ini bagian yang paling mudah dilupakan, jadi wajib ada di UI, bukan cuma di doku
 - Fitur ini bukan penguncian dan tidak akan pernah diklaim sebagai penguncian di UI.
 - Laporan guru dan rekap tetap bersumber dari `app_records`/`quiz_attempts`; snapshot tidak pernah dibaca server.
 - Penguncian asli ditunda ke `docs/plan-google-cbt.md`, bukan diimplementasikan di sini.
-- `tests/plan-google-cbt.md` punya pasangan `.html` yang harus disinkronkan manual; dokumen ini **tidak** punya pasangan `.html`, jadi tidak ada yang harus disinkronkan. `plan-hardening-auth.md` juga `.md` saja, jadi pola ini sudah lazim.
+- Dokumen berpasangan `.md` + `.html` yang perlu disinkronkan manual: hanya `docs/plan-google-cbt.md` ↔ `.html` (lihat `docs/plan-google-cbt.md` §19) dan `docs/analisis-resource.md` ↔ `.html`. `plan-split-index.html` sudah **dihapus** (30 Sep 2026) karena duplikat tanpa sinkronisasi. Dokumen ini **tidak** punya pasangan `.html`, jadi tidak ada yang harus disinkronkan — sama seperti `plan-hardening-auth.md`.

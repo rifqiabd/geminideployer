@@ -16,11 +16,11 @@
 - `package-lock.json` and `bun.lock` are both present. Use the existing npm workflow and do not regenerate/switch lockfiles without an explicit request.
 
 ## Runtime and storage
-- `wrangler.jsonc` defines `STORAGE` (KV), `DB` (D1), and `ASSETS` (`public`). The `MEDIA` R2 binding is optional and currently commented out, so media falls back to KV.
-- KV keys are compatibility-sensitive: `html:<slug>`, `meta:<slug>`, `quiz:<slug>`, `quizsource:<slug>`, `media:<slug>:<name>`, and `imggencfg:<slug>`.
+- `wrangler.jsonc` defines `STORAGE` (KV), `DB` (D1), `MEDIA` (R2), and `ASSETS` (`public`). The `MEDIA` R2 binding is active in both production and staging (separate buckets); media falls back to KV only if the binding is removed. New media is written to R2, and legacy KV media migrates to R2 on first read.
+- KV keys are compatibility-sensitive: `html:<slug>`, `meta:<slug>`, `quiz:<slug>`, `quizsource:<slug>`, `media:<slug>:<name>`, `imggencfg:<slug>`, and the fail-closed login counters `loginfail:*` / `loginlock:*`.
 - `schema.sql` currently defines only `app_records`; there is no migrations directory or migration runner configured.
 - Two different `created_at` shapes exist and must not be confused. KV meta uses ISO with `Z` (`stampNow()`) and renders through `relTime()`. `app_records.created_at` comes from SQLite `DEFAULT CURRENT_TIMESTAMP`, so it is `YYYY-MM-DD HH:MM:SS` UTC with **no** zone marker. Render it with `formatRecordStamp()`; `parseStamp()` would read it as machine-local time. Storing stays UTC, so `ORDER BY created_at` is unaffected; only the display needs converting.
-- `STORAGE` is marked `remote: true` in `wrangler.jsonc`; do not assume local development uses only local storage. Staging has separate KV and D1 bindings.
+- `STORAGE` is marked `remote: false` in `wrangler.jsonc` (changed from `true` because the KV free tier caps writes at 1,000/day, and `remote: true` made every local `wrangler dev` session burn the production quota). Flip it to `true` only when you deliberately need to test against production data. Staging has separate KV and D1 bindings.
 - Media limits are 8 MB per file and 200 files per app. SVG is rejected; media slot names may contain dots and must not be filtered through `safeSlug()`.
 
 ## Security and compatibility

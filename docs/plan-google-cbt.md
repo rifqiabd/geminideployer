@@ -73,14 +73,24 @@ Target awal: satu sekolah, sekitar 30 siswa
 
 ### Autentikasi
 
-- `src/auth.ts:11-13` (`isAuthed`) hanya membandingkan cookie dengan literal `authenticated_user`. Satu nilai cookie dipakai bersama oleh semua orang; tidak ada identitas, role, atau expiry.
-- `src/index.ts:537-556` memakai satu password bersama dan masih memiliki fallback `admin123` (`index.ts:34`).
-- Tidak ada Hono auth middleware. Pemeriksaan auth terpecah menjadi dua gaya:
-  - `isAuthed(c)` di 13 route: `quiz-editor.ts:26,255`, `quiz-essay.ts:40,268`, `media-routes.ts:97,152,172,253,272,299`, `tka-studio.ts:908,924,967,1018,1077`.
-  - `getCookie(c, 'auth_session') !== 'authenticated_user'` mentah di 5 route: `index.ts:277` (redirect), `index.ts:559` (render halaman login), `index.ts:1297,1347,1368` (401 teks).
-- `/api/login` tidak punya rate limit maupun CAPTCHA.
-- `app.use('/api/*', cors())` (`index.ts:37`) dipanggil tanpa argumen, sehingga `origin: '*'` berlaku untuk seluruh admin API yang rely pada cookie.
-- `/api/deploy`, `/api/delete`, dan `/api/app/update` adalah HTML form biasa tanpa token CSRF. Satu-satunya proteksi adalah `SameSite=Lax` (`index.ts:545`).
+> **Sudah tidak berlaku (30 Sep 2026).** Seluruh butir di bawah menggambarkan
+> kode SEBELUM `docs/plan-hardening-auth.md` dieksekusi. Sesi kini HMAC
+> bertanda tangan, `admin123` dihapus, `/api/login` ber-rate-limit fail-closed,
+> CORS dipecah dua lapis, semua form ber-CSRF, dan `?kunci=1` tanpa sesi → 404.
+> Dipertahankan untuk riwayat; **jangan** dipakai sebagai gambaran kode saat ini.
+
+- ~~`src/auth.ts:11-13` (`isAuthed`) hanya membandingkan cookie dengan literal `authenticated_user`.~~
+- ~~`src/index.ts:537-556` memakai satu password bersama dan masih memiliki fallback `admin123` (`index.ts:34`).~~
+- ~~Tidak ada Hono auth middleware. Pemeriksaan auth terpecah menjadi dua gaya:~~
+  - ~~`isAuthed(c)` di 13 route~~ / ~~`getCookie(c, 'auth_session')` mentah di 5 route~~
+- ~~`/api/login` tidak punya rate limit maupun CAPTCHA.~~
+- ~~`app.use('/api/*', cors())` (`index.ts:37`) dipanggil tanpa argumen.~~
+- ~~`/api/deploy`, `/api/delete`, dan `/api/app/update` adalah HTML form biasa tanpa token CSRF.~~
+
+**Kondisi sekarang yang relevan untuk Fase 0–3:** auth sudah lewat
+`getSession()`/`requireAdmin`, tapi masih **satu akun admin bersama** — belum ada
+identitas, role, atau ownership. Itu bagian yang belum ditutup dan memang
+menjadi isi Fase 0–1 plan ini.
 
 ### Konten dan kuiz
 
@@ -104,7 +114,7 @@ Target awal: satu sekolah, sekitar 30 siswa
 - `schema.sql:1-9` hanya memiliki `app_records` (5 kolom, 1 index). Tidak ada direktori `migrations/` dan tidak ada migration runner; `package.json` hanya punya `test` dan `typecheck`.
 - Belum ada tabel user, session, assessment, roster, attempt, atau draft.
 - Tidak ada foreign key, transaksi, atau batch query D1 di seluruh codebase; semua write adalah `prepare().run()` tunggal. Unique constraint dan conditional update untuk `quiz_attempts` akan menjadi pemakaian pertama fitur-fitur tersebut.
-- `STORAGE` memakai `remote: true` di production maupun staging (`wrangler.jsonc:34,51`). `wrangler dev` menulis ke namespace production, dan `wrangler d1 execute --local` adalah store ketiga yang terpisah dari keduanya.
+- `STORAGE` memakai `remote: true` di production maupun staging saat dokumen ini ditulis (`wrangler.jsonc:34,51`); **sejak 30 Sep 2026 nilainya `false`** (lihat §17). `wrangler d1 execute --local` selalu store terpisah dari KV.
 - Data lama harus tetap dapat dibaca oleh route public dan laporan.
 
 ### Media dan laporan
@@ -540,7 +550,7 @@ Penjelasan singkat:
 
 - `SESSION_SECRET` menandatangani cookie state/nonce OAuth dan cookie session browser. `token_hash` yang disimpan di D1 adalah SHA-256 dari token opaque, bukan hasil HMAC, jadi `SESSION_SECRET` bukan sumber token melainkan sumber tanda tangan cookie.
 - `ALLOWED_ORIGINS` dipakai untuk CORS allowlist. Nilai kosong berarti hanya origin yang sama dengan `APP_URL`, bukan `*`.
-- `OAUTH_STATE_KV` adalah namespace KV baru khusus state dan nonce OAuth dengan TTL, supaya tidak bercampur dengan `STORAGE` yang sudah `remote: true`.
+- `OAUTH_STATE_KV` adalah namespace KV baru khusus state dan nonce OAuth dengan TTL, supaya tidak bercampur dengan `STORAGE` (yang sejak 30 Sep 2026 memakai `remote: false`).
 
 Urutan pemasangan per environment (ganti nama env untuk staging):
 
@@ -636,9 +646,15 @@ Test yang perlu ditambahkan:
 
 ### Peringatan store lokal
 
-`STORAGE` memakai `remote: true` di kedua env (`wrangler.jsonc:34,51`). `wrangler dev` menulis ke KV production, dan D1 lokal adalah store terpisah dari production maupun staging. Konsekuensi untuk rollout:
+> **Koreksi (30 Sep 2026):** `STORAGE` kini memakai `remote: false` di
+> `wrangler.jsonc` untuk production maupun staging — diubah setelah kuota
+> harian KV free (1.000 tulis/hari) habis oleh sesi `wrangler dev` yang
+> terhubung ke namespace produksi. Paragraf di bawah adalah kondisi saat
+> dokumen ini ditulis; yang masih benar hanyalah pemisahan store.
 
-- Jangan menjalankan smoke test OAuth/CBT lewat `wrangler dev`, karena key state dan session akan tercampur dengan data production. Smoke test yang menyentuh data harus lewat deploy staging.
+Saat dokumen ini ditulis, `STORAGE` memakai `remote: true` di kedua env (`wrangler.jsonc:34,51`). Konsekuensi untuk rollout:
+
+- Smoke test yang menyentuh data (OAuth/CBT) tetap harus lewat **deploy staging**, bukan `wrangler dev`, supaya key state dan session tidak menyentuh data sekolah nyata. Alasan utamanya bukan lagi "`wrangler dev` menulis ke KV production", melainkan karena production dan staging punya binding terpisah dan hanya staging yang boleh dimutasi saat pengujian.
 - `db:migrate:local` tidak menyentuh D1 production maupun staging, jadi aman dijalankan kapan saja.
 
 ### Rollback

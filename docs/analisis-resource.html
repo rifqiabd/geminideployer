@@ -290,10 +290,10 @@
         <strong>hybrid</strong> dengan pendaftaran mandiri.
       </p>
       <div class="hero-meta">
-        <span>Versi 2 &middot; 21 September 2026</span>
+        <span>Versi 2.1 &middot; diperbarui 30 Sep 2026</span>
         <span>Model: Hybrid + Self-service</span>
         <span>Stack: Workers, KV, D1, R2</span>
-        <span>Status kode: single-tenant</span>
+        <span>Status kode: single-tenant (Tahap 0 hampir tuntas)</span>
       </div>
     </header>
 
@@ -313,21 +313,21 @@
           <tbody>
             <tr>
               <td>1</td>
-              <td>Sesi login = cookie statis berisi string literal <code>authenticated_user</code></td>
+              <td><s>Sesi login = cookie statis berisi string literal <code>authenticated_user</code></s> <b>RESOLVED</b> (28 Sep 2026): sesi HMAC-SHA256 bertanda tangan, punya <code>exp</code>; cookie literal lama ditolak</td>
               <td>Akses admin bisa dipalsukan siapa pun yang tahu nilainya</td>
-              <td><span class="badge b-crit">Kritis</span></td>
+              <td><span class="badge b-ok">Selesai</span></td>
             </tr>
             <tr>
               <td>2</td>
-              <td>Password admin hardcoded <code>admin123</code> dan tidak dibaca dari env</td>
+              <td><s>Password admin hardcoded <code>admin123</code> dan tidak dibaca dari env</s> <b>RESOLVED</b> (28 Sep 2026): dibaca dari <code>APP_PASSWORD</code> dan wajib; fallback dihapus</td>
               <td>Semua sekolah berbagi satu kredensial</td>
-              <td><span class="badge b-crit">Kritis</span></td>
+              <td><span class="badge b-ok">Selesai</span></td>
             </tr>
             <tr>
               <td>3</td>
-              <td>Stored XSS di halaman rekap (<code>payload_json</code> + <code>user_id</code> tanpa escape)</td>
+              <td><s>Stored XSS di halaman rekap (<code>payload_json</code> + <code>user_id</code> tanpa escape)</s> <b>RESOLVED</b>: <code>escapeHtml()</code> dipakai pada <code>created_at</code>, <code>user_id</code>, <code>summary</code>, dan <code>JSON.stringify(payload)</code></td>
               <td>Siswa bisa menjalankan skrip di browser guru</td>
-              <td><span class="badge b-crit">Kritis</span></td>
+              <td><span class="badge b-ok">Selesai</span></td>
             </tr>
             <tr>
               <td>4</td>
@@ -413,22 +413,28 @@
       <h2><span class="num">02</span> Arsitektur Saat Ini</h2>
       <p class="deck">Satu Worker Hono, satu dashboard admin, satu tabel D1 untuk semua jawaban siswa.</p>
 
-      <pre><span class="cm">Cloudflare Worker (Hono) — src/index.ts</span>
-├─ <span class="hi">/</span>                        Dashboard admin (login 1 password)
+      <pre><span class="cm">Cloudflare Worker (Hono) — pintu masuk src/index.ts (wiring); route tersebar
+di modul registrar: dashboard.ts, records.ts, actions.ts, auth-routes.ts,
+public-app.ts, media-routes.ts, quiz-editor.ts, quiz-essay.ts, tka-studio.ts</span>
+├─ <span class="hi">/</span>                        Dashboard admin (login 1 password bersama)
 ├─ <span class="hi">/p/:slug</span>                 Halaman kuis siswa (tanpa login)
 ├─ <span class="hi">/p/:slug/edit</span>            Editor soal (mode JSON)
 ├─ <span class="hi">/p/:slug/media</span>           Panel gambar soal + generate AI
 ├─ <span class="hi">/p/:slug/data</span>            Rekap nilai + analisis butir soal
 ├─ <span class="hi">/p/:slug/essay</span>           Koreksi jawaban esai
-├─ /api/deploy | delete | login | logout
+├─ <span class="hi">/studio</span>                  TKA Prompt Engine
+├─ <span class="hi">/panduan</span>                 Panduan guru
+├─ /api/deploy | delete | login | logout | app/update | app-index/backfill
 └─ <span class="hi">/api/save/:slug</span>          Penerimaan jawaban siswa (penilaian di server)
 
 <span class="cm">Penyimpanan</span>
 ├─ <span class="st">KV  STORAGE</span>   html:&lt;slug&gt;, meta:&lt;slug&gt;, quiz:&lt;slug&gt;,
-│                quizsource:&lt;slug&gt;, media:&lt;slug&gt;:&lt;nama&gt;,
-│                imggencfg:&lt;slug&gt;, imggen:&lt;slug&gt;:&lt;menit&gt;
-├─ <span class="st">D1  DB</span>        app_records(id, app_slug, user_id, payload_json, created_at)
-└─ <span class="st">R2  MEDIA</span>     OPSIONAL — kalau tidak dipasang, media disimpan di KV</pre>
+│                quizsource:&lt;slug&gt;, imggencfg:&lt;slug&gt;,
+│                loginfail:*, loginlock:*
+├─ <span class="st">D1  DB</span>        app_records(id, app_slug, user_id, payload_json,
+│                student_class, created_at)
+└─ <span class="st">R2  MEDIA</span>     AKTIF di production &amp; staging (bucket terpisah);
+                 media KV lama pindah ke sini saat pertama dibaca</pre>
 
       <h3>Peran yang ada hari ini</h3>
       <div class="table-scroll">
@@ -463,29 +469,37 @@
       <p class="deck">Enam area yang menentukan apakah repo ini bisa melayani banyak sekolah dengan aman.</p>
 
       <!-- 3.1 -->
-      <h3 id="d-tenant">3.1 &nbsp;Tenant &amp; Autentikasi <span class="badge b-crit">Kritis</span></h3>
+      <h3 id="d-tenant">3.1 &nbsp;Tenant &amp; Autentikasi <span class="badge b-high">Sebagian selesai</span></h3>
+      <div class="callout c-ok">
+        <span class="ttl">Diperbarui 30 Sep 2026</span>
+        <p>Dua butir pertama di bawah sudah <b>selesai</b> lewat <code>docs/plan-hardening-auth.md</code>
+        (28 Sep 2026) dan ditandai dengan coretan. Yang masih berlaku: isolasi data dan kesatuan sumber
+        kebenaran auth sudah beres, tapi <strong>tenant tetap belum ada</strong>.</p>
+      </div>
       <ul>
         <li>
-          <code>APP_PASSWORD = 'admin123'</code> masih berupa konstanta di <code>src/index.ts</code> dan
-          <strong>tidak dibaca dari <code>env</code></strong>, walau <code>.dev.vars.example</code> sudah
-          menyuruh mengisinya. Artinya semua sekolah pada deployment yang sama berbagi satu kata sandi.
+          <s><code>APP_PASSWORD = 'admin123'</code> masih berupa konstanta di <code>src/index.ts</code> dan
+          <strong>tidak dibaca dari <code>env</code></strong></s> — <b>SELESAI.</b> Password dibaca dari
+          <code>APP_PASSWORD</code>; bersama <code>SESSION_SECRET</code> keduanya wajib, dan kalau kosong
+          login menjawab 503 berisi instruksi setup.
         </li>
         <li>
-          <code>isAuthed()</code> di <code>src/auth.ts</code> hanya membandingkan cookie dengan konstanta
-          <code>authenticated_user</code>. Nilainya statis dan ada di repo publik, sehingga siapa pun yang
-          mengetahuinya bisa membuat cookie itu lewat JavaScript. Perlu ditegaskan: atribut
-          <code>httpOnly</code> hanya menghalangi JavaScript <em>membaca</em> cookie, bukan
-          <em>membuat</em> cookie dengan nama dan nilai yang sama.
+          <s><code>isAuthed()</code> di <code>src/auth.ts</code> hanya membandingkan cookie dengan konstanta
+          <code>authenticated_user</code>.</s> — <b>SELESAI.</b> Sesi kini HMAC-SHA256 bertanda tangan
+          (<code>signSession</code>/<code>verifySession</code>) dengan <code>exp</code>; cookie literal lama
+          ditolak. Catatan <code>httpOnly</code> di butir lama tetap benar sebagai pelajaran: atribut itu
+          menghalangi JavaScript <em>membaca</em> cookie, bukan <em>membuat</em>-nya.
         </li>
         <li>
           Belum ada <code>school_id</code> di key KV maupun di tabel D1, sehingga <strong>tidak ada isolasi
           data sama sekali</strong>. Di Lintasan A, satu query yang lupa difilter langsung berarti kebocoran
-          data antar sekolah.
+          data antar sekolah. <em>(Masih terbuka.)</em>
         </li>
         <li>
-          Ada dua sumber kebenaran untuk autentikasi: sebagian rute memakai cek cookie langsung di
-          <code>src/index.ts</code>, sebagian lain memakai <code>isAuthed()</code>. Saat peran ditambahkan,
-          keduanya mudah menyimpang.
+          <s>Ada dua sumber kebenaran untuk autentikasi: sebagian rute memakai cek cookie langsung di
+          <code>src/index.ts</code>, sebagian lain memakai <code>isAuthed()</code>.</s> — <b>SELESAI.</b>
+          Semua route admin lewat <code>getSession()</code>/<code>requireAdmin</code>/guard per modul;
+          tidak ada lagi pembacaan cookie mentah.
         </li>
       </ul>
 
@@ -704,7 +718,7 @@ CREATE TABLE attempt_answers (attempt_id TEXT, question_id TEXT, answers_json TE
       <p class="deck">Repo ini akan dipakai dua arah sekaligus, dengan satu basis kode.</p>
 
       <div class="grid two">
-        <div class="track a">
+        <div class="track a" id="track-a">
           <h4>Lintasan A — Instance publik</h4>
           <p class="who">Sekolah mendaftar sendiri &middot; biaya ditanggung pengelola</p>
           <ul>
@@ -716,7 +730,7 @@ CREATE TABLE attempt_answers (attempt_id TEXT, question_id TEXT, answers_json TE
             <li>Tes isolasi tenant otomatis — penjaga paling penting di lintasan ini.</li>
           </ul>
         </div>
-        <div class="track b">
+        <div class="track b" id="track-b">
           <h4>Lintasan B — Deploy sendiri</h4>
           <p class="who">Sekolah punya akun &amp; data sendiri &middot; biaya ditanggung sekolah</p>
           <ul>
@@ -825,11 +839,12 @@ CREATE TABLE attempt_answers (attempt_id TEXT, question_id TEXT, answers_json TE
           <span class="badge b-crit">Prioritas tertinggi</span>
         </div>
         <div class="body">
+          <p><b>Status 30 Sep 2026: tiga dari empat selesai.</b></p>
           <ul>
-            <li>Pindahkan kata sandi ke secret: <code>npx wrangler secret put APP_PASSWORD</code>, lalu baca dari <code>env</code>.</li>
-            <li>Ganti cookie statis dengan sesi bertanda tangan (HMAC/<code>jose</code>) berisi <code>{ userId, schoolId, role }</code> + masa berlaku; satukan semua cek ke satu middleware.</li>
-            <li>Terapkan <code>escapeHtml()</code> pada seluruh keluaran admin, terutama tabel rekap dan detail payload.</li>
-            <li>Rate limit per IP di <code>/api/save/:slug</code>, memakai pola KV counter yang sudah ada di fitur generate gambar.</li>
+            <li><s>Pindahkan kata sandi ke secret: <code>npx wrangler secret put APP_PASSWORD</code>, lalu baca dari <code>env</code>.</s> — <b>SELESAI</b> 28 Sep 2026.</li>
+            <li><s>Ganti cookie statis dengan sesi bertanda tangan (HMAC/<code>jose</code>) berisi <code>{ userId, schoolId, role }</code> + masa berlaku; satukan semua cek ke satu middleware.</s> — <b>SELESAI</b> untuk sesi bertanda tangan dan penyatuan middleware (<code>getSession()</code>/<code>requireAdmin</code>). <code>schoolId</code>/<code>role</code> menyusul di Tahap 1 karena tenant belum ada.</li>
+            <li><s>Terapkan <code>escapeHtml()</code> pada seluruh keluaran admin, terutama tabel rekap dan detail payload.</s> — <b>SELESAI</b> 28 Sep 2026 untuk halaman rekap; audit menyeluruh sisa title dashboard dan URL media kaya.</li>
+            <li>Rate limit per IP di <code>/api/save/:slug</code>, memakai pola KV counter yang sudah ada di fitur generate gambar. <b>(Masih terbuka.</b> Generate AI dan login sudah ber-rate-limit.)</li>
           </ul>
           <p class="outcome"><strong>Hasil:</strong> tidak ada celah yang ikut tersebar saat tautan mulai dibagikan.</p>
         </div>
@@ -846,9 +861,9 @@ CREATE TABLE attempt_answers (attempt_id TEXT, question_id TEXT, answers_json TE
             <li>Skema multi-tenant: <code>schools → users(role) → classes → students → assessments → attempts → attempt_answers</code>, semua baris membawa <code>school_id</code>.</li>
             <li>Middleware tenant: setiap query disaring <code>school_id</code> dari sesi — tidak boleh bergantung pada slug di URL.</li>
             <li>Pisahkan identitas dan URL: UUID untuk kunci KV (<code>quiz:&lt;school&gt;/&lt;id&gt;</code>), slug hanya untuk alamat yang enak dibaca, dengan pemeriksaan keunikan sebelum simpan.</li>
-            <li>Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination.</li>
+            <li>Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination. <em>(Sebagian: <code>readD1Slugs()</code> di <code>src/app-index.ts</code> sudah jadi jalur darurat.)</em></li>
             <li>Tambahkan <code>LIMIT</code> di semua query rekap; pindahkan perhitungan analitik butir soal ke saat submit (atau Queue → pembaruan terbatas) dan simpan hasilnya.</li>
-            <li>R2 untuk media dengan kunci <code>school_id/assessment_id/slot</code>.</li>
+            <li><s>R2 untuk media dengan kunci <code>school_id/assessment_id/slot</code>.</s> — <b>R2 SUDAH AKTIF</b> di production &amp; staging. Sisa: kunci masih <code>&lt;slug&gt;/&lt;name&gt;</code>, belum ber-namespace tenant.</li>
           </ul>
           <p class="outcome"><strong>Hasil:</strong> deployment mandiri sudah aman dipakai satu sekolah — Lintasan B siap dirilis.</p>
         </div>
@@ -944,26 +959,29 @@ CREATE TABLE attempt_answers (attempt_id TEXT, question_id TEXT, answers_json TE
     <!-- ================= 8. PRIORITAS ================= -->
     <section id="prioritas">
       <h2><span class="num">08</span> Prioritas Mendesak</h2>
-      <p class="deck">Kalau hanya boleh mengerjakan tiga hal lebih dulu, kerjakan ini.</p>
+      <p class="deck">Diperbarui 30 Sep 2026: dua dari tiga prioritas lama sudah selesai.</p>
       <div class="grid three">
         <div class="card prio-card">
-          <h4><span class="pnum">1</span> Sesi bertanda tangan</h4>
-          <p>Cookie statis yang bisa dipalsukan adalah akar kepercayaan sistem. Semua kontrol akses lain
-          bergantung pada ini.</p>
+          <h4><span class="pnum">1</span> <s>Sesi bertanda tangan</s></h4>
+          <p><b>SELESAI 28 Sep 2026.</b> Cookie statis sudah diganti sesi HMAC bertanda tangan
+          (<code>docs/plan-hardening-auth.md</code>).</p>
         </div>
         <div class="card prio-card">
-          <h4><span class="pnum">2</span> Escape keluaran admin</h4>
-          <p>Menutup stored XSS di halaman rekap, tempat siswa bisa menyerang guru. Perbaikannya kecil:
-          pakai <code>escapeHtml()</code> yang sudah ada.</p>
+          <h4><span class="pnum">2</span> <s>Escape keluaran admin</s></h4>
+          <p><b>SELESAI 28 Sep 2026.</b> Stored XSS di halaman rekap ditutup dengan
+          <code>escapeHtml()</code> pada <code>created_at</code>, <code>user_id</code>,
+          <code>summary</code>, dan payload.</p>
         </div>
         <div class="card prio-card">
           <h4><span class="pnum">3</span> Indeks D1 + LIMIT</h4>
-          <p>Membuat halaman rekap tetap cepat dan biaya berhenti tumbuh mengikuti jumlah data.</p>
+          <p><strong>Masih terbuka.</strong> Membuat halaman rekap tetap cepat dan biaya berhenti
+          tumbuh mengikuti jumlah data. Sebagian: <code>readD1Slugs()</code> di
+          <code>src/app-index.ts</code> sudah jadi jalur darurat saat kuota <code>list</code> KV habis.</p>
         </div>
       </div>
       <p style="margin-top:16px">
-        Ketiganya masuk Tahap 0–1 dan relevan untuk kedua lintasan. Setelah itu, pekerjaan tenant &amp;
-        peran jauh lebih aman untuk dimulai.
+        Yang tersisa untuk Lintasan A: <strong>rate limit <code>/api/save</code> + batas ukuran body JSON</strong>,
+        <strong>indeks D1 + LIMIT</strong>, dan <strong>isolasi tenant (<code>school_id</code>)</strong>.
       </p>
     </section>
 
@@ -975,14 +993,14 @@ CREATE TABLE attempt_answers (attempt_id TEXT, question_id TEXT, answers_json TE
         <table>
           <thead><tr><th>Area</th><th>Berkas</th><th>Catatan</th></tr></thead>
           <tbody>
-            <tr><td>Auth &amp; password</td><td><code>src/index.ts</code>, <code>src/auth.ts</code></td><td>Konstanta password, cek cookie ganda</td></tr>
-            <tr><td>Indeks aplikasi &amp; rekap</td><td><code>src/index.ts</code></td><td>KV list N+1, <code>SELECT *</code> tanpa LIMIT, XSS di tabel</td></tr>
+            <tr><td>Auth &amp; sesi</td><td><code>src/auth.ts</code>, <code>src/auth-routes.ts</code>, <code>src/admin-shared.ts</code></td><td>Sesi HMAC + CSRF + rate limit fail-closed (selesai 28 Sep 2026)</td></tr>
+            <tr><td>Indeks aplikasi &amp; rekap</td><td><code>src/app-index.ts</code>, <code>src/records.ts</code></td><td>KV list N+1, <code>SELECT *</code> tanpa LIMIT</td></tr>
             <tr><td>Koreksi esai</td><td><code>src/quiz-essay.ts</code></td><td><code>SELECT *</code> tanpa LIMIT</td></tr>
             <tr><td>Analisis butir soal</td><td><code>src/quiz-report.ts</code></td><td>Dihitung ulang setiap request</td></tr>
             <tr><td>Editor soal</td><td><code>src/quiz-editor.ts</code></td><td>Tulis KV tanpa penanda versi</td></tr>
-            <tr><td>Media</td><td><code>src/media.ts</code>, <code>src/media-routes.ts</code></td><td>Fallback KV; pola rate limit yang bisa dipakai ulang</td></tr>
+            <tr><td>Media</td><td><code>src/media.ts</code>, <code>src/media-routes.ts</code></td><td>R2 aktif, fallback KV, pola rate limit yang bisa dipakai ulang</td></tr>
             <tr><td>Skema data</td><td><code>schema.sql</code></td><td>Satu tabel, tanpa tenant</td></tr>
-            <tr><td>Konfigurasi deploy</td><td><code>wrangler.jsonc</code></td><td>R2 masih opsional; secret belum dipakai untuk password</td></tr>
+            <tr><td>Konfigurasi deploy</td><td><code>wrangler.jsonc</code></td><td>R2 aktif di kedua env; KV <code>remote: false</code>; secret auth terpasang</td></tr>
             <tr><td>Alur siswa</td><td><code>src/quiz-page.ts</code></td><td>Nama siswa dari input bebas</td></tr>
             <tr><td>Panduan guru</td><td><code>docs/panduan-pakai.md</code></td><td>Sudah lengkap; bisa jadi basis materi dukungan</td></tr>
           </tbody>

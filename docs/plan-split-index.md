@@ -2,12 +2,13 @@
 
 Status: **Selesai dieksekusi** — 28 September 2026
 Lingkup: pemecahan berkas `src/index.ts` menjadi modul-modul kecil, mengikuti pola registrar yang sudah ada. **Bukan** pemisahan frontend/backend dan **bukan** penambahan build step.
+Catatan (30 Sep 2026): pasangan `docs/plan-split-index.html` **dihapus**. Isinya duplikat ~95% dari berkas ini tanpa generator yang menyinkronkan, sehingga dua salinan cepat menyimpang. Markdown ini satu-satunya sumber.
 
 ## Hasil Eksekusi (ringkas)
 
 - `src/index.ts` menyusut dari ±2.000 baris menjadi **116 baris** (hanya wiring: tipe `Bindings`, middleware CORS, pemasangan registrar, `export default`).
 - Enam modul baru dibuat (lihat Bagian 3). Rute, urutan registrar, dan urutan middleware CORS **tidak berubah**.
-- Verifikasi: `npm run typecheck` bersih, `npm test` (5 berkas) hijau, dan smoke test rute 17/17 lewat `app.request()` dengan KV/D1 tiruan (Bagian 5).
+- Verifikasi: `npm run typecheck` bersih, `npm test` hijau, dan smoke test rute 17/17 lewat `app.request()` dengan KV/D1 tiruan (Bagian 5). Skrip smoke itu bersifat sekali-pakai dan **tidak di-commit**; kalau ingin mengulang jaminan yang sama, tulis ulang lewat `app.request()`.
 
 ## 1. Ringkasan Keputusan
 
@@ -25,7 +26,13 @@ Lingkup: pemecahan berkas `src/index.ts` menjadi modul-modul kecil, mengikuti po
 
 ## 3. Peta Pemecahan (Fase A) — hasil aktual
 
-| Berkas | Isi yang dipindah dari `index.ts` | Baris |
+> **Catatan 30 Sep 2026:** kolom "Baris" di bawah adalah **snapshot saat Fase A
+> dieksekusi (28 Sep)**. Angka terkini sudah berbeda karena modul-modul ini
+> tumbuh setelahnya — `dashboard.ts` ±1.348, `records.ts` ±449, `options.ts`/
+> `actions.ts` lebih pendek; hanya `index.ts` yang tetap 116. Yang tidak berubah
+> adalah *pembagian tanggung jawab* di tabel ini, dan itulah yang penting.
+
+| Berkas | Isi yang dipindah dari `index.ts` | Baris (28 Sep) |
 |---|---|---|
 | `src/index.ts` (tersisa) | tipe `Bindings`, middleware CORS dua lapis (`adminCors`, `adminOriginAllowed`), pemasangan semua registrar, `export default app` | 116 |
 | `src/dashboard.ts` | `GET /` (form login, sidebar, detail app, print modal, edit modal, inline JS dashboard), helper `modData` | 1.087 |
@@ -55,7 +62,7 @@ Catatan penempatan (beda dari draf awal):
 Karena tes otomatis tidak menjangkau rute HTTP, verifikasi dilakukan berlapis:
 
 1. `npm run typecheck` — bersih.
-2. `npm test` — kelima berkas tes hijau (quiz, meta-date, slug, auth, media-cap).
+2. `npm test` — semua suite hijau (saat Fase A: quiz, meta-date, slug, auth, media-cap — 5 berkas; kini ada 10 berkas di `npm test`).
 3. **Smoke test rute** lewat `app.request()` (Bun, KV/D1 tiruan, tanpa network) — 17/17 cek lulus:
    - `GET /p/<missing>` → 404; `GET /p/<slug>` → 200 dari KV.
    - `POST /api/save/<slug>` dan alias `/api/submit/<slug>` → 200 `success`, baris D1 ter-`INSERT`.

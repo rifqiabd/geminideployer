@@ -388,7 +388,7 @@ npm run typecheck
 Manual, setelah T1 sampai T7 selesai:
 
 - `npx wrangler dev` untuk mengecek alur login, deploy, delete, rename, panel gambar, TKA Studio, dan kunci jawaban.
-- **Peringatan store:** `STORAGE` memakai `remote: true` di kedua env (`wrangler.jsonc:30-36` dan `:44-62`). `npx wrangler dev` menulis ke namespace **production**. Smoke test yang menyentuh data auth harus lewat `npx wrangler dev --env staging`, seperti peringatan di `docs/plan-google-cbt.md:632-635`.
+- **Peringatan store:** saat dokumen ini ditulis, `STORAGE` memakai `remote: true` di kedua env (`wrangler.jsonc:30-36` dan `:44-62`), sehingga `npx wrangler dev` menulis ke namespace **production**. **Sejak 30 Sep 2026 nilainya `false`**, jadi store lokal tidak lagi menyentuh production. Yang tetap berlaku: smoke test yang menyentuh data auth harus lewat `npx wrangler dev --env staging`, karena production dan staging punya binding terpisah dan hanya staging yang boleh dimutasi saat pengujian.
 - Cek manual khusus: cookie `auth_session=authenticated_user` buatan sendiri harus ditolak; `curl "/p/<slug>?print=1&kunci=1"` tanpa cookie harus 404; `GET /api/media/<slug>/gen-config` tidak boleh memuat `apiKey`; `POST /api/deploy` tanpa `_csrf` harus 403.
 
 ## 6. Urutan Eksekusi
@@ -418,6 +418,11 @@ T1 bisa dikerjakan tanpa menunggu T0, tapi T0 harus selesai sebelum deploy kode 
 
 ## 8. Acceptance Criteria
 
+> **Status 30 Sep 2026: SEMUA TERPENUHI.** Bukti: `tests/auth.test.mjs` (55
+> test, dirangkai ke `npm test`), `npm run typecheck` bersih, dan smoke test
+> staging 31 cek. Daftar ini dipertahankan sebagai definisi "selesai", bukan
+> sebagai pekerjaan tersisa.
+
 - Cookie `auth_session=authenticated_user` buatan sendiri tidak memberi akses ke route mana pun.
 - Mengganti satu byte pada cookie membuat sesi tidak valid.
 - Memalsukan `exp` atau `iat` tidak memperpanjang sesi.
@@ -439,6 +444,18 @@ T1 bisa dikerjakan tanpa menunggu T0, tapi T0 harus selesai sebelum deploy kode 
 - **`docs/plan/panel-konteks-soal-di-slot-gambar.md`** - tidak bersinggungan. Plan itu hanya menyentuh bagian markup dan inline JS di `src/media-routes.ts`, dan statusnya masih DITUNDA.
 
 ## 10. Catatan Dokumen
+
+> **Banner historis (30 Sep 2026):** dokumen ini **selesai** dan tidak lagi
+> menjadi daftar kerja. Seluruh sitasi `src/index.ts:NNN` di §2 dan §5–§7
+> adalah alamat SEBELUM refactor `docs/plan-split-index.md` (28 Sep 2026).
+> Saat itu `src/index.ts` masih ±2.000 baris; sekarang ia 116 baris wiring, dan
+> kode yang dirujuk pindah ke `src/auth-routes.ts`, `src/dashboard.ts`,
+> `src/actions.ts`, `src/records.ts`, dan `src/public-app.ts`. **Jangan grep
+> nomor baris lama — pakai nama fungsi** (`saveRecordHandler`, `signSession`,
+> `renderPrintSheet`, dst.). Kutipan §2 yang menggambarkan cookie statis
+> `authenticated_user`, `FALLBACK_PASSWORD = 'admin123'`, `cors()` global, dan
+> `?kunci=1` tanpa auth juga sudah tidak berlaku; itu semua sudah diperbaiki
+> oleh dokumen ini sendiri.
 
 - Semua sitasi `file:line` di dokumen ini diverifikasi terhadap kode pada 27 September 2026. Kalau `src/index.ts` atau `src/media-routes.ts` berubah banyak sebelum dikerjakan, sitasi baris harus dihitung ulang.
 - `docs/plan-hardening-auth.html` sengaja tidak dibuat. Selain `docs/plan-google-cbt.html` yang ditulis tangan, tidak ada pola generate HTML di repo ini, dan `docs/plan-google-cbt.md:663` mewajibkan pola tiap dokumen diperiksa sendiri. Markdown ini cukup.

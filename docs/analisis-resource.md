@@ -1,5 +1,12 @@
 # Analisis Kesiapan: Penggunaan Banyak Sekolah, Banyak Siswa & Guru
 
+> **Status: sebahagian usang — diperbarui 30 Sep 2026.** Temuan §1 nomor 1
+> (cookie statis), 2 (`admin123`), dan 3 (stored XSS) sudah **RESOLVED** lewat
+> `docs/plan-hardening-auth.md` (28 Sep 2026). Temuan 9 (media di KV) sebagian
+> beres: R2 kini aktif di production & staging. Temuan sisanya (4–8, 10–11)
+> masih berlaku. Roadmap §6 Tahap 1–4 dan §8 sudah disesuaikan. Dokumen ini
+> tetap rujukan untuk arah multi-tenant.
+
 > Dokumen ini menilai kesiapan repo ini dipakai lintas **banyak sekolah** (multi-tenant),
 > dengan banyak **guru** (peran & akun) dan banyak **siswa** (identitas, kelas, percobaan),
 > seluruhnya di **Cloudflare** (Workers, KV, D1, R2).
@@ -20,7 +27,7 @@
 
 | # | Temuan | Dampak | Prioritas |
 | - | ------ | ------ | --------- |
-| 1 | Sesi login = cookie statis berisi string literal `authenticated_user` | Akses admin bisa dipalsukan siapa pun yang tahu nilainya | **Kritis** |
+| 1 | ~~Sesi login = cookie statis berisi string literal `authenticated_user`~~ **RESOLVED (28 Sep 2026, plan-hardening-auth):** sesi kini HMAC-SHA256 bertanda tangan, punya `exp`, dan cookie literal lama ditolak di semua route | Akses admin bisa dipalsukan siapa pun yang tahu nilainya | **Kritis** |
 | 2 | ~~Password admin hardcoded `admin123` dan tidak dibaca dari env~~ **RESOLVED (28 Sep 2026, plan-hardening-auth):** password kini dibaca dari env `APP_PASSWORD` dan wajib; fallback dihapus dari kode | Semua sekolah berbagi satu kredensial | **Kritis** |
 | 3 | ~~Stored XSS di halaman rekap (`payload_json` + `user_id` tanpa escape)~~ **RESOLVED:** `escapeHtml()` dipakai pada `created_at`, `user_id`, `summary`, dan `JSON.stringify(payload)` di halaman rekap | Siswa bisa menjalankan skrip di browser guru | **Kritis** |
 | 4 | Slug global dari judul → tabrakan antar guru/sekolah | Data kuis bisa tertimpa tanpa peringatan | Tinggi |
@@ -28,7 +35,7 @@
 | 6 | Indeks aplikasi dibaca dari `KV list` + `get()` berurutan | Dashboard O(N), mentok ~1000 key, kena konsistensi eventual | Tinggi |
 | 7 | Identitas siswa dari input bebas, tanpa kelas/daftar hadir | Tidak bisa cegah spam/peniruan, tidak bisa rekap per kelas | Tinggi |
 | 8 | Tidak ada tenant & tidak ada pendaftaran mandiri | Sekolah tidak bisa melayani dirinya sendiri | Tinggi |
-| 9 | Media jatuh ke KV kalau R2 tidak dipasang | KV bukan tempat binary: mahal & cepat habis kuota | Sedang |
+| 9 | ~~Media jatuh ke KV kalau R2 tidak dipasang~~ **SEBAGIAN RESOLVED (R2 aktif):** binding `MEDIA` R2 sudah terpasang di production dan staging (bucket terpisah), media baru ditulis ke R2, media KV lama pindah saat dibaca. Sisa: seeder perlu memastikan binding selalu ada di deployment baru | KV bukan tempat binary: mahal & cepat habis kuota | Sedang |
 | 10 | `/api/save/:slug` terbuka (CORS global, tanpa rate limit) | Bisa dibanjiri untuk membakar kuota D1 | Sedang |
 | 11 | Edit soal tanpa versi (last-write-wins) + KV eventual | Dua guru bisa saling menimpa; siswa lihat versi basi | Sedang |
 
@@ -45,21 +52,27 @@ bersifat wajib sebelum promosi apa pun.
 ## 2. Arsitektur saat ini (peta cepat)
 
 ```
-Cloudflare Worker (Hono) — src/index.ts
-├─ /                        Dashboard admin (login 1 password)
+Cloudflare Worker (Hono) — pintu masuk `src/index.ts` (wiring); route tersebar
+di modul registrar: dashboard.ts, records.ts, actions.ts, auth-routes.ts,
+public-app.ts, media-routes.ts, quiz-editor.ts, quiz-essay.ts, tka-studio.ts
+├─ /                        Dashboard admin (login 1 password bersama)
 ├─ /p/:slug                 Halaman kuis siswa (tanpa login)
 ├─ /p/:slug/edit            Editor soal (mode JSON)
 ├─ /p/:slug/media           Panel gambar soal + generate AI
 ├─ /p/:slug/data            Rekap nilai + analisis butir soal
 ├─ /p/:slug/essay           Koreksi jawaban esai
-├─ /api/deploy|delete|login|logout
+├─ /studio                  TKA Prompt Engine
+├─ /panduan                 Panduan guru
+├─ /api/deploy|delete|login|logout|app/update|app-index/backfill
 └─ /api/save/:slug          Penerimaan jawaban siswa (penilaian di server)
 
 Penyimpanan
 ├─ KV  STORAGE   html:<slug>, meta:<slug>, quiz:<slug>, quizsource:<slug>,
-│                media:<slug>:<nama>, imggencfg:<slug>, imggen:<slug>:<menit>
-├─ D1  DB        app_records(id, app_slug, user_id, payload_json, created_at)
-└─ R2  MEDIA     OPSIONAL — kalau tidak dipasang, media disimpan di KV
+│                imggencfg:<slug>, loginfail:*, loginlock:*
+├─ D1  DB        app_records(id, app_slug, user_id, payload_json,
+│                student_class, created_at)
+└─ R2  MEDIA     AKTIF di production & staging (bucket terpisah); media KV lama
+                 pindah ke sini saat pertama dibaca
 ```
 
 Peran yang ada hari ini:
@@ -75,18 +88,23 @@ Peran yang ada hari ini:
 
 ### 3.1 Tenant & autentikasi
 
-- `APP_PASSWORD = 'admin123'` masih konstanta di `src/index.ts` dan **tidak dibaca dari
-  `env`**, walau `.dev.vars.example` sudah menyuruh mengisinya. Semua sekolah yang memakai
-  deployment sama berbagi satu kata sandi.
-- `isAuthed()` (`src/auth.ts`) hanya membandingkan cookie dengan konstanta
-  `authenticated_user`. Nilainya statis dan ada di repo, jadi siapa pun yang mengetahuinya bisa
-  membuat cookie itu lewat JS (`document.cookie = ...`) — atribut `httpOnly` tidak menghalangi
-  cookie yang **dibuat** dari JS. Tidak ada tanda tangan, tidak ada masa berlaku yang mengikat
-  ke pengguna.
+> **Diperbarui 30 Sep 2026.** Butir pertama dan kedua di bawah sudah tidak
+> berlaku; keduanya ditutup `docs/plan-hardening-auth.md` (28 Sep 2026).
+> Dipertahankan agar riwayat keputusan tidak hilang, bukan sebagai gambaran
+> kode saat ini.
+
+- ~~`APP_PASSWORD = 'admin123'` masih konstanta di `src/index.ts` dan **tidak dibaca dari
+  `env`**~~ — **SELESAI.** Password dibaca dari `APP_PASSWORD`; keduanya (bersamaan dengan
+  `SESSION_SECRET`) wajib, dan kalau kosong login menjawab 503 berisi instruksi setup.
+- ~~`isAuthed()` (`src/auth.ts`) hanya membandingkan cookie dengan konstanta
+  `authenticated_user`~~ — **SELESAI.** Sesi kini HMAC-SHA256 bertanda tangan (`signSession`/
+  `verifySession`) dengan `exp`; cookie literal lama ditolak. `isAuthed()` sekarang memverifikasi
+  tanda tangan, bukan membandingkan konstanta.
 - Belum ada `school_id` di key KV maupun di tabel D1 → tidak ada isolasi data sama sekali.
   Ini bahaya terbesar untuk Lintasan A: satu query yang lupa difilter = data sekolah lain bocor.
-- Beberapa rute memakai cek cookie langsung (`src/index.ts`) sementara yang lain memakai
-  `isAuthed()` — dua sumber kebenaran yang mudah menyimpang saat peran ditambahkan.
+- ~~Beberapa rute memakai cek cookie langsung (`src/index.ts`) sementara yang lain memakai
+  `isAuthed()`~~ — **SELESAI.** Semua route admin lewat `getSession()`/`requireAdmin`/guard per
+  modul; tidak ada lagi pembacaan cookie mentah. Sisa satu sumber kebenaran auth.
 
 ### 3.2 Model data (D1)
 
@@ -106,7 +124,7 @@ Konsekuensi:
   Relasi sekolah → kelas → siswa → asesmen → kiriman tidak bisa dibentuk.
 - Jawaban per soal menumpuk di dalam `payload_json` (blob JSON), sehingga analitik lintas
   kelas/sekolah mustahil tanpa membaca dan mengurai seluruh blob.
-- Tidak ada `LIMIT`/pagination di query rekap (`src/index.ts`, `src/quiz-essay.ts`), padahal
+- Tidak ada `LIMIT`/pagination di query rekap (`src/records.ts`, `src/quiz-essay.ts`), padahal
   setiap baris di-`JSON.parse` di memori Worker.
 - Analisis butir soal (`src/quiz-report.ts`) dihitung ulang setiap halaman dibuka dengan biaya
   O(seluruh kiriman). Semakin lama dipakai, semakin berat.
@@ -124,19 +142,20 @@ Konsekuensi:
 
 ### 3.4 Identitas siswa
 
-- `userId = body.user || body.name || body.student_name || 'anonim'` (`src/index.ts`).
-  Tidak ada daftar hadir, tidak ada kelas, tidak ada pembatasan jumlah percobaan.
+- `userId = body.user || body.name || body.student_name || 'anonim'` (`src/records.ts`,
+  `saveRecordHandler`). Tidak ada daftar hadir, tidak ada kelas, tidak ada pembatasan jumlah
+  percobaan.
 - Akibat praktis: satu nama bisa dikirim berkali-kali, siswa bisa mengaku nama teman, dan dua
   siswa bernama sama tidak dapat dibedakan saat rekap. Guru tidak bisa membandingkan hasil antar
   kelas karena kelas tidak pernah tercatat.
 
 ### 3.5 Keamanan
 
-1. **Sesi dapat dipalsukan** (lihat 3.1) — akar kepercayaan sistem.
-2. **Stored XSS di halaman rekap**: tabel rekap menempelkan `JSON.stringify(payload, null, 2)`
-   dan `user_id` mentah ke HTML. Nama siswa bebas teks, dan jawaban esai juga, sehingga siswa
-   dapat menanam `<script>` yang berjalan di browser guru saat membuka Log Data. `escapeHtml()`
-   sudah tersedia, tinggal diterapkan konsisten.
+1. ~~**Sesi dapat dipalsukan** (lihat 3.1) — akar kepercayaan sistem.~~ — **SELESAI 28 Sep 2026**
+   lewat sesi HMAC bertanda tangan (`docs/plan-hardening-auth.md` T1/T2).
+2. ~~**Stored XSS di halaman rekap**: tabel rekap menempelkan `JSON.stringify(payload, null, 2)`
+   dan `user_id` mentah ke HTML.~~ — **SELESAI (28 Sep 2026).** `escapeHtml()` kini dipakai pada
+   `created_at`, `user_id`, `summary`, dan `JSON.stringify(payload)` di halaman rekap.
 3. **Endpoint publik tanpa proteksi**: `/api/save/:slug` memakai `cors()` global tanpa rate
    limit/captcha. Penilaian aman (dihitung di server), tetapi tabel D1 bisa dibanjiri.
 4. **Validasi unggahan sudah baik**: tipe file dari magic bytes, SVG ditolak, ada batas ukuran.
@@ -273,7 +292,9 @@ Tujuannya bukan fitur, tetapi memastikan tidak ada celah yang ikut tersebar.
 - [ ] Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination.
 - [ ] Tambahkan `LIMIT` di semua query rekap; pindahkan perhitungan analitik butir soal ke saat
       submit (atau Queue → pembaruan terbatas) dan simpan hasilnya.
-- [ ] R2 untuk media, dengan kunci `school_id/assessment_id/slot`.
+- [x] R2 untuk media, dengan kunci `school_id/assessment_id/slot`. *(Sebagian: binding R2 sudah
+      aktif di production & staging, tetapi kunci masih `<slug>/<name>` — namespace tenant
+      menunggu skema multi-tenant.)*
 
 Hasil Tahap 1: deployment mandiri sudah aman dipakai satu sekolah.
 
@@ -321,13 +342,15 @@ inti, bukan pelengkap.
 
 Kalau hanya boleh mengerjakan tiga hal lebih dulu:
 
-1. **Cookie statis yang bisa dipalsukan** — akar kepercayaan sistem.
-2. **Stored XSS di halaman rekap** — guru adalah pengguna paling berharga, dan saat ini bisa
-   diserang oleh input siswa.
+1. ~~**Cookie statis yang bisa dipalsukan** — akar kepercayaan sistem.~~ — **SELESAI 28 Sep 2026.**
+2. ~~**Stored XSS di halaman rekap** — guru adalah pengguna paling berharga...~~ — **SELESAI 28 Sep 2026.**
 3. **Indeks aplikasi di D1 + `LIMIT` di semua query rekap** — kunci performa sekaligus biaya.
+   *(Masih terbuka — ini yang tersisa dari daftar ini.)*
+4. **Rate limit `/api/save/:slug` + batas ukuran body JSON** — endpoint publik masih terbuka.
+5. **Isolasi tenant (`school_id`)** — prasyarat Lintasan A.
 
-Ketiganya masuk Tahap 0–1, dan relevan untuk kedua lintasan. Setelah itu tenant & peran menjadi
-pekerjaan yang jauh lebih aman untuk dimulai.
+Poin 1–2 sudah beres sejak 28 Sep 2026; yang tersisa adalah performa/kuota (3–4) dan tenant (5),
+dan keduanya relevan untuk Lintasan A maupun B.
 
 ---
 
@@ -335,13 +358,13 @@ pekerjaan yang jauh lebih aman untuk dimulai.
 
 | Area | Berkas | Catatan |
 | ---- | ------ | ------- |
-| Auth & password | `src/index.ts`, `src/auth.ts` | Konstanta password, cek cookie ganda |
-| Indeks aplikasi & rekap | `src/index.ts` | KV list N+1, `SELECT *` tanpa LIMIT, XSS di tabel |
+| Auth & sesi | `src/auth.ts`, `src/auth-routes.ts`, `src/admin-shared.ts` | Sesi HMAC + CSRF + rate limit fail-closed (selesai 28 Sep 2026) |
+| Indeks aplikasi & rekap | `src/app-index.ts`, `src/records.ts` | KV list N+1, `SELECT *` tanpa LIMIT |
 | Koreksi esai | `src/quiz-essay.ts` | `SELECT *` tanpa LIMIT |
 | Analisis butir soal | `src/quiz-report.ts` | Dihitung ulang tiap request |
 | Editor soal | `src/quiz-editor.ts` | Tulis KV tanpa versi |
-| Media | `src/media.ts`, `src/media-routes.ts` | Fallback KV, pola rate limit yang bisa dipakai ulang |
+| Media | `src/media.ts`, `src/media-routes.ts` | R2 aktif, fallback KV, pola rate limit yang bisa dipakai ulang |
 | Skema data | `schema.sql` | Satu tabel, tanpa tenant |
-| Konfigurasi deploy | `wrangler.jsonc` | R2 masih opsional; secret belum dipakai untuk password |
+| Konfigurasi deploy | `wrangler.jsonc` | R2 aktif di kedua env; KV `remote: false`; secret auth terpasang |
 | Alur siswa | `src/quiz-page.ts` | Nama siswa dari input bebas |
 | Panduan (bisa jadi basis dukungan) | `docs/panduan-pakai.md` | Sudah lengkap untuk guru |

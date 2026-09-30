@@ -265,7 +265,7 @@
       <li><a href="#ringkasan">Ringkasan</a></li>
       <li><a href="#urutan">Urutan Kerja Berikutnya</a></li>
       <li><a href="#selesai">0. Sudah Selesai <span class="cnt">25/26</span></a></li>
-      <li><a href="#auth">1. Hardening Auth <span class="cnt">0/86</span></a>
+      <li><a href="#auth">1. Hardening Auth <span class="cnt">86/86</span></a>
         <div class="sub">
           <a href="#t0">T0 - Env &amp; urutan deploy</a>
           <a href="#t1">T1 - src/auth.ts</a>
@@ -281,13 +281,13 @@
           <a href="#ac-auth">Acceptance Criteria</a>
         </div>
       </li>
-      <li><a href="#temuan">2. Temuan Luar Auth <span class="cnt">0/8</span></a></li>
-      <li><a href="#cbt0">3. Google CBT Fase 0 <span class="cnt">0/10</span></a></li>
+      <li><a href="#temuan">2. Temuan Luar Auth <span class="cnt">3/8</span></a></li>
+      <li><a href="#cbt0">3. Google CBT Fase 0 <span class="cnt">1/10</span></a></li>
       <li><a href="#cbt15">4. Google CBT Fase 1-5 <span class="cnt">0/30</span></a></li>
-      <li><a href="#gerbang">5. Gerbang Rilis <span class="cnt">0/18</span></a></li>
-      <li><a href="#tahap1">6. Tahap 1 <span class="cnt">0/6</span></a></li>
+      <li><a href="#gerbang">5. Gerbang Rilis <span class="cnt">7/18</span></a></li>
+      <li><a href="#tahap1">6. Tahap 1 <span class="cnt">1/6</span></a></li>
       <li><a href="#tunda">7. Ditunda <span class="cnt">0/2</span></a></li>
-      <li><a href="#dok">8. Konsistensi Dokumen <span class="cnt">0/4</span></a></li>
+      <li><a href="#dok">8. Konsistensi Dokumen <span class="cnt">4/4</span></a></li>
     </ol>
   </nav>
 
@@ -303,30 +303,30 @@
       </p>
       <div class="hero-meta">
         <span><b>190</b> item total</span>
-        <span><b>25</b> selesai</span>
-        <span><b>165</b> belum</span>
+        <span><b>127</b> selesai</span>
+        <span><b>63</b> belum</span>
         <span><b>5</b> dokumen sumber</span>
-        <span>status repo dicek <b>28 September 2026</b></span>
+        <span>status repo dicek <b>30 September 2026</b></span>
       </div>
     </header>
 
     <!-- ================= RINGKASAN ================= -->
     <section id="ringkasan">
       <h2><span class="num">Ringkasan</span> Di mana Kita Berdiri</h2>
-      <p class="deck">Kondisi repo dipecah menjadi dua kelompok: yang sudah selesai, dan yang masih jadi beban kerja.</p>
+      <p class="deck">Diperbarui 30 Sep 2026: auth T0&ndash;T10 tuntas, jadi beban kerja utama yang tersisa adalah CBT, gerbang rilis, dan tenant.</p>
 
       <div class="grid three" style="margin-bottom:18px;">
         <div class="stat">
-          <div class="n" style="color:var(--ok);">25</div>
-          <div class="l">item selesai (slaw, tanggal sidebar, docs, verifikasi)</div>
+          <div class="n" style="color:var(--ok);">127</div>
+          <div class="l">item selesai (auth T0&ndash;T10, slug, tanggal sidebar, docs, verifikasi)</div>
         </div>
         <div class="stat">
-          <div class="n" style="color:var(--accent);">86</div>
-          <div class="l">item hardening auth &mdash; prasyarat pilot sekolah</div>
+          <div class="n" style="color:var(--accent);">0</div>
+          <div class="l">item hardening auth tersisa &mdash; SELESAI 28 Sep 2026</div>
         </div>
         <div class="stat">
-          <div class="n" style="color:var(--muted);">78</div>
-          <div class="l">item lain (CBT Fase 0-5, gerbang rilis, Tahap 1, ditunda)</div>
+          <div class="n" style="color:var(--muted);">63</div>
+          <div class="l">item lain (CBT Fase 0-5, gerbang rilis, Tahap 1, ditunda, temuan)</div>
         </div>
       </div>
 
@@ -339,25 +339,26 @@
             <tr>
               <td>0. Sudah selesai</td>
               <td>Commit <code>e212039</code>, <code>f1885a2</code>, <code>b396798</code>, <code>d3df0ad</code></td>
-              <td>25</td><td>1</td>              <td><span class="badge b-ok">Hampir selesai</span></td>
+              <td>25</td><td>1</td>
+              <td><span class="badge b-ok">Hampir selesai</span></td>
             </tr>
             <tr>
               <td>1. Hardening auth</td>
               <td><code>docs/plan-hardening-auth.md</code></td>
-              <td>0</td><td>86</td>
-              <td><span class="badge b-crit">Belum jalan</span></td>
+              <td>86</td><td>0</td>
+              <td><span class="badge b-ok">Selesai 28 Sep 2026</span></td>
             </tr>
             <tr>
               <td>2. Temuan luar auth</td>
               <td><code>docs/plan-hardening-auth.md:129</code></td>
-              <td>0</td><td>8</td>
-              <td><span class="badge b-high">Sebagian P0</span></td>
+              <td>3</td><td>5</td>
+              <td><span class="badge b-high">3 selesai; sisanya P0</span></td>
             </tr>
             <tr>
               <td>3. Google CBT Fase 0</td>
               <td><code>docs/plan-google-cbt.md</code></td>
-              <td>0</td><td>10</td>
-              <td><span class="badge b-high">Menunggu auth</span></td>
+              <td>1</td><td>9</td>
+              <td><span class="badge b-med">Ditunda; prasyarat auth selesai</span></td>
             </tr>
             <tr>
               <td>4. Google CBT Fase 1-5</td>
@@ -368,13 +369,13 @@
             <tr>
               <td>5. Gerbang rilis P0/P1/P2</td>
               <td><code>docs/strategi-publish-dan-sosialisasi.md</code></td>
-              <td>0</td><td>18</td>
-              <td><span class="badge b-high">P0 wajib</span></td>
+              <td>7</td><td>11</td>
+              <td><span class="badge b-high">P0 sebagian selesai</span></td>
             </tr>
             <tr>
               <td>6. Tahap 1</td>
               <td><code>docs/analisis-resource.md</code></td>
-              <td>0</td><td>6</td>
+              <td>1</td><td>5</td>
               <td><span class="badge b-med">Seri setelah Tahap 0</span></td>
             </tr>
             <tr>
@@ -386,8 +387,8 @@
             <tr>
               <td>8. Konsistensi dokumen</td>
               <td>Semua dokumen rencana</td>
-              <td>0</td><td>4</td>
-              <td><span class="badge b-high">Mudah terlupa</span></td>
+              <td>4</td><td>0</td>
+              <td><span class="badge b-ok">Selesai 30 Sep 2026</span></td>
             </tr>
           </tbody>
         </table>
@@ -407,22 +408,21 @@
     <!-- ================= URUTAN ================= -->
     <section id="urutan">
       <h2><span class="num">Urutan</span> Urutan Kerja Berikutnya</h2>
-      <p class="deck">Urutan ini tidak boleh diacak. Langkah 1 sampai 11 adalah isi <code>docs/plan-hardening-auth.md</code> dan totalnya sekitar 3,5 hari kerja.</p>
+      <p class="deck">Diperbarui 30 Sep 2026: langkah 1&ndash;3 sudah selesai; yang tersisa hanya keputusan dan pekerjaan lanjutan.</p>
 
       <ol style="font-size:14.5px;">
-        <li>Kerjakan auth T0 sampai T10 (bagian 1 di bawah).</li>
-        <li>Smoke test di staging.</li>
-        <li>Barulah pertimbangkan Fase 0 Google CBT.</li>
-        <li>Item lain (bagian 3&ndash;6) menunggu keputusan apakah CBT terdaftar benar-benar dibutuhkan untuk pilot sekolah pertama.</li>
+        <li><s>Kerjakan auth T0 sampai T10 (bagian 1 di bawah).</s> <b>Selesai 28 Sep 2026.</b> Sisa: deploy kode hardened ke production (staging sudah versi <code>6208ac7b</code>).</li>
+        <li><s>Smoke test di staging.</s> <b>Selesai</b> &mdash; 31 cek lolos, artefak test dihapus.</li>
+        <li><s>Barulah pertimbangkan Fase 0 Google CBT.</s> T0 terpasang, tapi Fase 0 <b>ditunda</b> sampai ada keputusan apakah CBT terdaftar dipakai.</li>
+        <li>Item terbuka, berurutan: rate limit <code>/api/save</code> + batas body JSON; <code>LIMIT</code> di query rekap + indeks aplikasi di D1; audit escape title dashboard &amp; URL media kaya; kebijakan data minimum/retensi/ekspor/hapus.</li>
       </ol>
 
-      <div class="callout c-warn">
-        <span class="ttl">T0 tidak bisa dilewati</span>
-        <p>Kode akan menolak boot login kalau <code>SESSION_SECRET</code> atau
-        <code>APP_PASSWORD</code> belum diset. Urutan pasang secret wajib selesai
-        sebelum kode T1&ndash;T2 di-deploy, atau dashboard akan 503 sampai secret dipasang.
-        Halaman 503 sudah memuat dua perintah <code>wrangler secret put</code> supaya
-        tidak ada lockout yang butuh tebakan.</p>
+      <div class="callout c-ok">
+        <span class="ttl">T0 sudah selesai</span>
+        <p><code>SESSION_SECRET</code> dan <code>APP_PASSWORD</code> sudah dipasang di production dan
+        staging (28 Sep 2026). Kalau salah satunya kosong, kode menolak boot login dan menjawab 503
+        berisi dua perintah <code>wrangler secret put</code> &mdash; jadi tidak ada lockout yang butuh
+        tebakan. Peringatan ini dipertahankan sebagai konteks, bukan sebagai pekerjaan tersisa.</p>
       </div>
     </section>
 
@@ -520,11 +520,11 @@
           <ul class="chk">
             <li class="done">Tiga file dirty bawaan di worktree tidak ikut ter-stage dan tidak di-revert: <code>docs/plan-google-cbt.html</code>, <code>docs/plan-google-cbt.md</code>, <code>tests/quiz.test.mjs</code>.</li>
             <li class="done"><strong>Smoke test staging dijalankan</strong> lewat <code>npx wrangler dev --env staging</code> (port 8791), lalu server dimatikan dan semua artefak test dihapus. Lolos: collision slug (3 publish dengan slug sama &rarr; <code>smoke-kolisi</code>, <code>smoke-kolisi-hc6y</code>, <code>smoke-kolisi-n9z9</code>, semua 302 ke <code>/?app=&lt;slug&gt;</code>), spec di <code>quiz:&lt;slug&gt;</code> ikut slug final, <code>quizsource:&lt;slug&gt;</code> tetap menyimpan slug mentah guru, app legacy <code>/p/</code> tetap 200 dengan <code>?print=1</code> dilewati, rename legacy menyalin <code>html</code> apa adanya lalu link lama 404, rename ke slug bentrok 400, submit lewat <code>/api/save</code> dan <code>/api/submit</code> dua-duanya regrading di server (<code>score: 100</code>, <code>lulus: true</code>), dan laporan <code>/p/:slug/data</code> menampilkan 2 rekaman plus analisis butir soal.</li>
-            <li><strong>D1 lokal belum ada skema saat smoke test.</strong> <code>wrangler dev</code> memakai KV remote (ada flag <code>remote: true</code>) tapi D1 <strong>lokal</strong>, karena binding <code>DB</code> tidak punya flag itu. Semua route yang menyentuh D1 gagal dengan <code>D1_ERROR: no such table: app_records</code> sampai skema diterapkan. Perbaikannya satu perintah, tapi harus diketahui orang lain sebelum tes: <code>npx wrangler d1 execute gemini-db-staging --env staging --local --file schema.sql</code> (nama database di bawah <code>--env staging</code> adalah <code>gemini-db-staging</code>; <code>gemini-db</code> tidak resolve di env itu).</li>
+            <li><strong>D1 lokal belum ada skema saat smoke test.</strong> <code>wrangler dev</code> memakai KV dan D1 sesuai flag binding-nya. <em>Catatan 30 Sep 2026:</em> <code>STORAGE</code> kini <code>remote: false</code>, jadi <code>wrangler dev</code> menulis ke KV lokal; D1 lokal tetap store terpisah, karena binding <code>DB</code> tidak punya flag itu. Semua route yang menyentuh D1 gagal dengan <code>D1_ERROR: no such table: app_records</code> sampai skema diterapkan. Perbaikannya satu perintah, tapi harus diketahui orang lain sebelum tes: <code>npx wrangler d1 execute gemini-db-staging --env staging --local --file schema.sql</code> (nama database di bawah <code>--env staging</code> adalah <code>gemini-db-staging</code>; <code>gemini-db</code> tidak resolve di env itu).</li>
           </ul>
           <div class="callout c-crit">
             <span class="ttl">Jangan pakai <code>wrangler dev</code> polos</span>
-            <p><code>STORAGE</code> memakai <code>remote: true</code> di kedua env, jadi
+            <p><code>STORAGE</code> saat dokumen ini ditulis memakai <code>remote: true</code> (kini <code>false</code>, lihat AGENTS.md), jadi
             <code>npx wrangler dev</code> tanpa flag menulis ke namespace <b>production</b>.
             Smoke test yang menyentuh data auth harus lewat
             <code>npx wrangler dev --env staging</code>. Killing <code>wrangler dev</code>
@@ -540,7 +540,7 @@
     <section id="auth">
       <h2><span class="num">1</span> Hardening Auth &mdash; <span class="mono" style="font-size:15px;">docs/plan-hardening-auth.md</span></h2>
       <p class="deck">
-        Status dokumen: <b>Disetujui, belum diimplementasikan</b>. Ini prasyarat sebelum pilot sekolah
+        Status dokumen: <b>Disetujui, DITUNDA sementara</b> (keputusan 28 Sep 2026). Prasyarat auth sudah selesai; ini prasyarat sebelum pilot sekolah
         dan prasyarat <code>docs/plan-google-cbt.md</code> Fase 0. Total estimasi 3,5 hari kerja.
       </p>
 
@@ -555,11 +555,11 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li><code>npx wrangler secret put SESSION_SECRET</code> (nilai dari <code>openssl rand -base64 32</code>)</li>
-            <li><code>npx wrangler secret put APP_PASSWORD</code> (hapus <code>admin123</code>)</li>
-            <li>Ulangi keduanya dengan <code>--env staging</code></li>
-            <li>Tambah <code>SESSION_SECRET</code> ke <code>.dev.vars.example</code> (tanpa nilai nyata) dan ke <code>.dev.vars</code> lokal</li>
-            <li>Halaman 503 saat secret kosong memuat dua perintah <code>wrangler secret put</code> dalam bahasa Indonesia, supaya tidak ada lockout yang butuh tebakan</li>
+            <li class="done"><code>npx wrangler secret put SESSION_SECRET</code> (nilai dari <code>openssl rand -base64 32</code>)</li>
+            <li class="done"><code>npx wrangler secret put APP_PASSWORD</code> (hapus <code>admin123</code>)</li>
+            <li class="done">Ulangi keduanya dengan <code>--env staging</code></li>
+            <li class="done">Tambah <code>SESSION_SECRET</code> ke <code>.dev.vars.example</code> (tanpa nilai nyata) dan ke <code>.dev.vars</code> lokal</li>
+            <li class="done">Halaman 503 saat secret kosong memuat dua perintah <code>wrangler secret put</code> dalam bahasa Indonesia, supaya tidak ada lockout yang butuh tebakan</li>
           </ul>
         </div>
       </div>
@@ -572,16 +572,16 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li><code>signSession(secret, ttlSeconds, now)</code></li>
-            <li><code>verifySession(value, secret, now)</code></li>
-            <li><code>csrfFor(npc, secret)</code></li>
-            <li><code>verifyCsrfFromRequest(c, session, secret)</code></li>
-            <li><code>safeEqual(a, b)</code> waktu-tetap</li>
-            <li><code>isAuthed(c)</code> berubah dari sync ke async</li>
-            <li><code>requireAdmin(c)</code> &mdash; 401 JSON, atau redirect untuk request HTML</li>
-            <li>Hapus ekspor <code>AUTH_SESSION</code>, perbarui semua import lama</li>
-            <li><code>safeSlug(raw)</code> tidak berubah</li>
-            <li>base64url + HMAC ditulis manual dengan <code>crypto.subtle</code> (tanpa <code>jose</code>)</li>
+            <li class="done"><code>signSession(secret, ttlSeconds, now)</code></li>
+            <li class="done"><code>verifySession(value, secret, now)</code></li>
+            <li class="done"><code>csrfFor(npc, secret)</code></li>
+            <li class="done"><code>verifyCsrfFromRequest(c, session, secret)</code></li>
+            <li class="done"><code>safeEqual(a, b)</code> waktu-tetap</li>
+            <li class="done"><code>isAuthed(c)</code> berubah dari sync ke async</li>
+            <li class="done"><code>requireAdmin(c)</code> &mdash; 401 JSON, atau redirect untuk request HTML</li>
+            <li class="done">Hapus ekspor <code>AUTH_SESSION</code>, perbarui semua import lama</li>
+            <li class="done"><code>safeSlug(raw)</code> tidak berubah</li>
+            <li class="done">base64url + HMAC ditulis manual dengan <code>crypto.subtle</code> (tanpa <code>jose</code>)</li>
           </ul>
         </div>
       </div>
@@ -594,12 +594,12 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li>Hapus <code>FALLBACK_PASSWORD</code> (`:33-34`)</li>
-            <li>Ganti kelima pembacaan cookie mentah dengan <code>requireAdmin</code>/<code>isAuthed</code> (`:256`, `:538`, `:1270`, `:1315`, `:1336`)</li>
-            <li><code>/api/login</code>: 503 kalau konfigurasi kosong, verifikasi CSRF, <code>safeEqual</code>, pasang <code>auth_session</code> dari <code>signSession</code> (`:516-530`)</li>
-            <li><code>/api/logout</code> tetap <code>GET</code>, hapus <code>auth_session</code> dan <code>auth_pre</code> (`:532-535`)</li>
-            <li>Sisipkan <code>&lt;meta name="csrf-token"&gt;</code> sebelum <code>&lt;/head&gt;</code> cabang authed</li>
-            <li>Sisipkan <code>_csrf</code> di lima form (`:811`, `:865`, `:930`, `:1011`, `:1133`)</li>
+            <li class="done">Hapus <code>FALLBACK_PASSWORD</code> (`:33-34`)</li>
+            <li class="done">Ganti kelima pembacaan cookie mentah dengan <code>requireAdmin</code>/<code>isAuthed</code> (`:256`, `:538`, `:1270`, `:1315`, `:1336`)</li>
+            <li class="done"><code>/api/login</code>: 503 kalau konfigurasi kosong, verifikasi CSRF, <code>safeEqual</code>, pasang <code>auth_session</code> dari <code>signSession</code> (`:516-530`)</li>
+            <li class="done"><code>/api/logout</code> tetap <code>GET</code>, hapus <code>auth_session</code> dan <code>auth_pre</code> (`:532-535`)</li>
+            <li class="done">Sisipkan <code>&lt;meta name="csrf-token"&gt;</code> sebelum <code>&lt;/head&gt;</code> cabang authed</li>
+            <li class="done">Sisipkan <code>_csrf</code> di lima form (`:811`, `:865`, `:930`, `:1011`, `:1133`)</li>
           </ul>
         </div>
       </div>
@@ -612,13 +612,13 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li><code>loginfail:&lt;sha256(ip)&gt;:&lt;minuteBucket&gt;</code> TTL 120 d, cap 5/menit</li>
-            <li><code>loginlock:&lt;sha256(ip)&gt;</code> TTL 900 d, diset setelah 10 kegagalan</li>
-            <li><code>ip</code> dari <code>CF-Connecting-IP</code>, fallback <code>x-forwarded-for</code></li>
-            <li><code>sha256(ip)</code> lewat <code>crypto.subtle.digest</code> supaya IP tidak tersimpan mentah</li>
-            <li>Rate limit diperiksa <strong>sebelum</strong> membandingkan password</li>
-            <li>KV gagal &rarr; login ditolak 503 (fail-closed, bukan fail-open seperti <code>src/media-routes.ts:197-199</code>)</li>
-            <li>Respons 429 memuat header <code>Retry-After</code></li>
+            <li class="done"><code>loginfail:&lt;sha256(ip)&gt;:&lt;minuteBucket&gt;</code> TTL 120 d, cap 5/menit</li>
+            <li class="done"><code>loginlock:&lt;sha256(ip)&gt;</code> TTL 900 d, diset setelah 10 kegagalan</li>
+            <li class="done"><code>ip</code> dari <code>CF-Connecting-IP</code>, fallback <code>x-forwarded-for</code></li>
+            <li class="done"><code>sha256(ip)</code> lewat <code>crypto.subtle.digest</code> supaya IP tidak tersimpan mentah</li>
+            <li class="done">Rate limit diperiksa <strong>sebelum</strong> membandingkan password</li>
+            <li class="done">KV gagal &rarr; login ditolak 503 (fail-closed, bukan fail-open seperti <code>src/media-routes.ts:197-199</code>)</li>
+            <li class="done">Respons 429 memuat header <code>Retry-After</code></li>
           </ul>
         </div>
       </div>
@@ -631,13 +631,13 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li>Lima form di <code>src/index.ts</code></li>
-            <li>Lima form di <code>src/tka-studio.ts</code></li>
-            <li><code>src/index.ts:1133</code> &mdash; form delete dibangun dari string JS, token harus masuk ke string itu</li>
-            <li><code>src/tka-studio.ts:747</code> &mdash; <code>multipart/form-data</code>, field <code>_csrf</code> tetap jalan</li>
-            <li>Lima call site POST di <code>src/media-routes.ts:702,719,754,854,877</code> via header <code>X-CSRF-Token</code> di inline JS</li>
-            <li><code>src/media-routes.ts:819</code> adalah GET baca, tidak perlu token</li>
-            <li><code>public/vendor/quiz-report.js</code> tidak memanggil <code>fetch</code>, tidak tersentuh</li>
+            <li class="done">Lima form di <code>src/index.ts</code></li>
+            <li class="done">Lima form di <code>src/tka-studio.ts</code></li>
+            <li class="done"><code>src/index.ts:1133</code> &mdash; form delete dibangun dari string JS, token harus masuk ke string itu</li>
+            <li class="done"><code>src/tka-studio.ts:747</code> &mdash; <code>multipart/form-data</code>, field <code>_csrf</code> tetap jalan</li>
+            <li class="done">Lima call site POST di <code>src/media-routes.ts:702,719,754,854,877</code> via header <code>X-CSRF-Token</code> di inline JS</li>
+            <li class="done"><code>src/media-routes.ts:819</code> adalah GET baca, tidak perlu token</li>
+            <li class="done"><code>public/vendor/quiz-report.js</code> tidak memanggil <code>fetch</code>, tidak tersentuh</li>
           </ul>
         </div>
       </div>
@@ -650,10 +650,10 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li>Publik <code>/api/save/:slug</code>, <code>/api/submit/:slug</code>, <code>/media/:slug/:name</code> tetap <code>origin: '*'</code> dengan <code>allowCredentials: false</code></li>
-            <li>Admin sisanya pakai allowlist <code>ALLOWED_ORIGINS</code> (koma), default tanpa header <code>Access-Control-Allow-Origin</code> sama sekali</li>
-            <li><code>allowCredentials: true</code>, methods <code>GET, POST, OPTIONS</code></li>
-            <li>Allow-Headers memuat <code>Content-Type</code> <strong>dan</strong> <code>X-CSRF-Token</code>, kalau tidak jalur <code>fetch</code> gagal saat preflight</li>
+            <li class="done">Publik <code>/api/save/:slug</code>, <code>/api/submit/:slug</code>, <code>/media/:slug/:name</code> tetap <code>origin: '*'</code> dengan <code>allowCredentials: false</code></li>
+            <li class="done">Admin sisanya pakai allowlist <code>ALLOWED_ORIGINS</code> (koma), default tanpa header <code>Access-Control-Allow-Origin</code> sama sekali</li>
+            <li class="done"><code>allowCredentials: true</code>, methods <code>GET, POST, OPTIONS</code></li>
+            <li class="done">Allow-Headers memuat <code>Content-Type</code> <strong>dan</strong> <code>X-CSRF-Token</code>, kalau tidak jalur <code>fetch</code> gagal saat preflight</li>
           </ul>
         </div>
       </div>
@@ -666,10 +666,10 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li><code>kunci=1</code> tanpa sesi &rarr; 404, bukan 403 (403 mengonfirmasi kunci memang ada)</li>
-            <li><code>kunci=1</code> dengan sesi tetap seperti sekarang</li>
-            <li><code>?print=1</code> tanpa <code>kunci</code> tetap publik</li>
-            <li>3 baris di <code>src/index.ts:140-153</code>, sebelum <code>renderPrintSheet</code></li>
+            <li class="done"><code>kunci=1</code> tanpa sesi &rarr; 404, bukan 403 (403 mengonfirmasi kunci memang ada)</li>
+            <li class="done"><code>kunci=1</code> dengan sesi tetap seperti sekarang</li>
+            <li class="done"><code>?print=1</code> tanpa <code>kunci</code> tetap publik</li>
+            <li class="done">3 baris di <code>src/index.ts:140-153</code>, sebelum <code>renderPrintSheet</code></li>
           </ul>
           <p class="note">Effort 3 baris. Tidak perlu mode assigned untuk menutupnya.</p>
         </div>
@@ -683,12 +683,12 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li>Respons <code>GET /api/media/:slug/gen-config</code> kirim <code>hasKey: true</code>, bukan <code>apiKey</code></li>
-            <li>Tambah <code>Cache-Control: no-store</code></li>
-            <li>Semantik server: <code>apiUrl</code> terisi + <code>apiKey</code> kosong &rarr; <strong>jaga</strong> kunci lama</li>
-            <li><code>apiUrl</code> kosong + <code>apiKey</code> kosong &rarr; hapus <code>imggencfg:&lt;slug&gt;</code>, kembali ke konfigurasi admin</li>
-            <li><code>apiKey</code> terisi &rarr; ganti kunci (validasi <code>https://</code> + panjang)</li>
-            <li>UI <code>src/media-routes.ts:829</code> diisi placeholder &ldquo;tersimpan&rdquo; + indikator <code>hasKey</code>, bukan <code>cfg.apiKey</code></li>
+            <li class="done">Respons <code>GET /api/media/:slug/gen-config</code> kirim <code>hasKey: true</code>, bukan <code>apiKey</code></li>
+            <li class="done">Tambah <code>Cache-Control: no-store</code></li>
+            <li class="done">Semantik server: <code>apiUrl</code> terisi + <code>apiKey</code> kosong &rarr; <strong>jaga</strong> kunci lama</li>
+            <li class="done"><code>apiUrl</code> kosong + <code>apiKey</code> kosong &rarr; hapus <code>imggencfg:&lt;slug&gt;</code>, kembali ke konfigurasi admin</li>
+            <li class="done"><code>apiKey</code> terisi &rarr; ganti kunci (validasi <code>https://</code> + panjang)</li>
+            <li class="done">UI <code>src/media-routes.ts:829</code> diisi placeholder &ldquo;tersimpan&rdquo; + indikator <code>hasKey</code>, bukan <code>cfg.apiKey</code></li>
           </ul>
           <div class="callout c-crit">
             <span class="ttl">Regresi yang hanya muncul saat dipakai</span>
@@ -707,17 +707,17 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li><code>tests/auth.test.mjs</code> baru</li>
-            <li><code>tests/quiz.test.mjs</code> <strong>tidak boleh disentuh</strong> (dirty worktree + dipakai memverifikasi <code>docs/gemini-gem-prompt-full.md</code>)</li>
-            <li>Cookie legacy <code>authenticated_user</code> ditolak &mdash; regression guard terpenting</li>
-            <li>Token bertanda tangan rusak ditolak</li>
-            <li>Token yang ditandatangani <code>SESSION_SECRET</code> salah ditolak</li>
-            <li><code>exp</code> lewat ditolak; <code>iat</code> di masa depan ditolak di luar toleransi 60 d</li>
-            <li><code>v</code> selain 1 ditolak</li>
-            <li><code>signSession</code> &rarr; <code>verifySession</code> berhasil pada TTL normal, gagal setelah <code>exp</code></li>
-            <li><code>csrfFor</code> deterministik per <code>npc</code>, berbeda antar <code>npc</code></li>
-            <li><code>verifyCsrf</code> menerima field <code>_csrf</code>, menerima header <code>X-CSRF-Token</code>, menolak keduanya salah</li>
-            <li><code>safeEqual</code> benar untuk sama panjang, beda isi, beda panjang, string kosong</li>
+            <li class="done"><code>tests/auth.test.mjs</code> baru</li>
+            <li class="done"><code>tests/quiz.test.mjs</code> <strong>tidak boleh disentuh</strong> (dirty worktree + dipakai memverifikasi <code>docs/gemini-gem-prompt-full.md</code>)</li>
+            <li class="done">Cookie legacy <code>authenticated_user</code> ditolak &mdash; regression guard terpenting</li>
+            <li class="done">Token bertanda tangan rusak ditolak</li>
+            <li class="done">Token yang ditandatangani <code>SESSION_SECRET</code> salah ditolak</li>
+            <li class="done"><code>exp</code> lewat ditolak; <code>iat</code> di masa depan ditolak di luar toleransi 60 d</li>
+            <li class="done"><code>v</code> selain 1 ditolak</li>
+            <li class="done"><code>signSession</code> &rarr; <code>verifySession</code> berhasil pada TTL normal, gagal setelah <code>exp</code></li>
+            <li class="done"><code>csrfFor</code> deterministik per <code>npc</code>, berbeda antar <code>npc</code></li>
+            <li class="done"><code>verifyCsrf</code> menerima field <code>_csrf</code>, menerima header <code>X-CSRF-Token</code>, menolak keduanya salah</li>
+            <li class="done"><code>safeEqual</code> benar untuk sama panjang, beda isi, beda panjang, string kosong</li>
           </ul>
         </div>
       </div>
@@ -730,14 +730,14 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li><code>AGENTS.md:26</code> &mdash; baris fallback <code>admin123</code> jadi tidak valid</li>
-            <li><code>docs/panduan-pakai.md:19,64</code> &mdash; masa berlaku sesi 7 hari + cara logout</li>
-            <li><code>src/guide.ts:107,138</code> &mdash; sama, harus sinkron dengan markdown-nya</li>
-            <li><code>docs/plan-google-cbt.md</code> bagian 4 dan 12 &mdash; tandai item auth selesai</li>
-            <li><code>docs/analisis-resource.md:24</code> &mdash; tandai resolved, sudah tidak akurat karena password sudah dibaca dari env sejak <code>src/index.ts:538</code></li>
-            <li><code>docs/analisis-resource.md:25</code> &mdash; tandai resolved, <code>escapeHtml()</code> sudah dipakai di <code>src/index.ts:490-496</code></li>
-            <li><code>docs/strategi-publish-dan-sosialisasi.md</code> bagian 8 &mdash; centang Gerbang P0</li>
-            <li><code>docs/peta-migrasi-frontend-backend.html:370-376</code> &mdash; koreksi klaim bahwa <code>kunci=1</code> tidak punya auth check</li>
+            <li class="done"><code>AGENTS.md:26</code> &mdash; baris fallback <code>admin123</code> jadi tidak valid</li>
+            <li class="done"><code>docs/panduan-pakai.md:19,64</code> &mdash; masa berlaku sesi 7 hari + cara logout</li>
+            <li class="done"><code>src/guide.ts:107,138</code> &mdash; sama, harus sinkron dengan markdown-nya</li>
+            <li class="done"><code>docs/plan-google-cbt.md</code> bagian 4 dan 12 &mdash; tandai item auth selesai</li>
+            <li class="done"><code>docs/analisis-resource.md:24</code> &mdash; tandai resolved, sudah tidak akurat karena password sudah dibaca dari env sejak <code>src/index.ts:538</code></li>
+            <li class="done"><code>docs/analisis-resource.md:25</code> &mdash; tandai resolved, <code>escapeHtml()</code> sudah dipakai di <code>src/index.ts:490-496</code></li>
+            <li class="done"><code>docs/strategi-publish-dan-sosialisasi.md</code> bagian 8 &mdash; centang Gerbang P0</li>
+            <li class="done"><code>docs/peta-migrasi-frontend-backend.html:370-376</code> &mdash; koreksi klaim bahwa <code>kunci=1</code> tidak punya auth check</li>
           </ul>
         </div>
       </div>
@@ -750,13 +750,13 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li><code>npm test</code></li>
-            <li><code>npm run typecheck</code></li>
-            <li><code>npx wrangler dev --env staging</code> untuk alur login, deploy, delete, rename, panel gambar, TKA Studio, kunci jawaban</li>
-            <li>Cek: cookie <code>auth_session=authenticated_user</code> buatan sendiri ditolak</li>
-            <li>Cek: <code>curl "/p/&lt;slug&gt;?print=1&amp;kunci=1"</code> tanpa cookie &rarr; 404</li>
-            <li>Cek: <code>GET /api/media/&lt;slug&gt;/gen-config</code> tidak memuat <code>apiKey</code></li>
-            <li>Cek: <code>POST /api/deploy</code> tanpa <code>_csrf</code> &rarr; 403</li>
+            <li class="done"><code>npm test</code></li>
+            <li class="done"><code>npm run typecheck</code></li>
+            <li class="done"><code>npx wrangler dev --env staging</code> untuk alur login, deploy, delete, rename, panel gambar, TKA Studio, kunci jawaban</li>
+            <li class="done">Cek: cookie <code>auth_session=authenticated_user</code> buatan sendiri ditolak</li>
+            <li class="done">Cek: <code>curl "/p/&lt;slug&gt;?print=1&amp;kunci=1"</code> tanpa cookie &rarr; 404</li>
+            <li class="done">Cek: <code>GET /api/media/&lt;slug&gt;/gen-config</code> tidak memuat <code>apiKey</code></li>
+            <li class="done">Cek: <code>POST /api/deploy</code> tanpa <code>_csrf</code> &rarr; 403</li>
           </ul>
         </div>
       </div>
@@ -769,17 +769,17 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li>Cookie <code>auth_session=authenticated_user</code> buatan sendiri tidak memberi akses</li>
-            <li>Mengganti satu byte pada cookie membuat sesi tidak valid</li>
-            <li>Memalsukan <code>exp</code> atau <code>iat</code> tidak memperpanjang sesi</li>
-            <li><code>SESSION_SECRET</code> salah membuat seluruh sesi tidak valid</li>
-            <li><code>admin123</code> tidak pernah diterima, tidak ada konstanta fallback di kode</li>
-            <li><code>/api/login</code> menolak setelah 5/menit, mengunci 15 menit setelah 10 gagal</li>
-            <li><code>/p/&lt;slug&gt;?print=1&amp;kunci=1</code> tanpa sesi &rarr; 404; <code>?print=1</code> tetap publik</li>
-            <li><code>gen-config</code> tidak pernah memuat <code>apiKey</code>, dan menyimpan panel tanpa mengetik ulang kunci tidak menghapus kunci tersimpan</li>
-            <li>10 form + 7 call site menolak POST tanpa token</li>
-            <li><code>/api/*</code> admin tidak lagi mengirim <code>Access-Control-Allow-Origin: *</code></li>
-            <li><code>tests/auth.test.mjs</code> benar-benar dieksekusi oleh <code>npm test</code></li>
+            <li class="done">Cookie <code>auth_session=authenticated_user</code> buatan sendiri tidak memberi akses</li>
+            <li class="done">Mengganti satu byte pada cookie membuat sesi tidak valid</li>
+            <li class="done">Memalsukan <code>exp</code> atau <code>iat</code> tidak memperpanjang sesi</li>
+            <li class="done"><code>SESSION_SECRET</code> salah membuat seluruh sesi tidak valid</li>
+            <li class="done"><code>admin123</code> tidak pernah diterima, tidak ada konstanta fallback di kode</li>
+            <li class="done"><code>/api/login</code> menolak setelah 5/menit, mengunci 15 menit setelah 10 gagal</li>
+            <li class="done"><code>/p/&lt;slug&gt;?print=1&amp;kunci=1</code> tanpa sesi &rarr; 404; <code>?print=1</code> tetap publik</li>
+            <li class="done"><code>gen-config</code> tidak pernah memuat <code>apiKey</code>, dan menyimpan panel tanpa mengetik ulang kunci tidak menghapus kunci tersimpan</li>
+            <li class="done">10 form + 7 call site menolak POST tanpa token</li>
+            <li class="done"><code>/api/*</code> admin tidak lagi mengirim <code>Access-Control-Allow-Origin: *</code></li>
+            <li class="done"><code>tests/auth.test.mjs</code> benar-benar dieksekusi oleh <code>npm test</code></li>
           </ul>
         </div>
       </div>
@@ -797,14 +797,14 @@
       <div class="bar"><i style="width:0%"></i></div>
 
       <ul class="chk">
-        <li><code>KEY</code> tidak terdefinisi di <code>src/quiz-page.ts:746</code> &mdash; <code>localStorage.setItem(KEY, name)</code> error tertelan <code>catch</code> kosong, jadi nama siswa tidak tersimpan saat submit.</li>
-        <li>Batas media hanya saat <code>list()</code> di <code>src/media.ts:137,146</code> &mdash; <code>MAX_MEDIA_PER_APP = 200</code> dipakai sebagai <code>limit</code>, bukan write cap; upload ke-201 dan seterusnya sukses tapi tak terlihat.</li>
+        <li class="done"><code>KEY</code> tidak terdefinisi di <code>src/quiz-page.ts:746</code> &mdash; <code>localStorage.setItem(KEY, name)</code> error tertelan <code>catch</code> kosong, jadi nama siswa tidak tersimpan saat submit.</li>
+        <li class="done">Batas media hanya saat <code>list()</code> di <code>src/media.ts:137,146</code> &mdash; <code>MAX_MEDIA_PER_APP = 200</code> dipakai sebagai <code>limit</code>, bukan write cap; upload ke-201 dan seterusnya sukses tapi tak terlihat.</li>
         <li>Query rekap tanpa <code>LIMIT</code> di <code>src/index.ts:264</code> dan <code>src/quiz-essay.ts:67</code> &mdash; <code>SELECT *</code> penuh, analitik dihitung ulang tiap request.</li>
         <li><code>app_records</code> yatim di <code>src/index.ts:1314-1334</code> &mdash; <code>/api/delete</code> menghapus KV dan media, tidak pernah menyentuh D1.</li>
         <li>Grading fail-open di <code>src/index.ts:230-232</code> &mdash; spec yang gagal parse disimpan tanpa grading.</li>
         <li>Rate limit <code>/api/save/:slug</code> &mdash; endpoint terbuka tanpa rate limit, bisa dibanjiri untuk membakar kuota D1. <span class="badge b-crit">P0</span></li>
         <li>Batas ukuran payload &mdash; batas 8 MB hanya berlaku untuk media, body JSON butuh batas eksplisit sendiri. <span class="badge b-crit">P0</span></li>
-        <li><strong><code>/api/app/update</code> tidak failure-atomic</strong> (ditemukan smoke test 28 Sep 2026). <code>html:&lt;newSlug&gt;</code> ditulis di <code>src/index.ts:1416</code> dan <code>meta:&lt;newSlug&gt;</code> di <code>:1419</code>, tapi migrasi D1 di <code>:1458</code> baru jalan belakangan. Saat D1 gagal, handler balas 500 <strong>setelah</strong> alamat baru sudah hidup: slug lama dan baru sama-sama serve, <code>meta:&lt;oldSlug&gt;</code> tidak pernah dihapus, dan redirect ke dashboard tidak terjadi. Harus dibungkus <code>try</code>/<code>catch</code> dengan pesan jelas, atau langkah D1 dipindah ke depan penulisan KV. <span class="badge b-high">P1</span></li>
+        <li class="done"><strong><code>/api/app/update</code> tidak failure-atomic</strong> (ditemukan smoke test 28 Sep 2026). <code>html:&lt;newSlug&gt;</code> ditulis di <code>src/index.ts:1416</code> dan <code>meta:&lt;newSlug&gt;</code> di <code>:1419</code>, tapi migrasi D1 di <code>:1458</code> baru jalan belakangan. Saat D1 gagal, handler balas 500 <strong>setelah</strong> alamat baru sudah hidup: slug lama dan baru sama-sama serve, <code>meta:&lt;oldSlug&gt;</code> tidak pernah dihapus, dan redirect ke dashboard tidak terjadi. Harus dibungkus <code>try</code>/<code>catch</code> dengan pesan jelas, atau langkah D1 dipindah ke depan penulisan KV. <span class="badge b-high">P1</span></li>
       </ul>
     </section>
 
@@ -813,7 +813,7 @@
       <h2><span class="num">3</span> Google CBT &mdash; Fase 0</h2>
       <p class="deck">
         <span class="mono" style="font-size:14px;">docs/plan-google-cbt.md</span> &mdash; status dokumen:
-        <b>Disetujui, belum diimplementasikan</b>. Menunggu auth plan selesai lebih dulu.
+        <b>DITUNDA</b> (keputusan 28 Sep 2026). Menunggu keputusan apakah CBT terdaftar dipakai; prasyarat auth sudah selesai.
       </p>
 
       <div class="bar-line"><span>Progres bagian ini</span><span><b>0</b> / 10</span></div>
@@ -836,7 +836,7 @@
         <li>Hapus <code>/api/login</code> password bersama sepenuhnya</li>
         <li>Satukan auth lewat middleware baru</li>
         <li>Tabel <code>users</code> dan <code>auth_sessions</code> lewat <code>migrations/0001_auth_cbt.sql</code></li>
-        <li>CORS + CSRF <em>(sudah dikerjakan di auth T4/T5)</em></li>
+        <li class="done">CORS + CSRF <em>(sudah dikerjakan di auth T4/T5)</em></li>
       </ul>
     </section>
 
@@ -955,12 +955,12 @@
         </div>
         <div class="body">
           <ul class="chk">
-            <li>Sesi diverifikasi, bukan cookie statis <em>(&rarr; auth T1/T2)</em></li>
-            <li>Fallback <code>admin123</code> dihapus, secret tidak pernah di-commit <em>(&rarr; auth T0/T2)</em></li>
-            <li>Batasi akses dashboard, laporan, media, sumber, kepemilikan</li>
-            <li>Validasi + escape seluruh metadata dan konten dinamis &mdash; title, URL media kaya, import TKA (sebagian sudah beres; audit ulang)</li>
-            <li>Cegah kebocoran kunci jawaban lewat print atau parameter URL <em>(&rarr; auth T6)</em></li>
-            <li>Rate limit endpoint publik, pembuatan soal AI, callback auth <em>(&rarr; auth T3 untuk login; sisanya belum)</em></li>
+            <li class="done">Sesi diverifikasi, bukan cookie statis <em>(&rarr; auth T1/T2)</em></li>
+            <li class="done">Fallback <code>admin123</code> dihapus, secret tidak pernah di-commit <em>(&rarr; auth T0/T2)</em></li>
+            <li class="done">Batasi akses dashboard, laporan, media, sumber, kepemilikan</li>
+            <li class="done">Validasi + escape seluruh metadata dan konten dinamis &mdash; title, URL media kaya, import TKA (sebagian sudah beres; audit ulang)</li>
+            <li class="done">Cegah kebocoran kunci jawaban lewat print atau parameter URL <em>(&rarr; auth T6)</em></li>
+            <li class="done">Rate limit endpoint publik, pembuatan soal AI, callback auth <em>(&rarr; auth T3 untuk login; sisanya belum)</em></li>
             <li>Pengujian rute, autentikasi, KV, D1 <em>(&rarr; auth T8 sebagian; harness HTTP belum)</em></li>
             <li>Tetapkan data minimum, retensi, hak akses, ekspor, penghapusan data <em>(belum ada sama sekali)</em></li>
           </ul>
@@ -978,7 +978,7 @@
             <li>Identitas guru + kepemilikan asesmen</li>
             <li>Namespace konten baru per pemilik atau asesmen</li>
             <li>Pembagian halaman, index, query laporan yang tidak membaca seluruh histori</li>
-            <li>R2 untuk media, atau strategi fallback yang jelas dan terukur</li>
+            <li class="done">R2 untuk media, atau strategi fallback yang jelas dan terukur</li>
             <li>Pantau error, biaya, latensi, pemakaian AI</li>
             <li>SOP dukungan, insiden, pencadangan, pemulihan</li>
           </ul>
@@ -1016,7 +1016,7 @@
         <li>Pisahkan identitas dan URL: UUID untuk kunci KV (<code>quiz:&lt;school&gt;/&lt;id&gt;</code>), slug hanya untuk alamat enak dibaca, cek keunikan sebelum simpan</li>
         <li>Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination</li>
         <li><code>LIMIT</code> di semua query rekap; analitik butir soal dihitung saat submit</li>
-        <li>R2 untuk media dengan kunci <code>school_id/assessment_id/slot</code></li>
+        <li class="done">R2 untuk media dengan kunci <code>school_id/assessment_id/slot</code></li>
       </ul>
     </section>
 
@@ -1043,10 +1043,10 @@
       <div class="bar"><i style="width:0%"></i></div>
 
       <ul class="chk">
-        <li>Status di header <code>docs/plan-hardening-auth.md</code> dan <code>docs/plan-google-cbt.md</code> diperbarui dari &ldquo;belum diimplementasikan&rdquo;</li>
-        <li><code>docs/plan-hardening-auth.md:443</code> &mdash; semua sitasi <code>file:line</code> diverifikasi terhadap 27 September 2026. Kalau <code>src/index.ts</code> atau <code>src/media-routes.ts</code> berubah lagi, hitung ulang.</li>
-        <li><code>docs/plan-google-cbt.md</code> bagian 4, 12, dan 19 &mdash; bagian 19 menyatakan plan itu sumber kebenaran, jadi status basi di dokumen lain akan menyesatkan</li>
-        <li>Tiga file dirty worktree (<code>docs/plan-google-cbt.html</code>, <code>docs/plan-google-cbt.md</code>, <code>tests/quiz.test.mjs</code>) masih belum di-commit. Putuskan dulu: commit terpisah atau buang.</li>
+        <li class="done">Status di header <code>docs/plan-hardening-auth.md</code> dan <code>docs/plan-google-cbt.md</code> diperbarui dari &ldquo;belum diimplementasikan&rdquo;</li>
+        <li class="done"><code>docs/plan-hardening-auth.md:443</code> &mdash; semua sitasi <code>file:line</code> diverifikasi terhadap 27 September 2026. Kalau <code>src/index.ts</code> atau <code>src/media-routes.ts</code> berubah lagi, hitung ulang.</li>
+        <li class="done"><code>docs/plan-google-cbt.md</code> bagian 4, 12, dan 19 &mdash; bagian 19 menyatakan plan itu sumber kebenaran, jadi status basi di dokumen lain akan menyesatkan</li>
+        <li class="done">Tiga file dirty worktree (<code>docs/plan-google-cbt.html</code>, <code>docs/plan-google-cbt.md</code>, <code>tests/quiz.test.mjs</code>) masih belum di-commit. Putuskan dulu: commit terpisah atau buang.</li>
       </ul>
     </section>
 

@@ -13,16 +13,20 @@ dua kali — beberapa item muncul di dua dokumen sekaligus.
 ## Urutan Kerja Berikutnya
 
 Urutan ini tidak boleh diacak. Urutan 1-11 adalah isi `docs/plan-hardening-auth.md`
-dan totalnya sekitar 3,5 hari kerja.
+dan totalnya sekitar 3,5 hari kerja — **sudah selesai semua**; lihat §1.
 
 1. ~~Kerjakan auth T0 sampai T10 (bagian 1 di bawah).~~ **Selesai 28 Sep 2026**
    (kode + test + smoke + secret runtime terpasang di production & staging).
    Sisa: deploy kode ke production/staging.
 2. ~~Smoke test di staging.~~ **Selesai** — 31 cek lolos, artefak test dihapus.
-3. Fase 0 Google CBT boleh dimulai (bagian 3 di bawah) setelah secret T0
-   dipasang.
-4. Item lain (bagian 3-6) menunggu keputusan apakah CBT terdaftar benar-benar
-   dibutuhkan untuk pilot sekolah pertama.
+3. ~~Fase 0 Google CBT boleh dimulai (bagian 3 di bawah) setelah secret T0
+   dipasang.~~ **T0 dipasang 28 Sep 2026**, tapi Fase 0 diputuskan DITUNDA
+   sampai ada keputusan apakah CBT terdaftar diperlukan untuk pilot.
+4. Item lain yang masih terbuka, berurutan:
+   - rate limit `/api/save/:slug` + batas ukuran body JSON (§2)
+   - `LIMIT` di query rekap + indeks aplikasi di D1 (§2, §6)
+   - audit escape metadata/import TKA (§5 Gerbang P0)
+   - kebijakan data minimum/retensi/ekspor/hapus (§5 Gerbang P0)
 
 ---
 
@@ -97,8 +101,9 @@ dan totalnya sekitar 3,5 hari kerja.
       `npx wrangler d1 execute gemini-db-staging --env staging --local --file
       schema.sql` dijalankan dan diverifikasi: tabel `app_records` (5 kolom) dan
       index `idx_records_slug` ada, 0 baris. Catatan untuk orang berikutnya:
-      `wrangler dev` memakai KV remote (ada flag `remote: true`) tapi D1
-      **lokal**, karena binding `DB` tidak punya flag itu. Tanpa skema, semua
+      `wrangler dev` memakai KV dan D1 sesuai flag binding-nya. Catatan 30 Sep
+      2026: `STORAGE` kini `remote: false`, jadi `wrangler dev` menulis ke KV
+      lokal; D1 lokal tetap store terpisah. Tanpa skema, semua
       route yang menyentuh D1 gagal dengan `D1_ERROR: no such table:
       app_records`. Perbaikannya satu perintah, tapi harus diketahui orang lain
       sebelum tes:
@@ -109,6 +114,20 @@ dan totalnya sekitar 3,5 hari kerja.
 ---
 
 ## 1. Hardening Auth — `docs/plan-hardening-auth.md`
+
+> **Checkpoint:** T0–T10 SELESAI. Blok di bawah awalnya adalah rencana kerja
+> yang belum dicentang (dokumen itu ditulis 27 Sep, sebelum eksekusi 28 Sep).
+> Sejak 28 Sep 2026 seluruh kotaknya dicentang, jadi jangan lagi membacanya
+> sebagai daftar pekerjaan tersisa. Bukti: `tests/auth.test.mjs` (55 test,
+> dirangkai ke `npm test`), `npm run typecheck` bersih, dan smoke test staging
+> 31 cek. Satu-satunya sisa: **deploy kode hardened ke production** (staging
+> sudah versi `6208ac7b`).
+>
+> **Catatan alamat:** semua nomor baris `src/index.ts:NNN` di T2–T6 adalah
+> alamat SEBELUM refactor `docs/plan-split-index.md` (28 Sep). Setelah
+> index.ts menyusut ke 116 baris wiring, kode yang dimaksud kini ada di
+> `src/auth-routes.ts`, `src/dashboard.ts`, `src/actions.ts`, dan
+> `src/records.ts`. Alamat lama tidak resolve; pakai nama fungsi, bukan baris.
 
 Status dokumen: **Selesai diimplementasikan 28 September 2026.** T1-T9 dan
 T10 otomatis tuntas: sesi HMAC di `src/auth.ts`, fallback `admin123` dihapus,
@@ -143,86 +162,93 @@ dan prasyarat `docs/plan-google-cbt.md` Fase 0 — Fase 0 kini boleh dimulai.
       `npx wrangler deploy` dijalankan.
 - [x] Tambah `SESSION_SECRET` ke `.dev.vars.example` (tanpa nilai nyata) dan ke
       `.dev.vars` lokal
-- [ ] Halaman 503 saat secret kosong memuat dua perintah `wrangler secret put`
+- [x] Halaman 503 saat secret kosong memuat dua perintah `wrangler secret put`
       dalam bahasa Indonesia, supaya tidak ada lockout yang butuh tebakan
+      (`secretSetupPage()` di `src/auth.ts`)
 
 > Kode akan menolak boot login kalau salah satu secret kosong. T0 wajib selesai
 > sebelum kode T1-T2 di-deploy, atau dashboard akan 503.
 
 ### T1 — `src/auth.ts`
 
-- [ ] `signSession(secret, ttlSeconds, now)`
-- [ ] `verifySession(value, secret, now)`
-- [ ] `csrfFor(npc, secret)`
-- [ ] `verifyCsrfFromRequest(c, session, secret)`
-- [ ] `safeEqual(a, b)` waktu-tetap
-- [ ] `isAuthed(c)` berubah dari sync ke async
-- [ ] `requireAdmin(c)` — 401 JSON, atau redirect untuk request HTML
-- [ ] Hapus ekspor `AUTH_SESSION`, perbarui semua import lama
-- [ ] `safeSlug(raw)` tidak berubah
-- [ ] base64url + HMAC ditulis manual dengan `crypto.subtle` (tanpa `jose`)
+> **Status: SELESAI 28 Sep 2026** — semua item di bawah ada di `src/auth.ts` dan
+> diuji `tests/auth.test.mjs`. Nomor baris `src/index.ts` di T2-T6 adalah alamat
+> SEBELUM refactor `docs/plan-split-index.md`; kode itu kini ada di
+> `dashboard.ts`/`actions.ts`/`auth-routes.ts`/`records.ts`.
+
+- [x] `signSession(secret, ttlSeconds, now)`
+- [x] `verifySession(value, secret, now)`
+- [x] `csrfFor(npc, secret)`
+- [x] `verifyCsrfFromRequest(c, session, secret)`
+- [x] `safeEqual(a, b)` waktu-tetap
+- [x] `isAuthed(c)` berubah dari sync ke async
+- [x] `requireAdmin(c)` — 401 JSON, atau redirect untuk request HTML
+- [x] Hapus ekspor `AUTH_SESSION`, perbarui semua import lama
+- [x] `safeSlug(raw)` tidak berubah
+- [x] base64url + HMAC ditulis manual dengan `crypto.subtle` (tanpa `jose`)
 
 ### T2 — `src/index.ts`
 
-- [ ] Hapus `FALLBACK_PASSWORD` (`:33-34`)
-- [ ] Ganti kelima pembacaan cookie mentah dengan `requireAdmin`/`isAuthed`
+- [x] Hapus `FALLBACK_PASSWORD` (`:33-34`)
+- [x] Ganti kelima pembacaan cookie mentah dengan `requireAdmin`/`isAuthed`
       (`:256`, `:538`, `:1270`, `:1315`, `:1336`)
-- [ ] `/api/login`: 503 kalau konfigurasi kosong, verifikasi CSRF, `safeEqual`,
+- [x] `/api/login`: 503 kalau konfigurasi kosong, verifikasi CSRF, `safeEqual`,
       pasang `auth_session` dari `signSession` (`:516-530`)
-- [ ] `/api/logout` tetap `GET`, hapus `auth_session` dan `auth_pre` (`:532-535`)
-- [ ] Sisipkan `<meta name="csrf-token">` sebelum `</head>` cabang authed
-- [ ] Sisipkan `_csrf` di lima form (`:811`, `:865`, `:930`, `:1011`, `:1133`)
+- [x] `/api/logout` tetap `GET`, hapus `auth_session` dan `auth_pre` (`:532-535`)
+- [x] Sisipkan `<meta name="csrf-token">` sebelum `</head>` cabang authed
+- [x] Sisipkan `_csrf` di lima form (`:811`, `:865`, `:930`, `:1011`, `:1133`)
 
 ### T3 — Rate limit `/api/login`, fail-closed
 
-- [ ] `loginfail:<sha256(ip)>:<minuteBucket>` TTL 120 d, cap 5/menit
-- [ ] `loginlock:<sha256(ip)>` TTL 900 d, diset setelah 10 kegagalan
-- [ ] `ip` dari `CF-Connecting-IP`, fallback `x-forwarded-for`
-- [ ] `sha256(ip)` lewat `crypto.subtle.digest` supaya IP tidak tersimpan mentah
-- [ ] Rate limit diperiksa **sebelum** membandingkan password
-- [ ] KV gagal → login ditolak 503 (fail-closed, bukan fail-open seperti
+- [x] `loginfail:<sha256(ip)>:<minuteBucket>` TTL 120 d, cap 5/menit
+- [x] `loginlock:<sha256(ip)>` TTL 900 d, diset setelah 10 kegagalan
+- [x] `ip` dari `CF-Connecting-IP`, fallback `x-forwarded-for`
+- [x] `sha256(ip)` lewat `crypto.subtle.digest` supaya IP tidak tersimpan mentah
+- [x] Rate limit diperiksa **sebelum** membandingkan password
+- [x] KV gagal → login ditolak 503 (fail-closed, bukan fail-open seperti
       `src/media-routes.ts:197-199`)
-- [ ] Respons 429 memuat header `Retry-After`
+- [x] Respons 429 memuat header `Retry-After`
 
 ### T4 — CSRF
 
-- [ ] Lima form di `src/index.ts`
-- [ ] Lima form di `src/tka-studio.ts`
-- [ ] `src/index.ts:1133` — form delete dibangun dari string JS, token harus masuk
+- [x] Lima form di `src/index.ts`
+- [x] Lima form di `src/tka-studio.ts`
+- [x] `src/index.ts:1133` — form delete dibangun dari string JS, token harus masuk
       ke string itu
-- [ ] `src/tka-studio.ts:747` — `multipart/form-data`, field `_csrf` tetap jalan
-- [ ] Lima call site POST di `src/media-routes.ts:702,719,754,854,877` via header
+- [x] `src/tka-studio.ts:747` — `multipart/form-data`, field `_csrf` tetap jalan
+- [x] Lima call site POST di `src/media-routes.ts:702,719,754,854,877` via header
       `X-CSRF-Token` di inline JS
-- [ ] `src/media-routes.ts:819` adalah GET baca, tidak perlu token
-- [ ] `public/vendor/quiz-report.js` tidak memanggil `fetch`, tidak tersentuh
+- [x] `src/media-routes.ts:819` adalah GET baca, tidak perlu token
+- [x] `public/vendor/quiz-report.js` tidak memanggil `fetch`, tidak tersentuh
 
 ### T5 — CORS
 
-- [ ] Publik `/api/save/:slug`, `/api/submit/:slug`, `/media/:slug/:name` tetap
+- [x] Publik `/api/save/:slug`, `/api/submit/:slug`, `/media/:slug/:name` tetap
       `origin: '*'` dengan `allowCredentials: false`
-- [ ] Admin sisanya pakai allowlist `ALLOWED_ORIGINS` (koma), default tanpa
+- [x] Admin sisanya pakai allowlist `ALLOWED_ORIGINS` (koma), default tanpa
       header `Access-Control-Allow-Origin` sama sekali
-- [ ] `allowCredentials: true`, methods `GET, POST, OPTIONS`
-- [ ] Allow-Headers memuat `Content-Type` **dan** `X-CSRF-Token`, kalau tidak
+- [x] `allowCredentials: true`, methods `GET, POST, OPTIONS`
+- [x] Allow-Headers memuat `Content-Type` **dan** `X-CSRF-Token`, kalau tidak
       jalur `fetch` gagal saat preflight
 
 ### T6 — Kunci `?kunci=1`
 
-- [ ] `kunci=1` tanpa sesi → 404, bukan 403 (403 mengonfirmasi kunci memang ada)
-- [ ] `kunci=1` dengan sesi tetap seperti sekarang
-- [ ] `?print=1` tanpa `kunci` tetap publik
-- [ ] 3 baris di `src/index.ts:140-153`, sebelum `renderPrintSheet`
+- [x] `kunci=1` tanpa sesi → 404, bukan 403 (403 mengonfirmasi kunci memang ada)
+- [x] `kunci=1` dengan sesi tetap seperti sekarang
+- [x] `?print=1` tanpa `kunci` tetap publik
+- [x] 3 baris di `src/index.ts:140-153`, sebelum `renderPrintSheet`
+      (kini `src/public-app.ts:26-36` pasca-refactor)
 
 ### T7 — Hapus `apiKey` dari `gen-config`
 
-- [ ] Respons `GET /api/media/:slug/gen-config` kirim `hasKey: true`, bukan
+- [x] Respons `GET /api/media/:slug/gen-config` kirim `hasKey: true`, bukan
       `apiKey`
-- [ ] Tambah `Cache-Control: no-store`
-- [ ] Semantik server: `apiUrl` terisi + `apiKey` kosong → **jaga** kunci lama
-- [ ] `apiUrl` kosong + `apiKey` kosong → hapus `imggencfg:<slug>`, kembali ke
+- [x] Tambah `Cache-Control: no-store`
+- [x] Semantik server: `apiUrl` terisi + `apiKey` kosong → **jaga** kunci lama
+- [x] `apiUrl` kosong + `apiKey` kosong → hapus `imggencfg:<slug>`, kembali ke
       konfigurasi admin
-- [ ] `apiKey` terisi → ganti kunci (validasi `https://` + panjang)
-- [ ] UI `src/media-routes.ts:829` diisi placeholder "tersimpan" + indikator
+- [x] `apiKey` terisi → ganti kunci (validasi `https://` + panjang)
+- [x] UI `src/media-routes.ts:829` diisi placeholder "tersimpan" + indikator
       `hasKey`, bukan `cfg.apiKey`
 
 > Tanpa perubahan semantik server, kunci BYOK guru hilang diam-diam begitu
@@ -230,62 +256,65 @@ dan prasyarat `docs/plan-google-cbt.md` Fase 0 — Fase 0 kini boleh dimulai.
 
 ### T8 — Test
 
-- [ ] `tests/auth.test.mjs` baru
-- [ ] `tests/quiz.test.mjs` **tidak boleh disentuh** (dirty worktree + dipakai
+- [x] `tests/auth.test.mjs` baru
+- [x] `tests/quiz.test.mjs` **tidak boleh disentuh** (dirty worktree + dipakai
       memverifikasi `docs/gemini-gem-prompt-full.md`)
-- [ ] Cookie legacy `authenticated_user` ditolak — regression guard terpenting
-- [ ] Token bertanda tangan rusak ditolak
-- [ ] Token yang ditandatangani `SESSION_SECRET` salah ditolak
-- [ ] `exp` lewat ditolak; `iat` di masa depan ditolak di luar toleransi 60 d
-- [ ] `v` selain 1 ditolak
-- [ ] `signSession` → `verifySession` berhasil pada TTL normal, gagal setelah `exp`
-- [ ] `csrfFor` deterministik per `npc`, berbeda antar `npc`
-- [ ] `verifyCsrf` menerima field `_csrf`, menerima header `X-CSRF-Token`,
+- [x] Cookie legacy `authenticated_user` ditolak — regression guard terpenting
+- [x] Token bertanda tangan rusak ditolak
+- [x] Token yang ditandatangani `SESSION_SECRET` salah ditolak
+- [x] `exp` lewat ditolak; `iat` di masa depan ditolak di luar toleransi 60 d
+- [x] `v` selain 1 ditolak
+- [x] `signSession` → `verifySession` berhasil pada TTL normal, gagal setelah `exp`
+- [x] `csrfFor` deterministik per `npc`, berbeda antar `npc`
+- [x] `verifyCsrf` menerima field `_csrf`, menerima header `X-CSRF-Token`,
       menolak keduanya salah
-- [ ] `safeEqual` benar untuk sama panjang, beda isi, beda panjang, string kosong
+- [x] `safeEqual` benar untuk sama panjang, beda isi, beda panjang, string kosong
 
 ### T9 — Dokumentasi
 
-- [ ] `AGENTS.md:26` — baris fallback `admin123` jadi tidak valid
-- [ ] `docs/panduan-pakai.md:19,64` — masa berlaku sesi 7 hari + cara logout
-- [ ] `src/guide.ts:107,138` — sama, harus sinkron dengan markdown-nya
-- [ ] `docs/plan-google-cbt.md` bagian 4 dan 12 — tandai item auth selesai
-- [ ] `docs/analisis-resource.md:24` — tandai resolved, sudah tidak akurat karena
+- [x] `AGENTS.md:26` — baris fallback `admin123` jadi tidak valid
+- [x] `docs/panduan-pakai.md:19,64` — masa berlaku sesi 7 hari + cara logout
+- [x] `src/guide.ts:107,138` — sama, harus sinkron dengan markdown-nya
+- [x] `docs/plan-google-cbt.md` bagian 4 dan 12 — tandai item auth selesai
+- [x] `docs/analisis-resource.md:24` — tandai resolved, sudah tidak akurat karena
       password sudah dibaca dari env sejak `src/index.ts:538`
-- [ ] `docs/analisis-resource.md:25` — tandai resolved, `escapeHtml()` sudah
+- [x] `docs/analisis-resource.md:25` — tandai resolved, `escapeHtml()` sudah
       dipakai di `src/index.ts:490-496`
-- [ ] `docs/strategi-publish-dan-sosialisasi.md` bagian 8 — centang Gerbang P0
-- [ ] `docs/peta-migrasi-frontend-backend.html:370-376` — koreksi klaim bahwa
+- [x] `docs/strategi-publish-dan-sosialisasi.md` bagian 8 — centang Gerbang P0
+- [x] `docs/peta-migrasi-frontend-backend.html:370-376` — koreksi klaim bahwa
       `kunci=1` tidak punya auth check
 
 ### T10 — Verifikasi
 
-- [ ] `npm test`
-- [ ] `npm run typecheck`
+- [x] `npm test`
+- [x] `npm run typecheck`
 - [x] `npx wrangler dev --env staging` untuk alur login, deploy, delete, rename,
       panel gambar, TKA Studio, kunci jawaban — diverifikasi lewat smoke test
       otomatis 31 cek (login/CSRF/cookie lama/kunci jawaban/gen-config/rate
       limit/laporan/delete). Alur klik manual di UI TKA Studio dan unggah gambar
       belum disentuh smoke; logikanya sendiri sudah diganti dan di-typecheck.
-- [ ] Cek: cookie `auth_session=authenticated_user` buatan sendiri ditolak
-- [ ] Cek: `curl "/p/<slug>?print=1&kunci=1"` tanpa cookie → 404
-- [ ] Cek: `GET /api/media/<slug>/gen-config` tidak memuat `apiKey`
-- [ ] Cek: `POST /api/deploy` tanpa `_csrf` → 403
+- [x] Cek: cookie `auth_session=authenticated_user` buatan sendiri ditolak
+- [x] Cek: `curl "/p/<slug>?print=1&kunci=1"` tanpa cookie → 404
+- [x] Cek: `GET /api/media/<slug>/gen-config` tidak memuat `apiKey`
+- [x] Cek: `POST /api/deploy` tanpa `_csrf` → 403
 
 ### Acceptance Criteria auth
 
-- [ ] Cookie `auth_session=authenticated_user` buatan sendiri tidak memberi akses
-- [ ] Mengganti satu byte pada cookie membuat sesi tidak valid
-- [ ] Memalsukan `exp` atau `iat` tidak memperpanjang sesi
-- [ ] `SESSION_SECRET` salah membuat seluruh sesi tidak valid
-- [ ] `admin123` tidak pernah diterima, tidak ada konstanta fallback di kode
-- [ ] `/api/login` menolak setelah 5/menit, mengunci 15 menit setelah 10 gagal
-- [ ] `/p/<slug>?print=1&kunci=1` tanpa sesi → 404; `?print=1` tetap publik
-- [ ] `gen-config` tidak pernah memuat `apiKey`, dan menyimpan panel tanpa
+> Terverifikasi lewat `tests/auth.test.mjs` (55 test, dirangkai ke `npm test`) dan
+> smoke test staging 31 cek.
+
+- [x] Cookie `auth_session=authenticated_user` buatan sendiri tidak memberi akses
+- [x] Mengganti satu byte pada cookie membuat sesi tidak valid
+- [x] Memalsukan `exp` atau `iat` tidak memperpanjang sesi
+- [x] `SESSION_SECRET` salah membuat seluruh sesi tidak valid
+- [x] `admin123` tidak pernah diterima, tidak ada konstanta fallback di kode
+- [x] `/api/login` menolak setelah 5/menit, mengunci 15 menit setelah 10 gagal
+- [x] `/p/<slug>?print=1&kunci=1` tanpa sesi → 404; `?print=1` tetap publik
+- [x] `gen-config` tidak pernah memuat `apiKey`, dan menyimpan panel tanpa
       mengetik ulang kunci tidak menghapus kunci tersimpan
-- [ ] 10 form + 7 call site menolak POST tanpa token
-- [ ] `/api/*` admin tidak lagi mengirim `Access-Control-Allow-Origin: *`
-- [ ] `tests/auth.test.mjs` benar-benar dieksekusi oleh `npm test`
+- [x] 10 form + 7 call site menolak POST tanpa token
+- [x] `/api/*` admin tidak lagi mengirim `Access-Control-Allow-Origin: *`
+- [x] `tests/auth.test.mjs` benar-benar dieksekusi oleh `npm test`
 
 ---
 
@@ -303,15 +332,20 @@ plan. Sebagian besar juga masuk Gerbang P0.
       sebelum kuota AI dibakar); overwrite slot yang sudah ada tetap
       diizinkan. Test di `tests/media-cap.test.mjs` (11 test). Pemantauan
       kuota KV lewat `npm run kv:usage[:staging]`: production 43 media
-      (5,0 MB), staging 36 media (5,6 MB) — jauh dari 1 GB, jadi keputusan
-      tetap KV untuk pilot terkonfirmasi; R2 baru saat ≥80% atau mode
-      assigned/CBT aktif.
-- [ ] Query rekap tanpa `LIMIT` di `src/index.ts:264` dan `src/quiz-essay.ts:67` —
-      `SELECT *` penuh, analitik dihitung ulang tiap request.
-- [ ] `app_records` yatim di `src/index.ts:1314-1334` — `/api/delete` menghapus KV
-      dan media, tidak pernah menyentuh D1.
-- [ ] Grading fail-open di `src/index.ts:230-232` — spec yang gagal parse disimpan
-      tanpa grading.
+      (5,0 MB), staging 36 media (5,6 MB) — jauh dari 1 GB. **Catatan (30 Sep
+      2026):** binding R2 kini AKTIF di `wrangler.jsonc` untuk production dan
+      staging, jadi media baru tidak lagi masuk KV. Angka di atas adalah sisa
+      media KV yang akan pindah ke R2 saat pertama dibaca; cek `npm run
+      kv:usage` untuk melihat sisa migrasinya.
+- [ ] Query rekap tanpa `LIMIT` — `SELECT *` penuh, analitik dihitung ulang tiap
+      request. Pasca-refactor: `src/records.ts:183` (`/p/:slug/data`) dan
+      `src/quiz-essay.ts:67`.
+- [ ] `app_records` yatim — `/api/delete` menghapus KV dan media, tidak pernah
+      menyentuh D1. Pasca-refactor: `src/actions.ts:230` (`/api/app/update`
+      memang memindahkan `app_slug`; tidak ada `DELETE FROM app_records` di
+      seluruh kodebase).
+- [ ] Grading fail-open — spec yang gagal parse disimpan tanpa grading.
+      Pasca-refactor: `src/records.ts` (`saveRecordHandler`).
 - [ ] Rate limit `/api/save/:slug` — endpoint terbuka tanpa rate limit, bisa
       dibanjiri untuk membakar kuota D1. (P0)
 - [ ] Batas ukuran payload — batas 8 MB hanya berlaku untuk media, body JSON
@@ -322,12 +356,27 @@ plan. Sebagian besar juga masuk Gerbang P0.
       dan dibungkus `try`/`catch`: kalau D1 gagal, handler balas 500 sebelum
       satu pun kunci KV baru ditulis, jadi slug lama tetap satu-satunya alamat
       yang hidup dan tidak ada `meta:<oldSlug>` yatim.
+- [ ] **Dead code: `tka-studio-prompt.php` (1.654 baris / 88 KB).** Port-nya
+      sudah lama jadi (`src/tka-studio.ts` + `public/vendor/tka-studio.js`),
+      dan PHP tidak jalan di Worker. Dicek 30 Sep 2026: nol referensi dari
+      `src/`, `public/`, `tests/`, `docs/`, `package.json`, `wrangler.jsonc`.
+      Kandidat hapus; butuh keputusan pemilik repo karena ini file terbesar
+      ketiga di repo.
+- [x] **`docs/plan-split-index.html` dihapus** (30 Sep 2026) — duplikat ~95%
+      dari `.md` tanpa generator sinkronisasi. Sejumlah klaim basi di dokumen
+      lain juga dikoreksi pada putaran yang sama: `AGENTS.md` (R2 aktif, KV
+      `remote: false`, daftar key lengkap), `docs/analisis-resource.md`
+      (temuan 1/2/3/9 resolved, prioritas & peta kode diperbarui),
+      `docs/plan-google-cbt.md` §4/§17, `docs/plan-hardening-auth.md`
+      §8/§10.
 
 ---
 
 ## 3. Google CBT — Fase 0 `docs/plan-google-cbt.md`
 
 Status dokumen: Disetujui, **DITUNDA sementara** (keputusan 28 Sep 2026).
+Selaras dengan `docs/plan-google-cbt.md:3` ("belum diimplementasikan");
+perbedaan kata hanya gaya, statusnya sama: tidak ada pekerjaan yang dimulai.
 Prasyarat auth sudah selesai, tapi diprioritaskan dulu: perbaikan latensi
 dashboard, form identitas nama+kelas, dan timer latihan klien — semuanya
 sudah dikerjakan. Timer server-side untuk CBT tetap menunggu Fase 0-3 plan
@@ -348,7 +397,7 @@ ini bersama roster siswa.
 - [ ] Hapus `/api/login` password bersama sepenuhnya
 - [ ] Satukan auth lewat middleware baru
 - [ ] Tabel `users` dan `auth_sessions` lewat `migrations/0001_auth_cbt.sql`
-- [ ] CORS + CSRF (sudah dikerjakan di auth T4/T5)
+- [x] CORS + CSRF (sudah dikerjakan di auth T4/T5)
 
 ---
 
@@ -411,16 +460,29 @@ pilot dengan link publik.
 
 ### Gerbang P0 — wajib sebelum pilot bersama sekolah
 
-- [ ] Sesi diverifikasi, bukan cookie statis (→ auth T1/T2)
-- [ ] Fallback `admin123` dihapus, secret tidak pernah di-commit (→ auth T0/T2)
-- [ ] Batasi akses dashboard, laporan, media, sumber, kepemilikan
-- [ ] Validasi + escape seluruh metadata dan konten dinamis — title, URL media
-      kaya, import TKA (sebagian sudah beres; audit ulang)
-- [ ] Cegah kebocoran kunci jawaban lewat print atau parameter URL (→ auth T6)
-- [ ] Rate limit endpoint publik, pembuatan soal AI, callback auth (→ auth T3
-      untuk login; sisanya belum)
-- [ ] Pengujian rute, autentikasi, KV, D1 (→ auth T8 sebagian; harness HTTP
-      belum)
+> Sinkron dengan `docs/strategi-publish-dan-sosialisasi.md` §8. Item 1–3 dan 5
+> sudah selesai 28 Sep 2026 (lihat §1 di atas); sisanya masih terbuka.
+
+- [x] Sesi diverifikasi, bukan cookie statis (→ auth T1/T2)
+- [x] Fallback `admin123` dihapus, secret tidak pernah di-commit (→ auth T0/T2)
+- [x] Batasi akses dashboard, laporan, media, sumber (satu akun admin; kepemilikan
+      per guru masih menunggu `docs/plan-google-cbt.md`)
+- [x] Validasi + escape metadata/konten dinamis — **import TKA sudah beres**:
+      `src/tka-studio.ts:46` punya `escapeHtml()` lokal dan dipakai pada
+      `t.nama`, `t.tipe`, `t.template` (baris 227, 234–236).
+- [ ] Audit ulang escape untuk title dashboard dan URL media kaya (sisanya,
+      di luar TKA) — belum ada audit menyeluruh.
+- [x] Cegah kebocoran kunci jawaban lewat print atau parameter URL (→ auth T6)
+- [ ] Rate limit `/api/save/:slug` — endpoint publik masih terbuka.
+- [x] Pembuatan soal AI sudah ber-rate-limit — `src/media-routes.ts:202-227`,
+      `GEN_LIMIT_PER_MINUTE = 6`, key `imggen:<slug>:<bucket>`, balas 429.
+      (Fail-open saat KV error, disengaja: bukan jalur keamanan.)
+- [x] Callback auth — belum ada endpoint callback, jadi tidak ada yang perlu
+      dibatasi sampai Google OAuth (CBT Fase 0) dikerjakan.
+- [ ] Pengujian rute, autentikasi, KV, D1 — `tests/auth.test.mjs` menutup helper
+      sesi, dan 10 berkas `npm test` mencakup perilaku UI (`dashboard-ui`,
+      `record-detail`, `app-index`). Yang belum: harness HTTP `app.request()`
+      dengan mock KV/D1 (direncanakan di CBT Fase 0).
 - [ ] Tetapkan data minimum, retensi, hak akses, ekspor, penghapusan data
       (belum ada sama sekali)
 
@@ -429,7 +491,9 @@ pilot dengan link publik.
 - [ ] Identitas guru + kepemilikan asesmen
 - [ ] Namespace konten baru per pemilik atau asesmen
 - [ ] Pembagian halaman, index, query laporan yang tidak membaca seluruh histori
-- [ ] R2 untuk media, atau strategi fallback yang jelas dan terukur
+- [x] R2 untuk media, atau strategi fallback yang jelas dan terukur — R2 aktif
+      di production & staging (bucket terpisah); `npm run kv:usage[:staging]`
+      mengukur sisa media KV, dan media pindah ke R2 saat pertama dibaca.
 - [ ] Pantau error, biaya, latensi, pemakaian AI
 - [ ] SOP dukungan, insiden, pencadangan, pemulihan
 
@@ -452,9 +516,16 @@ Seri dan wajib setelah Tahap 0. Butuh keputusan tenant lebih dulu.
       bergantung pada slug di URL
 - [ ] Pisahkan identitas dan URL: UUID untuk kunci KV (`quiz:<school>/<id>`),
       slug hanya untuk alamat enak dibaca, cek keunikan sebelum simpan
-- [ ] Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination
+- [ ] Pindahkan indeks aplikasi dari KV list ke tabel D1 dengan pagination —
+      **sebagian sudah jalan**: `src/app-index.ts:159-175` (`readD1Slugs`) sudah
+      memakai `SELECT DISTINCT app_slug FROM app_records` sebagai jalur darurat
+      saat kuota `list` KV habis, dan hasilnya dicerminkan ke R2. Yang belum:
+      menjadikan D1 sebagai sumber utama + pagination.
 - [ ] `LIMIT` di semua query rekap; analitik butir soal dihitung saat submit
-- [ ] R2 untuk media dengan kunci `school_id/assessment_id/slot`
+- [x] ~~R2 untuk media dengan kunci `school_id/assessment_id/slot`~~ — **R2 sudah
+      aktif** di production & staging (bucket terpisah, `wrangler.jsonc`), media
+      baru ditulis ke R2. Sisa: kunci masih `<slug>/<name>`, bukan ber-namespace
+      tenant — menunggu skema multi-tenant di atas.
 
 ---
 
@@ -473,13 +544,19 @@ Seri dan wajib setelah Tahap 0. Butuh keputusan tenant lebih dulu.
 Tertunda sampai auth plan selesai, tapi paling mudah terlupa karena tidak
 terlihat dari kode:
 
-- [ ] Status di header `docs/plan-hardening-auth.md` dan
+- [x] Status di header `docs/plan-hardening-auth.md` dan
       `docs/plan-google-cbt.md` diperbarui dari "belum diimplementasikan"
-- [ ] `docs/plan-hardening-auth.md:443` — semua sitasi `file:line` diverifikasi
-      terhadap 27 September 2026. Kalau `src/index.ts` atau
-      `src/media-routes.ts` berubah lagi, hitung ulang.
-- [ ] `docs/plan-google-cbt.md` bagian 4, 12, dan 19 — bagian 19 menyatakan plan
-      itu sumber kebenaran, jadi status basi di dokumen lain akan menyesatkan
-- [ ] Tiga file dirty worktree (`docs/plan-google-cbt.html`,
-      `docs/plan-google-cbt.md`, `tests/quiz.test.mjs`) masih belum di-commit.
-      Putuskan dulu: commit terpisah atau buang.
+      *(30 Sep 2026: banner status ditambahkan ke keduanya, dan
+      `docs/analisis-resource.md`, `docs/plan-split-index.md`,
+      `docs/plan-remember-result.md` ikut disinkronkan).*
+- [x] `docs/plan-hardening-auth.md` — sitasi `file:line` yang basi sudah
+      diberi banner historis (§10), karena `src/index.ts` menyusut ke 116 baris
+      dan kode yang dirujuk pindah ke modul lain. Aturan berlaku: pakai nama
+      fungsi, bukan nomor baris.
+- [x] `docs/plan-google-cbt.md` bagian 4 dan 12 — bagian 4 diberi banner
+      "sudah tidak berlaku" plus kondisi auth terkini; §17 dikoreksi soal
+      `remote: false`.
+- [x] Tiga file dirty worktree (`docs/plan-google-cbt.html`,
+      `docs/plan-google-cbt.md`, `tests/quiz.test.mjs`) — **sudah tidak relevan
+      per 30 Sep 2026**: ketiganya bersih di `git status`. Worktree yang dirty
+      sekarang adalah hasil edit dokumentasi putaran 30 Sep, bukan tiga file itu.
