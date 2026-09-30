@@ -15,26 +15,19 @@
 import type { Hono } from 'hono';
 import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth';
 import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz';
-import type { GradeResult, GradedDetail, QuizSpec } from './quiz';
+import type { GradeResult, QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
 import { messageCard } from './ui-card.ts';
 import { noStorePage } from './admin-shared';
 import { FAVICON_TAGS } from './favicon.ts';
+import { summaryLine } from './record-detail.ts';
+import type { RecordPayload } from './record-detail.ts';
 
 type EssayBindings = MediaBindings & { DB: D1Database };
 
-type StoredPayload = {
-  score?: number;
-  final_score?: number | null;
-  lulus?: boolean | null;
-  essay_pending?: number;
-  essay_earned?: number;
-  essay_total?: number;
-  essay_scores?: Record<string, number>;
-  student_class?: string;
-  answers?: unknown;
-  detail?: GradedDetail[];
-};
+// Bentuk payload kiriman: satu tipe dipakai bersama popup detail di halaman
+// rekap (/p/:slug/data), supaya tidak ada dua definisi yang bisa melenceng.
+type StoredPayload = RecordPayload;
 
 export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }>(app: Hono<E>) {
   /* ------------------------------------------------------------------ */
@@ -367,19 +360,9 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
   });
 }
 
-/** Satu baris ringkas yang dipakai halaman maupun balasan API (biar selalu sama). */
-function summaryLine(payload: StoredPayload): string {
-  const parts = [`Nilai objektif: ${payload.score ?? '-'}`];
-  parts.push(
-    payload.final_score === null || payload.final_score === undefined
-      ? 'Nilai akhir: menunggu semua esai dikoreksi'
-      : `Nilai akhir: ${payload.final_score}`
-  );
-  if (payload.essay_total) parts.push(`Poin esai: ${payload.essay_earned ?? 0}/${payload.essay_total}`);
-  if (payload.lulus === true) parts.push('LULUS');
-  else if (payload.lulus === false) parts.push('BELUM LULUS');
-  return parts.join(' · ');
-}
+/** Satu baris ringkas yang dipakai halaman maupun balasan API (biar selalu sama).
+ *  Pindahkan ke src/record-detail.ts supaya halaman koreksi esai dan sel tabel
+ *  rekap tidak punya dua format ringkasan yang bisa berbeda. */
 
 function messagePage(title: string, message: string): string {
   return messageCard({ title, message, backHref: '/', tone: 'danger' });

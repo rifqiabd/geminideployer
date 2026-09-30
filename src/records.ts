@@ -8,6 +8,8 @@ import type { Context, Hono } from 'hono';
 import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec, publicGrading } from './quiz';
 import type { QuizSpec } from './quiz';
 import { computeItemAnalysis, renderItemAnalysis } from './quiz-report';
+import { RECORD_DIALOG_CSS, renderRecordAssetsScript, renderRecordDetail, renderRecordDialog, renderSummaryCell } from './record-detail.ts';
+import type { RecordPayload } from './record-detail.ts';
 import { isAuthed } from './auth';
 import { noStorePage } from './admin-shared';
 import { FAVICON_TAGS } from './favicon.ts';
@@ -112,6 +114,57 @@ const saveRecordHandler = async (c: Context<E>) => {
 
 app.post('/api/save/:slug', saveRecordHandler);
 app.post('/api/submit/:slug', saveRecordHandler);
+
+/* ==========================================================================
+ * 3. DETAIL SATU KIRIMAN (ADMIN) — sumber isi popup di halaman rekap
+ * ==========================================================================
+ * Dipisah dari halaman rekap dengan sengaja: halaman ini me-inline JSON tiap
+ * rekaman ke dalam HTML-nya, jadi satu kelas yang besar menghasilkan halaman
+ * ber-megabyte. Popup mengambil satu rekaman saat dibuka.
+ *
+ * Read-only GET, jadi tidak perlu CSRF — sama seperti admin GET lain di repo
+ * ini (/p/:slug/data, /p/:slug/essay). `noStorePage` tetap dipasang karena
+ * isinya jawaban siswa.
+ *
+ * Query-nya wajib mencocokkan app_slug, bukan cuma id: tanpa itu, id kiriman
+ * dari aplikasi lain bisa dibaca dari halaman ini hanya dengan menebaknya. */
+app.get('/p/:slug/data/record', async (c) => {
+  if (!(await isAuthed(c))) {
+    const accept = c.req.header('Accept') ?? '';
+    if (accept.includes('text/html')) return c.redirect('/');
+    return c.json({ status: 'error', message: 'Sesi login habis. Masuk lagi lewat dashboard.' }, 401);
+  }
+
+  const slug = c.req.param('slug') ?? '';
+  const id = c.req.query('id') ?? '';
+  if (!id) return c.html('<p class="rd-note">Parameter id belum dikirim.</p>', 400);
+
+  const row = await c.env.DB.prepare(`
+    SELECT id, user_id, created_at, payload_json FROM app_records WHERE id = ? AND app_slug = ?
+  `).bind(id, slug).first<{ id: string; user_id: string; created_at: string; payload_json: string }>();
+
+  if (!row) return c.html('<p class="rd-note">Kiriman ini tidak ada di aplikasi ini.</p>', 404);
+
+  // `payload: null` berarti payload_json tidak bisa diurai. Itu kondisi data
+  // rusak, dan harus tetap tampil sebagai pesan di dalam popup — satu kiriman
+  // aneh tidak boleh membuat guru gagal memeriksa kiriman yang lain.
+  let payload: RecordPayload | null = null;
+  try {
+    payload = JSON.parse(row.payload_json) as RecordPayload;
+  } catch {
+    payload = null;
+  }
+
+  noStorePage(c);
+  return c.html(
+    renderRecordDetail({
+      id: row.id,
+      userId: row.user_id,
+      createdAt: row.created_at,
+      payload: payload,
+    })
+  );
+});
 
 // ==========================================
 // 2. HALAMAN REKAP DATA PER APLIKASI (ADMIN)
@@ -279,9 +332,6 @@ app.get('/p/:slug/data', async (c) => {
     .fill-warn{background:var(--warn)}
     .fill-bad{background:var(--danger)}
     .fill-key{background:var(--accent)}
-    .r-details{margin-top:6px}
-    .r-summary{cursor:pointer;font-size:12px;color:var(--accent)}
-    .r-summary:hover{text-decoration:underline}
     .opt-box{margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
     .opt-cap{font-size:10.5px;color:var(--text-faint);margin:0 0 6px}
     .opt-row{display:flex;align-items:center;gap:8px;font-size:11px;padding:2px 0}
@@ -290,14 +340,17 @@ app.get('/p/:slug/data', async (c) => {
     .opt-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary)}
     .opt-text.key{color:var(--ok)}
     .opt-count{flex:none;text-align:right;color:var(--text-secondary)}
-    .r-foot{padding:12px 14px;background:var(--surface-2);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
-    .r-footnote{font-size:11px;color:var(--text-faint);margin:0}
-    .r-note{font-size:11px;min-width:160px}
-    .r-json{margin:8px 0 0;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:var(--text-secondary);overflow-x:auto;white-space:pre-wrap;word-break:break-word;line-height:1.6;max-width:480px}
+    .tone-faint{color:var(--text-faint)!important}
+    .btn-row{padding:4px 10px;font-size:11.5px}
     .empty-state{padding:40px 20px;text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);display:flex;flex-direction:column;align-items:center;gap:6px}
     .empty-ico{width:44px;height:44px;border-radius:12px;background:var(--surface-2);color:var(--accent);display:grid;place-items:center;font-size:16px}
     .empty-main{font-weight:600;margin:6px 0 0;font-size:13px}
     .empty-sub{margin:0;font-size:12px;color:var(--text-faint)}
+
+    /* ===== Popup detail kiriman (dari src/record-detail.ts) =====
+       Dipisah supaya aturan "kunci jawaban tersembunyi sampai toggle dinyalakan"
+       bisa diuji sebagai teks, bukan harus dirender di browser. */
+    ${RECORD_DIALOG_CSS}
 
     @media(max-width:640px){.topbar-actions .btn{font-size:0}.topbar-actions .btn i{margin:0;font-size:13px}}
   </style>
@@ -335,7 +388,7 @@ app.get('/p/:slug/data', async (c) => {
         <div class="r-head">
           <div>
             <h2 class="r-title">Riwayat Kiriman</h2>
-            <p class="r-sub">${results.length} rekaman terakhir, terbaru di bawah.</p>
+            <p class="r-sub">${results.length} rekaman, terbaru di atas. Klik <strong>Lihat Jawaban</strong> untuk memeriksa isinya satu per satu.</p>
           </div>
         </div>
         <div class="table-wrap">
@@ -346,28 +399,34 @@ app.get('/p/:slug/data', async (c) => {
                   <th>Waktu</th>
                   <th>Identitas Pengguna</th>
                   <th>Ringkasan / Skor</th>
-                  <th>Detail Payload</th>
+                  <th>Jawaban</th>
                 </tr>
               </thead>
               <tbody class="r-body">
                 ${results.map((r: any) => {
-                  const payload = JSON.parse(r.payload_json);
-                  const summary = payload.summary ? JSON.stringify(payload.summary) : (payload.score !== undefined ? `Skor: ${payload.score}` : '-');
+                  // Baris dengan payload_json rusak harus tetap muncul sebagai
+                  // baris, bukan menggagalkan seluruh halaman rekap: kalau
+                  // tabelnya ikut 500, guru tidak bisa tahu kiriman mana yang
+                  // rusak. Popup yang menandai baris itu sebagai data rusak.
+                  let payload: any = null;
+                  let rusak = false;
+                  try {
+                    payload = JSON.parse(r.payload_json);
+                  } catch {
+                    rusak = true;
+                  }
                   // Kelas tampil di belakang identitas (payload baru); kiriman
                   // lama tanpa student_class tetap tampil tanpa label kelas.
-                  const identitas = payload.student_class
+                  const identitas = payload && payload.student_class
                     ? `${escapeHtml(r.user_id)}<span class="tone-muted"> · ${escapeHtml(payload.student_class)}</span>`
                     : escapeHtml(r.user_id);
                   return `
                   <tr class="r-row">
                     <td class="r-cell r-nowrap tone-muted">${escapeHtml(r.created_at)}</td>
                     <td class="r-cell r-id">${identitas}</td>
-                    <td class="r-cell r-num tone-ok">${escapeHtml(summary)}</td>
+                    <td class="r-cell r-num">${rusak ? '<span class="tone-bad">Data rusak</span>' : renderSummaryCell(payload)}</td>
                     <td class="r-cell">
-                      <details class="r-details">
-                        <summary class="r-summary">Lihat JSON</summary>
-                        <pre class="r-json">${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
-                      </details>
+                      <button type="button" class="btn btn-row" data-record="${escapeHtml(r.id)}">Lihat Jawaban</button>
                     </td>
                   </tr>
                 `;
@@ -379,6 +438,9 @@ app.get('/p/:slug/data', async (c) => {
       </section>
     `}
   </main>
+  ${renderRecordDialog()}
+  ${renderRecordAssetsScript()}
+  <script src="/vendor/record-detail.js" data-slug="${escapeHtml(slug)}"></script>
 </body>
 </html>`);
 });
