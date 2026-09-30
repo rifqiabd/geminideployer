@@ -1542,11 +1542,14 @@ check('bocor: halaman hasil tidak merender label Kunci', bocorHtml.includes("'Ku
 check('bocor: halaman hasil tidak merender kolom Kunci', bocorHtml.includes("el('th', null, 'Kunci')"), false);
 check('bocor: tidak ada teks "Kunci:" di HTML hasil', /Kunci: /.test(bocorHtml), false);
 check('bocor: default aplikasi menyalakan umpan balik per butir', bocorSpec.showItemFeedback, true);
-check('bocor: CFG menyuntikkan showItemFeedback', bocorHtml.includes('"showItemFeedback":true'), true);
-check('bocor: badge status dikunci di balik sakelar', bocorHtml.includes("if (withFeedback && 'benar' in item)"), true);
-check('bocor: sakelar dibaca dari CFG, bukan hardcode', bocorHtml.includes('var withFeedback = CFG.showItemFeedback === true'), true);
-check('bocor: warna baris statements juga dikunci sakelar', bocorHtml.includes("withFeedback && 'benar' in statement"), true);
-check('bocor: tidak ada pembacaan item.benar tanpa penjaga', /if \(withFeedback && 'benar' in item\)/.test(bocorHtml), true);
+check('bocor: CFG tidak lagi membawa sakelar umpan balik', bocorHtml.includes('showItemFeedback'), false);
+check('bocor: badge ditentukan keberadaan field benar', bocorHtml.includes("if ('benar' in item)"), true);
+check('bocor: warna baris statements juga dari keberadaan field', bocorHtml.includes("'benar' in statement ?"), true);
+check('bocor: tidak ada pembacaan item.benar tanpa penjaga', /if \('benar' in item\)/.test(bocorHtml), true);
+// Penjaga render TIDAK boleh bergantung pada CFG. CFG di html:<slug> beku sejak
+// guru menyimpan, sedangkan /api/submit membaca spec ulang tiap request; begitu
+// default sakelar diubah, keduanya beda dan data terkirim tapi badge tidak tampil.
+check('bocor: render tidak bergantung CFG yang beku', bocorHtml.includes('CFG.showItemFeedback'), false);
 check('bocor: draft dihapus setelah submit sukses', bocorHtml.includes('localStorage.removeItem(ATTEMPT_KEY)'), true);
 
 // 7) Sakelar show_item_feedback NYALA: umpan balik per butir ikut dikirim

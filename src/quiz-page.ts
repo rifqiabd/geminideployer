@@ -280,10 +280,13 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
     essayCount,
     kkm: quiz.passingScore,
     showExplanation: quiz.showExplanation,
-    // Sakelar umpan balik per butir (show_item_feedback di pengaturan aplikasi).
-    // Server sudah menentukan apa benar/poin ikut dikirim; flag ini cuma
-    // menentukan apakah layar hasil merender badge dan warnanya.
-    showItemFeedback: quiz.showItemFeedback,
+    // showItemFeedback SENGAJA tidak ada di CFG. Dulu ada, dan dipakai sebagai
+    // penjaga render badge — itu keliru: CFG dibekukan saat guru menyimpan,
+    // sedangkan server membaca spec ulang tiap request, jadi keduanya bisa
+    // berbeda dan tampilan jadi tidak sinkron dengan data yang terkirim. Badge
+    // sekarang ditentukan oleh keberadaan field `benar` di respons. Jangan
+    // menambahkan flag sakelar ke CFG untuk keputusan render; lihat catatan di
+    // showResult() dan penjaga di tests/quiz-page-source.test.mjs.
     // Timer latihan (menit) — hanya pengingat klien, bukan pengawas ujian.
     durationMinutes: quiz.durationMinutes ?? null,
     // Bentuk identitas: 'name' (perilaku lama) atau 'name_class' (nama + kelas).
@@ -1111,19 +1114,26 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
     resultView.appendChild(head);
 
     var list = el('ol', 'q-review');
-    // Umpan balik per butir hanya dirender kalau guru menyalakan
-    // show_item_feedback di pengaturan aplikasi (default nyala). Server sudah
-    // membuang kunci, benar, dan poin dari respons saat sakelar mati, jadi item
-    // tidak punya field itu di sini — tapi kita tetap pakai CFG sebagai penjaga
-    // kedua, dan penjaga itu sengaja TETAP ketat (=== true, tidak dibalik jadi
-    // !== false): halaman html:<slug> versi lama (masih ada di KV) punya CFG
-    // tanpa flag ini, dan penjaga ketat membuat halaman lama itu gagal
-    // tertutup, bukan ikut menampilkan badge dari data lama.
-    var withFeedback = CFG.showItemFeedback === true;
+    // Badge dan warna per butir ditentukan oleh KEHADIRAN field benar di
+    // respons, bukan oleh CFG.
+    //
+    // Alasannya CFG tidak bisa diandalkan: CFG di dalam html:<slug> dibekukan
+    // saat guru menyimpan, sedangkan /api/submit membaca quiz:<slug> ulang tiap
+    // request. Begitu default sakelar diubah di kode, kuis yang sudah dipublish
+    // punya CFG lama (mati) tapi server sudah mengirim field benar (nyala) —
+    // jadi dengan penjaga CFG, data status terkirim ke siswa tapi badge tidak
+    // tampil. Guru mengira tidak ada yang berubah, padahal siswa bisa membacanya
+    // di DevTools. Isinya sinkron, tampilannya tidak.
+    //
+    // Server tidak pernah mengirim field benar tanpa diizinkan: records.ts
+    // selalu lewat publicGrading(), dan itu memakai flag spec sebagai satu-
+    // satunya sumber kebenaran. Jadi "field ada di respons" == "guru
+    // mengizinkan", dan data serta tampilan selalu sama — termasuk untuk
+    // html:<slug> yang beku dan untuk sakelar yang dimatikan eksplisit.
     (grading.detail || []).forEach(function (item) {
       var row = el('li', 'q-review-item');
 
-      if (withFeedback && 'benar' in item) {
+      if ('benar' in item) {
         var points = Math.round((item.poin || 0) * 100) / 100;
         var partial = !item.benar && item.benar !== null && points > 0;
         var cls = item.benar === null ? 'q-pending' : (item.benar ? 'q-ok' : partial ? 'q-partial' : 'q-no');
@@ -1146,9 +1156,9 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
 
       row.appendChild(el('div', 'q-review-a', 'Jawabanmu: ' + (item.jawaban ? item.jawaban : '(kosong)')));
 
-      // Soal kategori: tanpa penanda benar/salah kecuali umpan balik per butir
-      // dinyalakan, karena warna hijau/merah di tiap baris langsung membocorkan
-      // jawaban tiap pernyataan.
+      // Soal kategori: warna hijau/merah di tiap baris langsung membocorkan
+      // jawaban tiap pernyataan, jadi hanya boleh tampil kalau server
+      // mengirim field benar per pernyataan (lihat publicGrading()).
       if (item.statements && item.statements.length) {
         var table = el('table', 'q-review-statements');
         var head = el('thead');
@@ -1160,7 +1170,7 @@ export function renderQuizApp(quiz: QuizSpec, slug: string): string {
         table.appendChild(head);
         var body = el('tbody');
         item.statements.forEach(function (statement) {
-          var line = el('tr', withFeedback && 'benar' in statement ? (statement.benar ? 'q-ok' : 'q-no') : null);
+          var line = el('tr', 'benar' in statement ? (statement.benar ? 'q-ok' : 'q-no') : null);
           line.appendChild(el('td', null, statement.text));
           line.appendChild(el('td', null, statement.jawaban));
           body.appendChild(line);

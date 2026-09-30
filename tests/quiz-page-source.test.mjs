@@ -51,15 +51,42 @@ check(
   []
 );
 
-// Penjaga kedua: penjaga render untuk umpan balik per butir harus tetap `=== true`
-// (fail-closed). Kalau dibalik jadi `!== false`, halaman html:<slug> versi lama
-// yang CFG-nya tidak punya flag ini ikut menampilkan badge, padahal flag-nya tidak
-// pernah ada di sana. Tidak boleh ada backtick, makanya ditulis polos.
-const feedbackGuard = lines.find((line) => line.includes('var withFeedback = CFG.showItemFeedback'));
-check('penjaga render umpan balik per butir ada', typeof feedbackGuard, 'string');
+// Penjaga kedua: keputusan render umpan balik per butir TIDAK BOLEH membaca
+// CFG. CFG di dalam html:<slug> dibekukan saat guru menyimpan, sedangkan
+// /api/submit membaca quiz:<slug> ulang tiap request. Begitu default sakelar
+// diubah di kode, kuis yang sudah dipublish punya CFG lama tapi server sudah
+// mengirim `benar` — hasil akhirnya data terkirim ke siswa sementara badge tidak
+// tampil, dan guru mengira tidak ada yang berubah. Badge harus ditentukan
+// keberadaan field `benar` di respons, karena itu server sudah menyaringnya.
+//
+// Flag ini pernah ada di CFG dan pernah jadi penjaga render. Assertion di bawah
+// sengaja mengunci penghapusannya supaya tidak ada yang mengembalikannya.
+const cfgFeedbackUses = lines
+  .map((line, i) => [i + 1, line])
+  .filter(([, line]) => line.includes('CFG.showItemFeedback'))
+  .map(([no, line]) => `baris ${no}: ${line.trim()}`);
+
 check(
-  'penjaga render tetap fail-closed (=== true)',
-  typeof feedbackGuard === 'string' && feedbackGuard.includes('=== true') && !feedbackGuard.includes('!== false'),
+  'render tidak pernah membaca sakelar umpan balik dari CFG',
+  cfgFeedbackUses,
+  []
+);
+
+// Sadari bahwa baris komentar di atas sengaja menyebut CFG.showItemFeedback, jadi
+// filter di atas harus menolak komentar juga — kalau tidak assertion ini akan
+// salah merah setiap kali komentarnya ditambah.
+const cfgCodeUses = lines
+  .map((line, i) => [i + 1, line])
+  .filter(([, line]) => !line.trim().startsWith('//') && line.includes('CFG.showItemFeedback'))
+  .map(([no, line]) => `baris ${no}: ${line.trim()}`);
+check('tidak ada kode yang memakai CFG.showItemFeedback', cfgCodeUses, []);
+
+// Badge harus tetap dirender dari keberadaan field, bukan dari flag.
+const badgeGuard = lines.find((line) => line.includes("if ('benar' in item)"));
+check('penjaga badge berdasar keberadaan field benar', typeof badgeGuard, 'string');
+check(
+  'penjaga badge tidak digabung dengan flag apa pun',
+  typeof badgeGuard === 'string' && badgeGuard.trim() === "if ('benar' in item) {",
   true
 );
 
