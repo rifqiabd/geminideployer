@@ -32,6 +32,7 @@
 - `PPDB_WHATSAPP` (public `vars`, not a secret) is the WhatsApp number for the dashboard banner's PPDB 2027/2028 call-to-action. The "Daftar Sekarang" button always renders; the number only makes it target the admin directly (without it, WhatsApp opens with the message ready and the sender picks the contact).
 - Preserve public behavior at `/p/:slug`. `/api/save/:slug` and `/api/submit/:slug` are aliases, and submissions for JSON quizzes are regraded server-side from `quiz:<slug>` before being stored in D1.
 - Keep legacy KV key formats and `app_records` payload compatibility when changing dashboard, editor, media, or report flows.
+- Browser-side per-student state on `/p/:slug` uses the `quiz-` localStorage prefix (`quiz-attempt:`, `quiz-started:`, `quiz-deadline:`, `quiz-student-name:`). A planned feature persists the last grading snapshot in `quiz-done:`/quiz-done-result:`; see `docs/plan-remember-result.md`. It is a localStorage-only convenience, never a lock, and it must never feed reports or `app_records`.
 
 ## Testing and changes
 - Tests directly import `.ts` modules; `tests/quiz.test.mjs` and the others cover quiz parsing/rendering/grading, media helpers, reports, and prompt documents; `tests/auth.test.mjs` covers the session/CSRF helpers. None exercise Worker HTTP routes, KV, or D1 behavior.
