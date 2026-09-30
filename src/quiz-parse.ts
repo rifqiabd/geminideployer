@@ -990,6 +990,10 @@ export function parseQuizSpec(raw: string): QuizSpec {
     features: [...features],
     stimuli,
     showExplanation: resolveBoolean(pick(obj, ['show_explanation', 'tampilkan_pembahasan'])) !== false,
+    // Default MATI: siswa tidak melihat status benar/salah per butir. Kunci
+    // jawaban sendiri selalu dibuang terpisah di publicGrading(), sakelar ini
+    // hanya soal umpan balik.
+    showItemFeedback: resolveBoolean(pick(obj, ['show_item_feedback', 'tampilkan_status_jawab'])) === true,
     questions,
   };
 }
@@ -1100,6 +1104,9 @@ export function quizToAuthoringSource(quiz: QuizSpec): Record<string, unknown> {
     duration_minutes: quiz.durationMinutes ?? 0,
     ...(quiz.identityFields === 'name_class' ? { identity_fields: 'name_class' } : {}),
     ...(quiz.showExplanation === false ? { show_explanation: false } : {}),
+    // Sama seperti show_explanation: hanya tulis saat tidak default, supaya
+    // JSON yang disimpan guru tetap ringkas dan key yang hilang = default mati.
+    ...(quiz.showItemFeedback ? { show_item_feedback: true } : {}),
     questions,
   };
 }

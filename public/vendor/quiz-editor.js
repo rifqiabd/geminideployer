@@ -859,6 +859,7 @@ if (type === 'true_false') {
   var kkmInput = document.getElementById('qe-kkm');
   var durationInput = document.getElementById('qe-duration');
   var identitySelect = document.getElementById('qe-identity');
+  var itemFeedbackInput = document.getElementById('qe-item-feedback');
   titleInput.value = state.title || '';
   descInput.value = state.description || '';
   kkmInput.value = state.passing_score === undefined ? 70 : state.passing_score;
@@ -867,6 +868,10 @@ if (type === 'true_false') {
   // duration_minutes: 0 di state dan tetap tampil 0 lewat `=== undefined`.
   durationInput.value = state.duration_minutes === undefined ? DEFAULT_DURATION_MINUTES : state.duration_minutes;
   identitySelect.value = state.identity_fields === 'name_class' ? 'name_class' : 'name';
+  // Default-nya MATI: kunci show_item_feedback yang hilang berarti siswa tidak
+  // melihat status benar/salah per butir. Sama dengan default parser di
+  // src/quiz-parse.ts, jadi `=== true` (bukan `!== false`) yang dipakai di sini.
+  itemFeedbackInput.checked = state.show_item_feedback === true;
 
   titleInput.addEventListener('input', function () { state.title = titleInput.value; markDirty(); });
   descInput.addEventListener('input', function () { state.description = descInput.value; markDirty(); });
@@ -886,6 +891,14 @@ if (type === 'true_false') {
   identitySelect.addEventListener('change', function () {
     if (identitySelect.value === 'name_class') state.identity_fields = 'name_class';
     else delete state.identity_fields;
+    markDirty();
+  });
+
+  itemFeedbackInput.addEventListener('change', function () {
+    // Sama seperti show_explanation: hapus kunci saat off supaya JSON yang
+    // disimpan tetap ringkas dan "kunci tidak ada" tetap berarti default mati.
+    if (itemFeedbackInput.checked) state.show_item_feedback = true;
+    else delete state.show_item_feedback;
     markDirty();
   });
 

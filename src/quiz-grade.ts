@@ -505,24 +505,40 @@ export function gradeSubmission(
 /* Bentuk untuk siswa                                                          */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Rincian baris yang boleh dilihat siswa: tanpa kunci dan tanpa status benar.
- *
- * `benar` per baris ikut dibuang karena status per soal sudah memberi jawaban
- * yang sama, dan baris yang dihijaukan/merahkan memberitahu jawaban tiap baris
- * hanya dengan satu kiriman.
- */
-export type PublicGradedStatement = Omit<GradedStatement, 'kunci' | 'benar'>;
+/** Opsi scrubbing untuk `publicGrading()`. */
+export type PublicGradingOptions = {
+  /**
+   * true = kirim `benar` + `poin` (umpan balik per butir). `kunci` tetap dibuang.
+   * Default false: status per butir membuka jalur menebak kunci lewat pengulangan.
+   */
+  itemFeedback?: boolean;
+};
 
 /**
- * Detail satu soal untuk siswa: kunci, status benar, dan poin per soal dibuang;
- * `statements` ikut dirapikan.
+ * Rincian baris yang boleh dilihat siswa: selalu tanpa kunci.
  *
- * `poin` (poin yang diperoleh) sengaja ikut dibuang bersama `benar`. Kalau
+ * `benar` per baris hanya ikut kalau `itemFeedback` menyala; kalau tidak, baris
+ * dihijaukan/merahkan akan memberitahu jawaban tiap baris hanya dengan satu
+ * kiriman.
+ */
+export type PublicGradedStatement = Omit<GradedStatement, 'kunci' | 'benar'> & {
+  /** Hanya ada kalau `itemFeedback` menyala. */
+  benar?: boolean;
+};
+
+/**
+ * Detail satu soal untuk siswa: `kunci` selalu dibuang, `statements` dirapikan.
+ *
+ * `benar` dan `poin` ikut dibuang bersama-sama saat `itemFeedback` mati. Kalau
  * `poin` masih dikirim, `poin > 0` sudah berarti "ada yang benar di soal ini"
- * sehingga triangulasi biner tetap jalan meski `benar` hilang.
+ * sehingga triangulasi biner tetap jalan meski `benar` hilang — jadi keduanya
+ * harus hilang bareng, bukan salah satu saja.
  */
 export type PublicGradedDetail = Omit<GradedDetail, 'kunci' | 'benar' | 'poin' | 'statements'> & {
+  /** Hanya ada kalau `itemFeedback` menyala. */
+  benar?: boolean | null;
+  /** Hanya ada kalau `itemFeedback` menyala. */
+  poin?: number;
   statements?: PublicGradedStatement[];
 };
 
@@ -530,36 +546,56 @@ export type PublicGradedDetail = Omit<GradedDetail, 'kunci' | 'benar' | 'poin' |
 export type PublicGradeResult = Omit<GradeResult, 'detail'> & { detail: PublicGradedDetail[] };
 
 /**
- * Buang kunci jawaban DAN umpan balik per butir dari hasil penilaian sebelum
- * dikirim ke browser siswa.
+ * Buang kunci jawaban dari hasil penilaian sebelum dikirim ke browser siswa.
  *
  * `gradeSubmission()` sengaja menyimpan `kunci`, `benar`, dan `poin` di `detail`
  * supaya rekap guru, koreksi esai, dan analisis butir soal di `/p/:slug/data`
- * tetap punya data lengkap. Ketiganya TIDAK boleh ikut ke siswa karena kuis
- * publik boleh diulang: dengan `benar` per soal, siswa cukup submit dengan
- * jawaban berbeda beberapa kali lalu melihat nomor soal mana yang berubah jadi
- * "Benar" — seluruh kunci kuis bisa diekstrak tanpa perlu menyalin `kunci` dari
- * DevTools. Menyembunyikan `kunci` saja tidak menutup jalur ini.
+ * tetap punya data lengkap. Ketiganya TIDAK boleh ikut ke siswa secara default
+ * karena kuis publik boleh diulang: dengan `benar` per soal, siswa cukup submit
+ * dengan jawaban berbeda beberapa kali lalu melihat nomor soal mana yang berubah
+ * jadi "Benar" — seluruh kunci kuis bisa diekstrak tanpa perlu menyalin `kunci`
+ * dari DevTools. Menyembunyikan `kunci` saja tidak menutup jalur ini.
  *
- * Yang tetap dikirim: nilai agregat (`score`, `points_earned`, `points_total`,
+ * Opsi `itemFeedback` (sakelar `show_item_feedback` di pengaturan aplikasi)
+ * mengembalikan `benar` + `poin` kalau guru memang minta umpan balik per butir
+ * untuk latihan. `kunci` tetap dibuang dalam kedua mode — sakelar itu soal
+ * umpan balik, bukan soal membocorkan kunci.
+ *
+ * Yang selalu dikirim: nilai agregat (`score`, `points_earned`, `points_total`,
  * `full_points`), bobot maksimum (`poin_maks`), nomor dan teks soal, jawaban
  * siswa sendiri, serta pembahasan. Pembahasan tidak disaring di sini karena itu
- * sudah dikendalikan terpisah lewat `show_explanation`; kalau pengajar ingin
- * mengembalikannya, `show_explanation` adalah sakelarnya.
+ * sudah dikendalikan terpisah lewat `show_explanation`.
  */
-export function publicGrading(graded: GradeResult): PublicGradeResult {
+export function publicGrading(graded: GradeResult, options: PublicGradingOptions = {}): PublicGradeResult {
+  const keepFeedback = options.itemFeedback === true;
+  // `kunci` dibuang di semua mode. `benar`/`poin` (per soal dan per baris)
+  // ikut sakelar. Satu tempat scrubbing supaya kedua mode tidak bisa berbeda
+  // diam-diam — dan `statements` HARUS dirakit ulang di kedua cabang, kalau
+  // hanya di satu, rincian kategori hilang dari respons siswa.
+  const scrubItem = (item: GradedDetail): Record<string, unknown> => {
+    const { kunci, statements, ...rest } = item;
+    void kunci;
+    const rows = !statements || !statements.length
+      ? undefined
+      : statements.map((row) => {
+          const { kunci: _kunci, ...rowRest } = row;
+          if (keepFeedback) return rowRest;
+          const { benar, ...tanpaStatus } = rowRest;
+          void benar;
+          return tanpaStatus;
+        });
+    if (!keepFeedback) {
+      const { benar, poin, ...tanpaStatus } = rest;
+      void benar;
+      void poin;
+      return rows ? { ...tanpaStatus, statements: rows } : tanpaStatus;
+    }
+    return rows ? { ...rest, statements: rows } : rest;
+  };
+
   return {
     ...graded,
-    // Sisa dari destructuring: `kunci`, `benar`, dan `poin` dibuang dengan
-    // sengaja, TypeScript tidak melaporkannya karena ada rest sibling (`rest`).
-    detail: (graded.detail ?? []).map((item) => {
-      const { kunci, benar, poin, statements, ...rest } = item;
-      if (!statements || !statements.length) return rest;
-      return {
-        ...rest,
-        statements: statements.map(({ kunci: _kunci, benar: _benar, ...rowRest }) => rowRest),
-      };
-    }),
+    detail: (graded.detail ?? []).map(scrubItem) as PublicGradedDetail[],
   };
 }
 

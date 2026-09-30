@@ -265,8 +265,18 @@ body {
 
 .q-review { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
 .q-review-item { border: 1px solid var(--q-border); border-left-width: 4px; border-radius: 11px; padding: 12px 14px; background: var(--q-field); }
+/* Warna + badge status hanya dipakai saat aplikasi menyalakan show_item_feedback.
+   Default-nya kuis tidak mengirim status per butir sama sekali, jadi selector
+   ini biasanya tidak akan match. */
+.q-review-item.q-ok { border-left-color: var(--q-ok); }
+.q-review-item.q-no { border-left-color: var(--q-no); }
+.q-review-item.q-pending { border-left-color: var(--q-warn); }
 .q-review-q { font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
 .q-review-a { font-size: 13px; color: var(--q-text); }
+.q-review-status { float: right; font-size: 11px; font-weight: 700; }
+.q-review-item.q-ok .q-review-status { color: var(--q-ok); }
+.q-review-item.q-no .q-review-status { color: var(--q-no); }
+.q-review-item.q-pending .q-review-status { color: var(--q-warn); }
 
 /* ---------- Konten kaya dalam soal ---------- */
 .q-text img, .q-img { max-width: 100%; height: auto; border-radius: 11px; border: 1px solid var(--q-border); display: block; margin: 10px 0; }
@@ -355,9 +365,13 @@ body {
 }
 
 /* ---------- Pembahasan & rincian kategori di layar hasil ---------- */
+.q-review-item.q-partial { border-left-color: var(--q-warn); }
+.q-review-item.q-partial .q-review-status { color: var(--q-warn); }
 .q-review-statements { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
 .q-review-statements th, .q-review-statements td { border: 1px solid var(--q-border); padding: 5px 8px; text-align: left; }
 .q-review-statements th { background: var(--q-surface-2); font-size: 11px; color: var(--q-muted); }
+.q-review-statements tr.q-ok td:last-child { color: var(--q-ok); font-weight: 600; }
+.q-review-statements tr.q-no td:last-child { color: var(--q-no); font-weight: 600; }
 .q-review-expl {
   margin-top: 8px; padding: 9px 12px; background: color-mix(in srgb, var(--q-info) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--q-info) 30%, transparent);

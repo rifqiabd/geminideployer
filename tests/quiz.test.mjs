@@ -1501,22 +1501,58 @@ check('bocor: jawaban siswa tetap ada', bocorPub.detail[0].jawaban.length > 0, t
 check('bocor: pembahasan tetap ada saat show_explanation', bocorPub.detail[0].pembahasan.length > 0, true);
 check('bocor: jawaban baris statements tetap ada', bocorPub.detail[2].statements.every((s) => 'text' in s && 'jawaban' in s), true);
 
-// 6) Halaman hasil siswa tidak boleh menampilkan kunci maupun status benar per
-//    butir — termasuk untuk halaman html:<slug> lama yang masih menyimpan HTML
-//    versi sebelumnya.
+// 6) Halaman hasil tidak boleh menampilkan kunci dalam keadaan APA pun, dan
+//    badge status harus selalu DIKUNCI di balik sakelar show_item_feedback —
+//    bukan dihapus, karena guru boleh menyalakannya untuk latihan.
 const bocorHtml = renderQuizApp(bocorSpec, 'uji-bocor');
 check('bocor: halaman hasil tidak merender label Kunci', bocorHtml.includes("'Kunci: '"), false);
 check('bocor: halaman hasil tidak merender kolom Kunci', bocorHtml.includes("el('th', null, 'Kunci')"), false);
 check('bocor: tidak ada teks "Kunci:" di HTML hasil', /Kunci: /.test(bocorHtml), false);
-check('bocor: halaman hasil tidak merender badge status', bocorHtml.includes('q-review-status'), false);
-check('bocor: halaman hasil tidak merender "Benar (+...)"', bocorHtml.includes("'Benar (+'"), false);
-check('bocor: halaman hasil tidak merender "Sebagian benar"', bocorHtml.includes("'Sebagian benar (+'"), false);
-check('bocor: halaman hasil tidak mewarnai baris statements', bocorHtml.includes("statement.benar ? 'q-ok' : 'q-no'"), false);
-check('bocor: halaman hasil tidak membaca item.benar', /item\.benar/.test(bocorHtml), false);
-check('bocor: halaman hasil hanya membaca nilai agregat', bocorHtml.includes('grading.points_earned'), true);
-// Draft harus dibuang setelah submit sukses, kalau tidak reload memunculkan
-// banner "lanjutkan jawaban" untuk attempt yang sudah terkirim.
+check('bocor: default aplikasi mematikan umpan balik per butir', bocorSpec.showItemFeedback, false);
+check('bocor: CFG menyuntikkan showItemFeedback', bocorHtml.includes('"showItemFeedback":false'), true);
+check('bocor: badge status dikunci di balik sakelar', bocorHtml.includes("if (withFeedback && 'benar' in item)"), true);
+check('bocor: sakelar dibaca dari CFG, bukan hardcode', bocorHtml.includes('var withFeedback = CFG.showItemFeedback === true'), true);
+check('bocor: warna baris statements juga dikunci sakelar', bocorHtml.includes("withFeedback && 'benar' in statement"), true);
+check('bocor: tidak ada pembacaan item.benar tanpa penjaga', /if \(withFeedback && 'benar' in item\)/.test(bocorHtml), true);
 check('bocor: draft dihapus setelah submit sukses', bocorHtml.includes('localStorage.removeItem(ATTEMPT_KEY)'), true);
+
+// 7) Sakelar show_item_feedback NYALA: umpan balik per butir ikut dikirim
+//    supaya guru bisa memakainya untuk latihan, tapi kunci jawaban tetap
+//    dibuang. Ini batas yang tidak boleh bocor di mode mana pun.
+const bocorPubFeedback = publicGrading(bocorFull, { itemFeedback: true });
+check('toggle: status benar ikut dikirim saat sakelar nyala', bocorPubFeedback.detail.every((d) => 'benar' in d), true);
+check('toggle: poin per soal ikut dikirim saat sakelar nyala', bocorPubFeedback.detail.every((d) => 'poin' in d), true);
+check('toggle: status benar per baris ikut dikirim', bocorPubFeedback.detail.every((d) => (d.statements ?? []).every((s) => 'benar' in s)), true);
+check('toggle: KUNCI tetap dibuang saat sakelar nyala', bocorPubFeedback.detail.every((d) => !('kunci' in d)), true);
+check('toggle: KUNCI per baris tetap dibuang saat sakelar nyala', bocorPubFeedback.detail.every((d) => (d.statements ?? []).every((s) => !('kunci' in s))), true);
+check('toggle: tidak ada Kunci: di respons mana pun', JSON.stringify(bocorPubFeedback).includes('"kunci"'), false);
+check('toggle: nilai agregat tetap sama dengan mode mati', bocorPubFeedback.score, bocorPub.score);
+// Opsi yang tidak diteruskan (undefined) harus sama dengan default mati.
+const bocorPubDefault = publicGrading(bocorFull, {});
+check('toggle: opsi kosong = mode mati', bocorPubDefault.detail.every((d) => !('benar' in d) && !('poin' in d)), true);
+check('toggle: itemFeedback falsy apa pun bukan nyala', publicGrading(bocorFull, { itemFeedback: 0 }).detail.every((d) => !('benar' in d)), true);
+check('toggle: scrubbing mode nyala tidak merusak payload D1', bocorFull.detail.every((d) => 'kunci' in d && 'benar' in d && 'poin' in d), true);
+check('toggle: mode nyala tidak share objek dengan aslinya', bocorPubFeedback.detail.every((d) => !bocorFull.detail.includes(d)), true);
+
+// 8) Spec: parse + round-trip sakelar, supaya guru tidak kehilangan pilihannya
+//    hanya karena menyimpan ulang di editor. Soal diambil dari
+//    quizToAuthoringSource() karena parseQuizSpec membaca bentuk TULIS guru
+//    (options/answer/keys), bukan bentuk internal yang sudah dinormalisasi.
+const toggleQuestions = quizToAuthoringSource(bocorSpec).questions;
+const toggleSource = (extra) => JSON.stringify({ title: 'Latihan', ...extra, questions: toggleQuestions });
+const toggleSpecOn = parseQuizSpec(toggleSource({ show_item_feedback: true }));
+const toggleSpecOff = parseQuizSpec(toggleSource({}));
+const toggleSpecFalse = parseQuizSpec(toggleSource({ show_item_feedback: false }));
+check('toggle: parse mengaktifkan sakelar', toggleSpecOn.showItemFeedback, true);
+check('toggle: parse default = mati', toggleSpecOff.showItemFeedback, false);
+check('toggle: parse explicit false = mati', toggleSpecFalse.showItemFeedback, false);
+check('toggle: alias Indonesia dihormati', parseQuizSpec(toggleSource({ tampilkan_status_jawab: true })).showItemFeedback, true);
+check('toggle: round-trip menulis kunci saat nyala', quizToAuthoringSource(toggleSpecOn).show_item_feedback, true);
+check('toggle: round-trip tidak menulis kunci saat mati', 'show_item_feedback' in quizToAuthoringSource(toggleSpecOff), false);
+check('toggle: parse->tulis->parse mempertahankan sakelar', parseQuizSpec(JSON.stringify(quizToAuthoringSource(toggleSpecOn))).showItemFeedback, true);
+check('toggle: parse->tulis->parse mempertahankan keadaan mati', parseQuizSpec(JSON.stringify(quizToAuthoringSource(toggleSpecOff))).showItemFeedback, false);
+// Sakelar tidak boleh mengubah pertanyaan sama sekali saat putar balik.
+check('toggle: round-trip tidak mengubah isi soal', quizToAuthoringSource(toggleSpecOn).questions.length, toggleQuestions.length);
 
 console.log(failed === 0 ? '\nSemua tes lulus.' : `\n${failed} tes GAGAL.`);
 process.exit(failed === 0 ? 0 : 1);

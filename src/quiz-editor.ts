@@ -137,6 +137,9 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
     .field input[type=text],.field input[type=number],.field textarea,.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13.5px;color:var(--text);outline:none;transition:border-color .15s}
     .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent)}
     .field .note{font-size:11px;color:var(--text-faint);margin-top:5px}
+    .field .note.warn{color:var(--warn,#c2760a)}
+    .field .toggle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;margin-bottom:0}
+    .field .toggle input{width:auto;accent-color:var(--accent);flex:none;margin:0}
     .field.number{max-width:160px}
     .list-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .list-head h2{font-size:14px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px}
@@ -272,6 +275,13 @@ export function registerQuizEditorRoutes<E extends { Bindings: MediaBindings }>(
           <option value="name_class">Nama + kelas (dua kolom, kelas wajib)</option>
         </select>
         <p class="note">Kelas tersimpan terpisah di rekap supaya mudah difilter per kelas.</p>
+      </div>
+      <div class="field">
+        <label class="toggle">
+          <input type="checkbox" id="qe-item-feedback">
+          <span>Tampilkan status benar/salah per soal</span>
+        </label>
+        <p class="note warn">Mati = siswa hanya melihat nilai total, soal, dan jawabannya sendiri (aman dari tebak kunci). Nyalakan hanya untuk latihan yang memang perlu umpan balik per soal. Ingat: link kuis publik boleh dikerjakan berulang, jadi saat ini nyala siswa bisa menebak kunci dengan mencoba jawaban berulang lalu melihat soal mana yang berubah status. Kunci jawaban sendiri tetap tidak pernah dikirim ke browser.</p>
       </div>
     </div>
 
