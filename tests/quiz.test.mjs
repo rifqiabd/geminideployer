@@ -63,6 +63,24 @@ const jawaHtml = renderQuizApp(jawaSpec, 'uji-jawa');
 check('paragraf aksara jawa dibungkus .q-jv', jawaHtml.includes('<div class="q-jv">'), true);
 check('aksara jawa inline dibungkus .q-jv-inline', jawaHtml.includes('q-jv-inline'), true);
 
+// Normalisasi jawaban Jawa: angka Jawa (U+A9D0-A9D9) harus cocok dengan kunci
+// angka Latin, dan tanda baca Jawa ikut ter-strip seperti tanda baca biasa.
+const jawaGradeSpec = parseQuizSpec(
+  JSON.stringify({
+    title: 'Isian Basa Jawa',
+    questions: [
+      { type: 'short', question: 'Pira rakaat?', answer: ['3'] },
+      { type: 'short', question: 'Sawetara sasi witty ora ngluyu.', answer: ['ꦱꦮꦭꦗꦪ'] },
+    ],
+  })
+);
+const jawaG = gradeSubmission(jawaGradeSpec, [
+  { id: 'q1', value: '꧓' }, // angka Jawa 3
+  { id: 'q2', value: '꧋ ꦱꦮꦭꦗꦪ ꧉' }, // dikurawal bacaan Jawa
+]);
+check('angka Jawa vs kunci angka Latin', jawaG.detail[0].benar, true);
+check('tanda baca Jawa di-strip', jawaG.detail[1].benar, true);
+
 const grade = (answers) => gradeSubmission(spec, answers);
 
 const g1 = grade([

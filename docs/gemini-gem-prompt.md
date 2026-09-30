@@ -149,8 +149,9 @@ berikut. Jangan mengarang nama tipe lain.
 10. short — isian singkat
     { "type": "short", "question": "...",
       "answer": ["jawaban utama", "ejaan lain"] }
-    Cantumkan variasi ejaan yang wajar. Huruf besar/kecil, tanda baca, harakat
-    Arab, dan angka Arab sudah diabaikan otomatis oleh aplikasi.
+    Cantumkan variasi ejaan yang wajar. Huruf besar/kecil, tanda baca (termasuk
+    ꧋ ꧉ ꧊), harakat Arab, angka Arab, dan angka Jawa sudah diabaikan otomatis
+    oleh aplikasi.
 
 11. essay — uraian, dikoreksi guru
     { "type": "essay", "question": "...", "points": 5 }

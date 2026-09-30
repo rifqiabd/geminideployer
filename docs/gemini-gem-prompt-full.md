@@ -295,6 +295,29 @@ Kalau `$`-nya hilang karena salah ketik, parser tetap membungkus potongan matema
 
 Sistem mendeteksi sendiri fitur yang dibutuhkan (rumus, huruf Arab, Aksara Jawa, tabel, kode, gambar, audio) dan hanya memuat pustaka pendukung yang perlu. Teks Arab dan Aksara Jawa otomatis dirender dengan font khusus, jadi tulis Arab atau aksara Jawa apa adanya.
 
+### 3.7 Tulisan Arab dan Aksara Jawa (Jawa/Hanacaraka)
+
+Untuk soal bahasa Arab, bahasa Jawa, atau aksara Jawa, **tulis aksaranya apa adanya** di `question`, `options`, `statements[].text`, `explanation`, dan terutama di kunci jawaban. Jangan transliterasi ke Latin, jangan menulis escape unicode seperti `\uA984`, dan jangan menandai kata dengan tag HTML apa pun.
+
+Aplikasi sudah menyediakan fontnya: Amiri untuk Arab, Noto Sans Javanese untuk Jawa (disimpan lokal, bukan CDN). Baris yang isinya aksara otomatis diberi blok baca `.q-ar` atau `.q-jv`, dan potongan aksara di dalam kalimat diberi `.q-ar-inline` atau `.q-jv-inline` — jadi arah Arab (RTL) dan proporsi Jawa sudah benar tanpa kamu menulis CSS.
+
+**Yang sudah dilewati otomatis saat pencocokan jawaban** (oleh `normalizeAnswer` di server), sehingga kamu tidak perlu accomodate variasi ini di kunci:
+
+- huruf besar/kecil (Aksara Jawa memang tidak punya huruf besar);
+- semua tanda baca, termasuk tanda baca Jawa ꧋ ꧉ ꧊;
+- harakat Arab: fathah, kasrah, dhammah, sukun, tasydid, shaddah, dan harakat maddah;
+- hamza seragam: أ إ آ ٱ → ا;
+- alif maqsura ى → ي, ta marbuta ة → ه, dan tatweel ـ dihapus;
+- angka Arab-Indic ٠-٩ dan ۰-۹ **serta angka Jawa ꧐-꧙** → angka Latin.
+
+**Yang TIDAK dilewati** — ini alasan kamu tetap harus menulis kunci dengan rapi:
+
+- salah ejaan, dan beda panjang/s pendek yang bukan beda huruf;
+- pasangan aksara Jawa yang tidak lengkap. Aksara Jawa adalah abugida: setiap pasangan (konsonan + vokal) adalah satu kode karakter, dan pasangan sebagai tanda harus menempel pada konsonan di depannya. `ꦏꦲ` (kan) berbeda dari `ꦏ` + pasangan lepas, dan tidak diseragamkan.
+- varian penulisan lain di luar daftar di atas. Untuk `short` dan `table_fill`, cantumkan semua ejaan yang wajar sebagai daftar jawaban, seperti biasa.
+
+Kalau deteksi otomatis ternyata tidak aktif untuk aksara yang sangat pendek, kamu bisa memaksa lewat field `features` di objek root, nilainya `"jawa"` atau `"arabic"` (alias yang juga diterima: `hanacaraka`, `carakan`, `aksara_jawa`, `javanese`, `arab`, `arabika`, `rtl`). Umumnya tidak perlu — cukup dengan menulis aksarnya.
+
 ---
 
 ## 4. STANDAR PENYUSUNAN BUTIR SOAL
@@ -505,4 +528,5 @@ Satu-satunya yang Anda tulis adalah isi soalnya: pertanyaan, pilihan, kunci, bob
 - [ ] Semua nama slot gambar sudah terkumpul di DAFTAR GAMBAR YANG PERLU DIUNGGAH.
 - [ ] `items` pada soal `ordering` sudah dalam urutan benar; `{ }` pada soal `highlight` hanya mengapit kata yang boleh diklik.
 - [ ] Setiap `statements[].answer` (kategori) dan `answer` (true_false) berisi **tepat satu** boolean (`true`/`false`), bukan array atau pasangan nilai.
+- [ ] Soal bertulisan Arab atau Aksara Jawa ditulis lengkap dan rapi di kuncinya — tidak menggantungkan kebenaran penilaian pada toleransi normalisasi (lihat 3.7).
 - [ ] JSON valid: kutip ganda, koma antarbutir benar, tidak ada komentar.

@@ -27,7 +27,8 @@ export function escapeHtml(value: unknown): string {
 /**
  * Normalisasi untuk pencocokan jawaban.
  * Toleran terhadap: harakat/tanda Arab, hamza (أ/إ/آ -> ا), alif maqsura (ى -> ي),
- * ta marbuta (ة -> ه), tatweel, huruf besar-kecil, dan tanda baca.
+ * ta marbuta (ة -> ه), tatweel, angka Arab-Indic dan angka Jawa, huruf
+ * besar-kecil, dan tanda baca (termasuk ꧋ ꧉ ꧊).
  */
 export function normalizeAnswer(text: string): string {
   return String(text)
@@ -44,6 +45,10 @@ export function normalizeAnswer(text: string): string {
     // Angka Arab (٠-٩ dan ۰-۹) disamakan dengan angka Latin.
     .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
     .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    // Angka Jawa (꧐-꧙) juga disamakan dengan angka Latin, supaya isian angka
+    // Jawa tidak salah menilai. Aman di sini: NFKD tidak merusak karakter Jawa,
+    // dan rentangnya terpisah dari sandhangan/pangkon di U+A980-A9CF.
+    .replace(/[\uA9D0-\uA9D9]/g, (digit) => String(digit.charCodeAt(0) - 0xA9D0))
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
