@@ -14,7 +14,7 @@
 
 import type { Hono } from 'hono';
 import { csrfFor, getSession, safeSlug, verifyCsrfFromRequest } from './auth';
-import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz';
+import { escapeHtml, formatRecordStamp, gradeSubmission, mediaBaseFor, parseQuizSpec } from './quiz';
 import type { GradeResult, QuizSpec } from './quiz';
 import type { MediaBindings } from './media';
 import { messageCard } from './ui-card.ts';
@@ -122,7 +122,7 @@ export function registerEssayGradingRoutes<E extends { Bindings: EssayBindings }
         <div class="e-card-head">
           <div>
             <h3 class="e-name">${escapeHtml(entry.name)}${entry.className ? `<span class="e-class"> · ${escapeHtml(entry.className)}</span>` : ''}</h3>
-            <p class="e-time">${escapeHtml(entry.createdAt)}</p>
+            <p class="e-time">${escapeHtml(formatRecordStamp(entry.createdAt))}</p>
             <p class="js-summary e-summary">${escapeHtml(summaryLine(entry.payload))}</p>
           </div>
           <span class="js-badge e-badge ${

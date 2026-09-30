@@ -5,7 +5,10 @@
 // Ikuti pola tests/quiz.test.mjs: helper check() sendiri lalu process.exit
 // berdasarkan penghitung kegagalan, supaya bisa dijalankan terpisah maupun
 // dirangkai di package.json.
-import { parseStamp, relTime, stampNow } from '../src/quiz-util.ts';
+import { formatRecordStamp, parseStamp, relTime, stampNow } from '../src/quiz-util.ts';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 let failed = 0;
 const check = (label, actual, expected) => {
@@ -111,6 +114,55 @@ check(
 );
 
 check('urutan: daftar kosong aman', urut([]), []);
+
+/* -------------------------------------------------------------------------- */
+/* formatRecordStamp                                                          */
+/* -------------------------------------------------------------------------- */
+
+// `app_records.created_at` diisi `DEFAULT CURRENT_TIMESTAMP` di D1, jadi
+// bentuknya `YYYY-MM-DD HH:MM:SS` TANPA penanda zona dan selalu UTC. Semua
+// di bawah menuliskan bentuk itu persis, bukan ISO, supaya tesnya naik kalau
+// skema D1 berubah.
+//
+// Konversi ke WIB harus tepat 7 jam, dan melintasi tengah malam harus ikut
+// menggeser HARI dan TAHUN, bukan cuma jam.
+
+check('formatRecordStamp: D1 +7 jam', formatRecordStamp('2026-03-01 08:00:00'), '1 Mar 2026, 15:00 WIB');
+check('formatRecordStamp: melintasi tengah malam menggeser hari', formatRecordStamp('2026-03-01 17:00:00'), '2 Mar 2026, 00:00 WIB');
+check('formatRecordStamp: tengah malam menggeser bulan dan tahun', formatRecordStamp('2025-12-31 17:00:00'), '1 Jan 2026, 00:00 WIB');
+check('formatRecordStamp: jam satu digit tetap dua digit', formatRecordStamp('2026-03-01 00:00:00'), '1 Mar 2026, 07:00 WIB');
+check('formatRecordStamp: menit tidak hilang', formatRecordStamp('2026-03-01 08:05:00'), '1 Mar 2026, 15:05 WIB');
+check('formatRecordStamp: dua digit jam, nol di depan', formatRecordStamp('2026-09-01 00:00:00'), '1 Sep 2026, 07:00 WIB');
+
+// Bentuk bersuffix Z sudah punya zona, jadi TIDAK boleh digeser lagi. Ini
+// regresi yang paling mungkin muncul kalau ada penyesuaian di kemudian hari.
+check('formatRecordStamp: ISO dengan Z tidak digeser dua kali', formatRecordStamp('2026-03-01T08:00:00.000Z'), '1 Mar 2026, 15:00 WIB');
+check('formatRecordStamp: offset eksplisit dipakai apa adanya', formatRecordStamp('2026-03-01T15:00:00+07:00'), '1 Mar 2026, 15:00 WIB');
+
+// Nilai rusak harus jadi string kosong, bukan "NaN" atau "Invalid Date".
+// D1 bisa mengembalikan NULL di kolom mana pun, dan `String(null)` adalah
+// "null" — tanpa guard ini satu baris bisa menggagalkan seluruh halaman.
+check('formatRecordStamp: null -> kosong', formatRecordStamp(null), '');
+check('formatRecordStamp: undefined -> kosong', formatRecordStamp(undefined), '');
+check('formatRecordStamp: string kosong -> kosong', formatRecordStamp(''), '');
+check('formatRecordStamp: spasi saja -> kosong', formatRecordStamp('   '), '');
+check('formatRecordStamp: teks sampah -> kosong', formatRecordStamp('bukan tanggal'), '');
+check('formatRecordStamp: tidak melempar untuk input aneh', (() => { try { formatRecordStamp([]); return 'aman'; } catch { return 'lempar'; } })(), 'aman');
+check('formatRecordStamp: hasil tidak pernah memuat NaN', /NaN/.test(formatRecordStamp('bukan tanggal')), false);
+
+// Tiga tempat yang menampilkan cap waktu kiriman harus lewat helper ini.
+// Dicek dari teks sumber, bukan dari output, supaya ada yang menahan kalau ada
+// yang kembali men-cetak cap waktu mentah.
+//
+// Polanya harus menerima `created_at` (D1) maupun `createdAt` (payload halaman
+// esai) — dua nama yang berbeda untuk hal yang sama.
+const rawStamp = /escapeHtml\(\s*(?:[A-Za-z_$][\w$]*\.)?created_?[aA]t\s*\)/;
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+for (const rel of ['src/records.ts', 'src/record-detail.ts', 'src/quiz-essay.ts']) {
+  const src = readFileSync(path.join(root, rel), 'utf8');
+  check(`${rel}: pakai formatRecordStamp`, src.includes('formatRecordStamp('), true);
+  check(`${rel}: tidak lagi mencetak cap waktu mentah`, rawStamp.test(src), false);
+}
 
 console.log(failed === 0 ? '\nSemua tes lulus.' : `\n${failed} tes GAGAL.`);
 process.exit(failed === 0 ? 0 : 1);

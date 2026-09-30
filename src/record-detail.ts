@@ -12,7 +12,7 @@
  *     pernyataan, nama, kelas, dan apa pun dari payload app non-kuis.
  *     Menyimpang dari aturan ini berarti XSS dari kiriman siswa.
  * ========================================================================== */
-import { escapeHtml, HLJS_BASE, KATEX_BASE } from './quiz.ts';
+import { escapeHtml, formatRecordStamp, HLJS_BASE, KATEX_BASE } from './quiz.ts';
 import type { GradedDetail, GradedStatement } from './quiz.ts';
 
 /* Bentuk payload yang dibaca popup ini. Sama dengan payload yang ditulis
@@ -258,7 +258,7 @@ export function renderRecordDetail(input: RecordDetailInput): string {
   return `<div class="rd-idcard">
         <div class="rd-idcard-main">
           <p class="rd-name">${escapeHtml(nama)}</p>
-          <p class="rd-meta">${kelas}<span class="rd-meta-sep">·</span>${escapeHtml(createdAt)}<span class="rd-meta-sep">·</span><span class="rd-mono">${escapeHtml(id)}</span></p>
+          <p class="rd-meta">${kelas}<span class="rd-meta-sep">·</span>${escapeHtml(formatRecordStamp(createdAt))}<span class="rd-meta-sep">·</span><span class="rd-mono">${escapeHtml(id)}</span></p>
         </div>
       </div>
       ${renderScoreStrip(payload)}

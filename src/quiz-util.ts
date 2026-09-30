@@ -382,6 +382,43 @@ function wibDayStart(ms: number): number {
 }
 
 /**
+ * Cap waktu `app_records` (D1) menjadi label jam Indonesia, misal
+ * "1 Mar 2026, 15:00 WIB".
+ *
+ * Berbeda dari cap waktu di KV, kolom `created_at` di D1 diisi
+ * `DEFAULT CURRENT_TIMESTAMP` yang menghasilkan `2026-03-01 08:00:00`:
+ * bentuk `YYYY-MM-DD HH:MM:SS` TANPA penanda zona. `Date.parse` membaca
+ * bentuk seperti itu sebagai waktu LOKAL mesin, jadi `parseStamp` tidak boleh
+ * dipakai langsung di sini — di Worker itu kebetulan benar karena TZ=UTC, tapi
+ * itu tebakan yang salah secara semantik dan akan pecah begitu Worker
+ * dijalankan di mesin dengan zona lain. Karena itu bentuk tanpa offset
+ * dipaksa jadi UTC lebih dulu.
+ *
+ * Bentuk bersuffix `Z` atau offset eksplisit tetap diterima apa adanya, supaya
+ * helper ini tidak bergeser dua kali kalau suatu saat ada yang menulis ISO
+ * penuh ke kolom yang sama.
+ *
+ * Mengembalikan string kosong kalau tanggalnya tidak ada atau tidak bisa
+ * dibaca, sehingga pemanggil cukup menamparkannya tanpa cek tambahan. Ini juga
+ * yang mencegah satu baris `created_at` bernilai NULL membuat seluruh halaman
+ * gagal: `String(null)` adalah "null", bukan tanggal.
+ */
+export function formatRecordStamp(raw: unknown): string {
+  const text = String(raw ?? '').trim();
+  if (!text) return '';
+
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+  const iso = hasZone ? text : text.replace(' ', 'T') + 'Z';
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return '';
+
+  const wib = new Date(ms + WIB_OFFSET_MINUTES * 60000);
+  const hh = String(wib.getUTCHours()).padStart(2, '0');
+  const mm = String(wib.getUTCMinutes()).padStart(2, '0');
+  return `${wib.getUTCDate()} ${MONTH_SHORT[wib.getUTCMonth()]} ${wib.getUTCFullYear()}, ${hh}:${mm} WIB`;
+}
+
+/**
  * Label tanggal yang dipakai di sidebar dan panel detail:
  * "Hari ini" / "Kemarin" / "3 hari lalu" / "27 Sep 2026".
  *

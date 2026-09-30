@@ -3,9 +3,11 @@
  *   POST /api/save/:slug & /api/submit/:slug — simpan kiriman siswa (kuis JSON
  *        dinilai ulang di server supaya skor tidak bisa dipalsukan browser).
  *   GET  /p/:slug/data — rekap admin: riwayat kiriman, antrean esai, analisis.
+ *   GET  /p/:slug/data/record?id= — isi popup "Lihat Jawaban" untuk satu
+ *        kiriman; mencocokkan app_slug, bukan cuma id.
  * ========================================================================== */
 import type { Context, Hono } from 'hono';
-import { escapeHtml, gradeSubmission, mediaBaseFor, parseQuizSpec, publicGrading } from './quiz';
+import { escapeHtml, formatRecordStamp, gradeSubmission, mediaBaseFor, parseQuizSpec, publicGrading } from './quiz';
 import type { QuizSpec } from './quiz';
 import { computeItemAnalysis, renderItemAnalysis } from './quiz-report';
 import { RECORD_DIALOG_CSS, renderRecordAssetsScript, renderRecordDetail, renderRecordDialog, renderSummaryCell } from './record-detail.ts';
@@ -422,7 +424,7 @@ app.get('/p/:slug/data', async (c) => {
                     : escapeHtml(r.user_id);
                   return `
                   <tr class="r-row">
-                    <td class="r-cell r-nowrap tone-muted">${escapeHtml(r.created_at)}</td>
+                    <td class="r-cell r-nowrap tone-muted">${escapeHtml(formatRecordStamp(r.created_at))}</td>
                     <td class="r-cell r-id">${identitas}</td>
                     <td class="r-cell r-num">${rusak ? '<span class="tone-bad">Data rusak</span>' : renderSummaryCell(payload)}</td>
                     <td class="r-cell">
